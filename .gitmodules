@@ -1,0 +1,6 @@
+[submodule "Dependencies/arcana.cpp"]
+	path = Dependencies/arcana.cpp
+	url = https://github.com/microsoft/arcana.cpp
+[submodule "Dependencies/eigen"]
+	path = Dependencies/eigen
+	url = https://gitlab.com/libeigen/eigen
