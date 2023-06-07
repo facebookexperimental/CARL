@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 set(SOURCES
-    "include/carl/carl.h"
+    "include/carl/Carl.h"
     "include/carl/Definition.h"
     "include/carl/Example.h"
     "include/carl/InputSample.h"
