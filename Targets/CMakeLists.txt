@@ -18,7 +18,7 @@ if(NOT EMSCRIPTEN)
         target_compile_definitions(carl_shared_library PRIVATE CARL_PLATFORM_WINDOWS)
     endif()
     if(ANDROID)
-        set_property(TARGET carl_shared_library PROPERTY CMAKE_POSITION_INDEPENDENT_CODE ON)
+        set_property(TARGET carl_shared_library PROPERTY POSITION_INDEPENDENT_CODE ON)
     endif()
 endif()
 
