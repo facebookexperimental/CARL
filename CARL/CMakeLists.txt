@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 set(SOURCES
-#     "include/carl/carl.h"
+    "include/carl/carl.h"
     "include/carl/Definition.h"
     "include/carl/Example.h"
     "include/carl/InputSample.h"
@@ -30,3 +30,6 @@ add_library(carl_core ${SOURCES})
 target_include_directories(carl_core PUBLIC "include")
 target_link_libraries(carl_core PUBLIC arcana eigen)
 set_property(TARGET carl_core PROPERTY FOLDER "CARL")
+if(ANDROID)
+    set_property(TARGET carl_core PROPERTY CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()

@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include <carl/carl.h>
+#include <carl/Carl.h>
 
 #ifdef CARL_PLATFORM_WINDOWS
 #define C_API_EXPORT(ReturnT) __declspec(dllexport) ReturnT __cdecl
