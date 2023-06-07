@@ -42,12 +42,35 @@ discussed in this document.
    cmake ../CARL
    ```
 
+### Building for Android on with the NDK
+
+These instructions are known to work on Linux. Note that this only works on 
+a full real Linux install; the NDK CMake integration does not currently seem
+to work well on Windows Subsystem for Linux, unfortunately.
+
+1. Download and unzip the [NDK](https://developer.android.com/ndk/downloads).
+1. Set up a CARL repository as described [above](@standard-repo-set-up),
+   omitting the build system creation.
+1. Invoke CMake using 
+   [CMake's built-in Android integration](https://cmake.org/cmake/help/latest/manual/cmake-toolchains.7.html#cross-compiling-for-android).
+   If you need to choose Android platform settings other than the 
+   defaults, they should likely be specified in this step.
+   ```
+   cmake ../CARL -D CMAKE_SYSTEM_NAME=Android -D CMAKE_ANDROID_NDK=[NDK root directory]
+   ```
+1. Build the `carl_shared_library` target to produce a `.so` which can be 
+   used in Android applications.
+   ```
+   make carl_shared_library
+   ```
+
 ### Building for WebAssembly with Emscripten
 
 1. Set up Emscripten using the 
    [recommended emsdk instructions](https://emscripten.org/docs/getting_started/downloads.html#installation-instructions-using-the-emsdk-recommended).
    On Windows, it is highly recommended to do this using the
-   [Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/install) to set up the build in a Unix-like environment.
+   [Windows Subsystem for Linux](https://learn.microsoft.com/en-us/windows/wsl/install) 
+   to set up the build in a Unix-like environment.
 1. Set up a CARL repository as described [above](#standard-repo-set-up),
    omitting the build system creation.
 1. Invoke CMake using the Emscripten toolchain to generate a WebAssembly
