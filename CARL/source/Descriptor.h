@@ -239,7 +239,9 @@ namespace carl::descriptor
             static_cast<size_t>(InputSample::Joint::RingFingerTip),
             static_cast<size_t>(InputSample::Joint::LittleFingerTip),
         };
-        static constexpr size_t NORMALIZATION_JOINT{
+        static constexpr size_t Y_AXIS_JOINT{
+            static_cast<size_t>(InputSample::Joint::LittleFingerBase) };
+        static constexpr size_t Z_AXIS_JOINT{
             static_cast<size_t>(InputSample::Joint::IndexFingerBase) };
 
     public:
@@ -286,13 +288,17 @@ namespace carl::descriptor
         HandShape(const InputSample& sample, const InputSample&)
         {
             constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
-            auto inverseWristPose =
-                (isLeftHanded ? sample.LeftWristPose.value() : sample.RightWristPose.value()).inverse();
-            auto& jointPoses =
+            const auto& wristPose =
+                isLeftHanded ? sample.LeftWristPose.value() : sample.RightWristPose.value();
+            const auto& jointPoses =
                 isLeftHanded ? sample.LeftHandJointPoses.value() : sample.RightHandJointPoses.value();
 
+            auto zAxis = (jointPoses[Z_AXIS_JOINT].translation() - wristPose.translation()).normalized();
+            auto yAxis = zAxis.cross(jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).normalized();
+            auto inverseWristPose = math::LookTransform(zAxis, yAxis, wristPose.translation());
+            
             float normalization =
-                (inverseWristPose * jointPoses[NORMALIZATION_JOINT].translation()).norm();
+                (inverseWristPose * jointPoses[Z_AXIS_JOINT].translation()).norm();
             for (size_t idx = 0; idx < JOINTS.size(); ++idx)
             {
                 m_positions[idx] =
