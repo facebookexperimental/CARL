@@ -294,8 +294,8 @@ namespace carl::descriptor
                 isLeftHanded ? sample.LeftHandJointPoses.value() : sample.RightHandJointPoses.value();
 
             auto zAxis = (jointPoses[Z_AXIS_JOINT].translation() - wristPose.translation()).normalized();
-            auto yAxis = zAxis.cross(jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).normalized();
-            auto inverseWristPose = math::LookTransform(zAxis, yAxis, wristPose.translation());
+            auto yAxis = zAxis.cross((jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).cross(zAxis)).normalized();
+            auto inverseWristPose = math::LookTransform(zAxis, yAxis, wristPose.translation()).inverse();
             
             float normalization =
                 (inverseWristPose * jointPoses[Z_AXIS_JOINT].translation()).norm();
