@@ -36,6 +36,7 @@ namespace carl::action
         void serialize(Serialization&) const;
 
         void addExample(Example);
+        void addCounterexample(Example);
 
         ActionType getDescriptorType() const
         {
@@ -47,10 +48,16 @@ namespace carl::action
             return m_examples;
         }
 
+        gsl::span<const Example> getCounterexamples() const
+        {
+            return m_counterexamples;
+        }
+
         double DefaultSensitivity{ 1. };
 
     private:
         ActionType m_actionType{};
         std::vector<Example> m_examples{};
+        std::vector<Example> m_counterexamples{};
     };
 }

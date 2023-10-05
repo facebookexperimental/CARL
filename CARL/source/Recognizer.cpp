@@ -31,7 +31,7 @@ namespace carl::action
         constexpr double kAverageDistanceEpsilon{ 0.000000001 };
 
         // Slightly less naive holistic resampling. Still linear, though.
-        action::Recording resample(const action::Example& original, double frameDuration)
+        std::vector<InputSample> resample(const action::Example& original, double frameDuration)
         {
             auto samples = original.getRecording().getSamples();
             size_t samplesIdx = 0;
@@ -68,7 +68,7 @@ namespace carl::action
                 }
             }
 
-            return { action::InProgressRecording{std::move(newSamples)} };
+            return newSamples;
         }
 
         std::vector<action::Example> expandExamples(
@@ -117,12 +117,12 @@ namespace carl::action
         class RecognizerImpl : public action::Recognizer::Impl
         {
         public:
-            RecognizerImpl(Session& session, gsl::span<const action::Example> examples, double sensitivity)
+            RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, double sensitivity)
                 : Recognizer::Impl{ sensitivity },
                 m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
             {
-                initializeTemplates(session, examples);
+                initializeTemplates(session, examples, counterexamples);
                 calculateTuning();
                 createScoringFunction();
                 createCanonicalRecording(examples);
@@ -158,7 +158,7 @@ namespace carl::action
                         {
                             auto [imageDistance, imageSize] = calculateSequenceDistance(trimmedSequence, t);
                             auto normalizedDistance = imageDistance / imageSize;
-                            
+
                             if (normalizedDistance < distance)
                             {
                                 startT = samples[idx - imageSize].Timestamp;
@@ -180,51 +180,60 @@ namespace carl::action
         private:
             typename Signal<gsl::span<const DescriptorT>>::TicketT m_ticket;
             std::vector<std::vector<DescriptorT>> m_templates{};
+            std::vector<std::vector<DescriptorT>> m_countertemplates{};
             size_t m_trimmedSequenceLength{};
             double m_minimumImageRatio{ 0.8 }; // TODO: Parameterize?
             std::array<double, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
             std::function<double(double)> m_scoringFunction{};
             bool m_recognition{ false };
 
-            void initializeTemplates(Session& session, gsl::span<const action::Example> examples)
+            void initializeTemplates(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
                 auto& sessionImpl = Session::Impl::getFromSession(session);
 
-                std::vector<action::Recording> resampledRecordings{};
-                resampledRecordings.reserve(examples.size());
-
-                for (const auto& example : examples)
-                {
-                    auto recording = resample(example, sessionImpl.frameDuration);
-                    auto samples = recording.getSamples();
-
-                    m_templates.emplace_back();
-                    auto& sequence = m_templates.back();
-                    sequence.reserve(samples.size() - 1);
-                    if (samples.size() == 1)
+                auto initializeTemplatesFromExamples = [this, &sessionImpl](gsl::span<const action::Example> examples, std::vector<std::vector<DescriptorT>>& templates) {
+                    for (const auto& example : examples)
                     {
-                        // For recordings short enough that they only contain one sample, consider them to
-                        // represent a static pose.
-                        auto descriptor = DescriptorT::TryCreate(samples[0], samples[0]);
-                        if (descriptor.has_value())
+                        auto samples = resample(example, sessionImpl.frameDuration);
+
+                        templates.emplace_back();
+                        auto& sequence = templates.back();
+                        sequence.reserve(samples.size() - 1);
+                        if (samples.size() == 1)
                         {
-                            sequence.emplace_back(std::move(descriptor.value()));
-                        }
-                    }
-                    else
-                    {
-                        for (size_t idx = 0; idx < samples.size() - 1; ++idx)
-                        {
-                            auto descriptor = DescriptorT::TryCreate(samples[idx + 1], samples[idx]);
+                            // For recordings short enough that they only contain one sample, consider them to
+                            // represent a static pose.
+                            auto descriptor = DescriptorT::TryCreate(samples[0], samples[0]);
                             if (descriptor.has_value())
                             {
                                 sequence.emplace_back(std::move(descriptor.value()));
                             }
                         }
+                        else
+                        {
+                            for (size_t idx = 0; idx < samples.size() - 1; ++idx)
+                            {
+                                auto descriptor = DescriptorT::TryCreate(samples[idx + 1], samples[idx]);
+                                if (descriptor.has_value())
+                                {
+                                    sequence.emplace_back(std::move(descriptor.value()));
+                                }
+                            }
+                        }
                     }
+                };
 
-                    // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
-                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * sequence.size()) / 4);
+                initializeTemplatesFromExamples(examples, m_templates);
+                initializeTemplatesFromExamples(counterexamples, m_countertemplates);
+
+                // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
+                for (const auto& t : m_templates)
+                {
+                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * t.size()) / 4);
+                }
+                for (const auto& ct : m_countertemplates)
+                {
+                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * ct.size()) / 4);
                 }
             }
 
@@ -321,8 +330,14 @@ namespace carl::action
                 createAverageAverageDistanceScoringFunction();
             }
 
+            /// <summary>
+            /// Creates a new recording based on the "centroid" example. Used for things like tutorials.
+            /// </summary>
+            /// <param name="examples">The examples from which this recognizer was created. MUST be in the same order as when the templates were initialized.</param>
             void createCanonicalRecording(gsl::span<const Example> examples)
             {
+                // Select which recording is the "centroid"
+                // TODO: This does not currently take counterexamples into account very well since they won't apply AT the site of the score.
                 double maxScore = calculateScore(m_templates[0]);
                 size_t maxIdx = 0;
                 for (size_t idx = 1; idx < m_templates.size(); ++idx)
@@ -335,6 +350,7 @@ namespace carl::action
                     }
                 }
 
+                // Create a new recording based on the "centroid" example, discarding unneeded information
                 const auto& canonicalExample = examples[maxIdx];
                 InProgressRecording recording{};
                 for (const auto& sample : canonicalExample.getRecording().getSamples())
@@ -382,18 +398,39 @@ namespace carl::action
 
             double calculateScore(gsl::span<const DescriptorT> sequence)
             {
+                // Early-out if the provided sequence is too short.
                 if (sequence.size() <= m_trimmedSequenceLength)
                 {
                     return 0.;
                 }
+
                 gsl::span<const DescriptorT> trimmedSequence{ &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
 
+                // Calculate the base score based on proximity to templates
                 double score = 0.;
+                double minDistance = std::numeric_limits<double>::max();
                 for (const auto& t : m_templates)
                 {
                     double distance = calculateNormalizedSequenceDistance(trimmedSequence, t);
                     score += m_scoringFunction(distance);
+                    minDistance = std::min(distance, minDistance);
                 }
+
+                // Clamp score to [0, 1] range.
+                score = std::clamp(score, 0., 1.);
+
+                // Penalize score based on relative proximity to countertemplates
+                double minCounterDistance = std::numeric_limits<double>::max();
+                for (const auto& t : m_countertemplates)
+                {
+                    double distance = calculateNormalizedSequenceDistance(trimmedSequence, t);
+                    minCounterDistance = std::min(distance, minCounterDistance);
+                }
+                if (minDistance >= minCounterDistance)
+                {
+                    score *= minCounterDistance / minDistance;
+                }
+
                 return score;
             }
 
@@ -419,20 +456,23 @@ namespace carl::action
             const action::Definition& definition)
         {
             std::vector<action::Example> examples{};
+            std::vector<action::Example> counterexamples{};
             switch (definition.getDescriptorType())
             {
             case action::Definition::ActionType::LeftHandPose:
                 examples = expandExamples(definition.getExamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::LeftHanded>>>(session, examples, definition.DefaultSensitivity);
+                counterexamples = expandExamples(definition.getCounterexamples());
+                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::LeftHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
             case action::Definition::ActionType::LeftHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.DefaultSensitivity);
+                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             case action::Definition::ActionType::RightHandPose:
                 examples = expandExamples(definition.getExamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::RightHanded>>>(session, examples, definition.DefaultSensitivity);
+                counterexamples = expandExamples(definition.getCounterexamples());
+                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::RightHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
             case action::Definition::ActionType::RightHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.DefaultSensitivity);
+                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             case action::Definition::ActionType::TwoHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::TwoHandGesture>>(session, definition.getExamples(), definition.DefaultSensitivity);
+                return std::make_unique<RecognizerImpl<descriptor::TwoHandGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             default:
                 throw std::runtime_error{ "Unknown definition type" };
             }

@@ -24,6 +24,12 @@ namespace carl::action
         {
             m_examples.emplace_back(deserialization);
         }
+        deserialization >> count;
+        m_counterexamples.reserve(count);
+        for (uint64_t idx = 0; idx < count; ++idx)
+        {
+            m_counterexamples.emplace_back(deserialization);
+        }
         deserialization >> DefaultSensitivity;
     }
 
@@ -35,11 +41,21 @@ namespace carl::action
         {
             example.serialize(serialization);
         }
+        serialization << static_cast<uint64_t>(m_counterexamples.size());
+        for (const auto& counterexample : m_counterexamples)
+        {
+            counterexample.serialize(serialization);
+        }
         serialization << DefaultSensitivity;
     }
 
     void Definition::addExample(Example example)
     {
         m_examples.emplace_back(std::move(example));
+    }
+
+    void Definition::addCounterexample(Example example)
+    {
+        m_counterexamples.emplace_back(std::move(example));
     }
 }
