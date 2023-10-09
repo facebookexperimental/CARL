@@ -50,11 +50,15 @@ namespace carl::action {
     }
 
     Recording::Recording(InProgressRecording recording) 
-        : m_samples{ std::move(recording.m_samples) }
+        : m_samples{}
     {
-        std::sort(m_samples.begin(), m_samples.end(), [](const auto& a, const auto& b) {
-            return a.Timestamp < b.Timestamp;
-        });
+        for (auto& second : recording.m_secondsOfSamples)
+        {
+            for (auto& sample : second)
+            {
+                m_samples.emplace_back(std::move(sample));
+            }
+        }
     }
 
     Recording::Recording(Deserialization& deserialization)

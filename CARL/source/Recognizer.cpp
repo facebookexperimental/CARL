@@ -79,9 +79,16 @@ namespace carl::action
 
             for (const auto& example : examples)
             {
-                for (auto endT = example.getStartTimestamp() + durationT; endT < example.getEndTimestamp(); endT += durationT)
+                if (example.getEndTimestamp() - example.getStartTimestamp() < durationT)
                 {
-                    expandedExamples.emplace_back(example.getRecording(), endT - durationT, endT);
+                    expandedExamples.emplace_back(example);
+                }
+                else
+                {
+                    for (auto endT = example.getStartTimestamp() + durationT; endT < example.getEndTimestamp(); endT += durationT)
+                    {
+                        expandedExamples.emplace_back(example.getRecording(), endT - durationT, endT);
+                    }
                 }
             }
 

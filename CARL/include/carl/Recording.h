@@ -25,8 +25,8 @@ namespace carl::action
     {
     public:
         InProgressRecording() = default;
-        InProgressRecording(std::vector<InputSample> samples)
-            : m_samples{ std::move(samples) }
+        InProgressRecording(size_t maxSeconds)
+            : m_maxSeconds{ maxSeconds }
         {
         }
 
@@ -37,12 +37,39 @@ namespace carl::action
 
         void addSample(InputSample sample)
         {
-            m_samples.emplace_back(std::move(sample));
+            if (m_secondsOfSamples.empty())
+            {
+                m_secondsOfSamples.emplace_back().emplace_back(std::move(sample));
+            }
+            else
+            {
+                constexpr auto timestampToSecond = [](double timestamp) {
+                    return static_cast<size_t>(std::floor(timestamp));
+                };
+
+                size_t newSecond = timestampToSecond(sample.Timestamp);
+                size_t firstSecond = timestampToSecond(m_secondsOfSamples.front().front().Timestamp);
+                size_t lastSecond = timestampToSecond(m_secondsOfSamples.back().front().Timestamp);
+
+                if (newSecond - firstSecond > m_maxSeconds)
+                {
+                    m_secondsOfSamples.erase(m_secondsOfSamples.begin());
+                }
+
+                if (m_secondsOfSamples.empty() || lastSecond != newSecond)
+                {
+                    m_secondsOfSamples.emplace_back();
+                }
+
+                m_secondsOfSamples.back().emplace_back(std::move(sample));
+            }
         }
 
     private:
         friend class Recording;
-        std::vector<InputSample> m_samples{};
+
+        std::vector<std::vector<InputSample>> m_secondsOfSamples{};
+        size_t m_maxSeconds{ std::numeric_limits<size_t>::max() };
     };
 
     /// <summary>
