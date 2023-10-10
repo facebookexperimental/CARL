@@ -57,12 +57,13 @@ void test()
     auto example1{ loadExample("C:\\scratch\\CARLFiles\\recording_1.bin") };
 
     carl::action::Definition definition{
-        carl::action::Definition::ActionType::TwoHandGesture };
+        carl::action::Definition::ActionType::RightHandGesture };
     definition.addExample(example0);
-    definition.addExample(example1);
 
     carl::Session session{};
     carl::action::Recognizer recognizer{ session, definition };
+
+    auto autoTrimmedExample = recognizer.createAutoTrimmedExample(example1.getRecording());
 
     for (const auto& sample : example1.getRecording().getSamples())
     {

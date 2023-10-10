@@ -98,7 +98,7 @@ namespace carl::DynamicTimeWarping
             if (currentRow[idx] / idx < minimum)
             {
                 minimumIdx = idx;
-                minimum = currentRow[minimumIdx];
+                minimum = currentRow[minimumIdx] / idx;
             }
         }
         return { minimum, minimumIdx };

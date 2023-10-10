@@ -31,21 +31,20 @@ namespace carl::action
         constexpr double kAverageDistanceEpsilon{ 0.000000001 };
 
         // Slightly less naive holistic resampling. Still linear, though.
-        std::vector<InputSample> resample(const action::Example& original, double frameDuration)
+        std::vector<InputSample> resample(gsl::span<const InputSample> samples, double startTimestamp, double endTimestamp, double frameDuration)
         {
-            auto samples = original.getRecording().getSamples();
             size_t samplesIdx = 0;
 
             std::vector<InputSample> newSamples{};
             size_t newSamplesCount = std::max<size_t>(
                 static_cast<size_t>(
-                    (original.getEndTimestamp() - original.getStartTimestamp()) / frameDuration),
+                    (endTimestamp - startTimestamp) / frameDuration),
                 1);
             newSamples.reserve(newSamplesCount);
 
             for (size_t idx = 0; idx < newSamplesCount; ++idx)
             {
-                double timestamp = original.getStartTimestamp() + frameDuration * idx;
+                double timestamp = startTimestamp + frameDuration * idx;
 
                 while (samplesIdx < samples.size() && samples[samplesIdx].Timestamp < timestamp)
                 {
@@ -62,13 +61,17 @@ namespace carl::action
                 }
                 else
                 {
-                    double t = (timestamp - original.getStartTimestamp()) /
-                        (original.getEndTimestamp() - original.getStartTimestamp());
+                    double t = (timestamp - startTimestamp) / (endTimestamp - startTimestamp);
                     newSamples.emplace_back(InputSample::lerp(samples[samplesIdx - 1], samples[samplesIdx], t));
                 }
             }
 
             return newSamples;
+        }
+
+        std::vector<InputSample> resample(const action::Example& original, double frameDuration)
+        {
+            return resample(original.getRecording().getSamples(), original.getStartTimestamp(), original.getEndTimestamp(), frameDuration);
         }
 
         std::vector<action::Example> expandExamples(
@@ -101,8 +104,9 @@ namespace carl::action
         friend class action::Recognizer;
 
     public:
-        Impl(double sensitivity)
-            : m_sensitivity{ sensitivity }
+        Impl(Session& session, double sensitivity)
+            : m_sessionImpl{ Session::Impl::getFromSession(session) }
+            , m_sensitivity{ sensitivity }
         {
         }
 
@@ -112,6 +116,7 @@ namespace carl::action
         virtual Example createAutoTrimmedExample(const Recording&) const = 0;
 
     protected:
+        Session::Impl& m_sessionImpl;
         arcana::weak_table<Signal<bool>::HandlerT> m_whenRecognitionChangedHandlers{};
         std::atomic<double> m_currentScore{};
         std::unique_ptr<Recording> m_canonicalRecording{};
@@ -125,11 +130,11 @@ namespace carl::action
         {
         public:
             RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, double sensitivity)
-                : Recognizer::Impl{ sensitivity },
-                m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
+                : Recognizer::Impl{ session, sensitivity }
+                , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
             {
-                initializeTemplates(session, examples, counterexamples);
+                initializeTemplates(examples, counterexamples);
                 calculateTuning();
                 createScoringFunction();
                 createCanonicalRecording(examples);
@@ -145,7 +150,7 @@ namespace carl::action
                 Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
 
                 size_t idx = 0;
-                auto samples = recording.getSamples();
+                auto samples = resample(recording.getSamples(), recording.getSamples().front().Timestamp, recording.getSamples().back().Timestamp, m_sessionImpl.frameDuration);
 
                 auto startT = samples[0].Timestamp;
                 auto endT = samples[samples.size() - 1].Timestamp;
@@ -177,7 +182,7 @@ namespace carl::action
 
                 for (; idx < samples.size() - 1; ++idx)
                 {
-                    auto span = gsl::make_span(samples.data() + idx, 2);
+                    auto span = gsl::make_span<const InputSample>(samples.data() + idx, 2);
                     inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
                 }
 
@@ -194,14 +199,12 @@ namespace carl::action
             std::function<double(double)> m_scoringFunction{};
             bool m_recognition{ false };
 
-            void initializeTemplates(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
+            void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
-                auto& sessionImpl = Session::Impl::getFromSession(session);
-
-                auto initializeTemplatesFromExamples = [this, &sessionImpl](gsl::span<const action::Example> examples, std::vector<std::vector<DescriptorT>>& templates) {
+                auto initializeTemplatesFromExamples = [this](gsl::span<const action::Example> examples, std::vector<std::vector<DescriptorT>>& templates) {
                     for (const auto& example : examples)
                     {
-                        auto samples = resample(example, sessionImpl.frameDuration);
+                        auto samples = resample(example, m_sessionImpl.frameDuration);
 
                         templates.emplace_back();
                         auto& sequence = templates.back();
