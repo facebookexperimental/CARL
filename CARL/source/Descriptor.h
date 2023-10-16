@@ -139,22 +139,22 @@ namespace carl::descriptor
         };
     }
 
-    template <typename...>
+    template<typename...>
     struct ArraySizeCount;
 
-    template <typename T, size_t S>
+    template<typename T, size_t S>
     struct ArraySizeCount<std::array<T, S>>
     {
         static constexpr auto Size = S;
     };
 
-    template <typename T, size_t S, typename... Ts>
+    template<typename T, size_t S, typename... Ts>
     struct ArraySizeCount<std::array<T, S>, Ts...>
     {
         static constexpr auto Size = S + ArraySizeCount<Ts...>::Size;
     };
 
-    template <typename T, size_t l, size_t r>
+    template<typename T, size_t l, size_t r>
     constexpr std::array<T, l + r> arrayConcat(const std::array<T, l>& a, const std::array<T, r>& b)
     {
         std::array<T, l + r> ret{};
@@ -171,7 +171,7 @@ namespace carl::descriptor
         return ret;
     }
 
-    template <typename T, size_t l, size_t r, typename... Ts>
+    template<typename T, size_t l, size_t r, typename... Ts>
     constexpr std::array<T, l + r + ArraySizeCount<Ts...>::Size> arrayConcat(
         const std::array<T, l>& a,
         const std::array<T, r>& b,
@@ -180,15 +180,15 @@ namespace carl::descriptor
         return arrayConcat(a, arrayConcat(b, ts...));
     }
 
-    template <typename...>
+    template<typename...>
     struct Tuning;
 
-    template <typename T1, typename T2>
+    template<typename T1, typename T2>
     struct Tuning<T1, T2>
     {
         static constexpr auto DEFAULT_TUNING{ arrayConcat(T1::DEFAULT_TUNING, T2::DEFAULT_TUNING) };
 
-        template <typename T>
+        template<typename T>
         static gsl::span<const double> getTuning(gsl::span<const double> values)
         {
             if constexpr (std::is_same<T, T1>::value)
@@ -202,12 +202,12 @@ namespace carl::descriptor
         }
     };
 
-    template <typename T1, typename T2, typename... Ts>
+    template<typename T1, typename T2, typename... Ts>
     struct Tuning<T1, T2, Ts...>
     {
         static constexpr auto DEFAULT_TUNING{ arrayConcat(T1::DEFAULT_TUNING, Tuning<T2, Ts...>::DEFAULT_TUNING) };
 
-        template <typename T>
+        template<typename T>
         static gsl::span<const double> getTuning(gsl::span<const double> values)
         {
             constexpr auto size = T1::DEFAULT_TUNING.size();
@@ -248,15 +248,15 @@ namespace carl::descriptor
         return math::LookTransform(zAxis, yAxis, wristPose.translation());
     }
 
-    template <Handedness Handedness>
+    template<Handedness Handedness>
     class HandShape
     {
         static constexpr std::array<size_t, 5> JOINTS{
             static_cast<size_t>(InputSample::Joint::ThumbFingerTip),
-            static_cast<size_t>(InputSample::Joint::IndexFingerTip),
-            static_cast<size_t>(InputSample::Joint::MiddleFingerTip),
-            static_cast<size_t>(InputSample::Joint::RingFingerTip),
-            static_cast<size_t>(InputSample::Joint::LittleFingerTip),
+                static_cast<size_t>(InputSample::Joint::IndexFingerTip),
+                static_cast<size_t>(InputSample::Joint::MiddleFingerTip),
+                static_cast<size_t>(InputSample::Joint::RingFingerTip),
+                static_cast<size_t>(InputSample::Joint::LittleFingerTip),
         };
         static constexpr size_t NORMALIZATION_JOINT{
             static_cast<size_t>(InputSample::Joint::IndexFingerBase) };
@@ -264,10 +264,10 @@ namespace carl::descriptor
     public:
         static constexpr std::array<double, JOINTS.size()> DEFAULT_TUNING{
             1000.,
-            1000.,
-            1000.,
-            1000.,
-            1000. };
+                1000.,
+                1000.,
+                1000.,
+                1000. };
         static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<HandShape> TryCreate(
@@ -309,7 +309,7 @@ namespace carl::descriptor
                 isLeftHanded ? sample.LeftHandJointPoses.value() : sample.RightHandJointPoses.value();
 
             auto inverseWristPose = getWristPose<Handedness>(sample).inverse();
-            
+
             float normalization =
                 (inverseWristPose * jointPoses[NORMALIZATION_JOINT].translation()).norm();
             for (size_t idx = 0; idx < JOINTS.size(); ++idx)
@@ -320,7 +320,7 @@ namespace carl::descriptor
         }
     };
 
-    template <Handedness Handedness>
+    template<Handedness Handedness>
     class EgocentricWristOrientation
     {
     public:
@@ -380,7 +380,7 @@ namespace carl::descriptor
         }
     };
 
-    template <Handedness Handedness>
+    template<Handedness Handedness>
     class HandPose
     {
     public:
@@ -429,11 +429,68 @@ namespace carl::descriptor
         }
     };
 
-    template <Handedness Handedness>
-    class EgocentricWristTranslation
+    template<Handedness Handedness>
+    class WristRotation
     {
     public:
         static constexpr std::array<double, 1> DEFAULT_TUNING{ 10. };
+        static constexpr auto HANDEDNESS{ Handedness };
+
+        static std::optional<WristRotation> TryCreate(
+            const InputSample& sample,
+            const InputSample& priorSample)
+        {
+            if (!sample.HmdPose.has_value())
+            {
+                return{};
+            }
+
+            if constexpr (Handedness == Handedness::LeftHanded)
+            {
+                if (sample.LeftWristPose.has_value() && priorSample.LeftWristPose.has_value())
+                {
+                    return WristRotation{ sample, priorSample };
+                }
+            }
+            else if constexpr (Handedness == Handedness::RightHanded)
+            {
+                if (sample.RightWristPose.has_value() && priorSample.RightWristPose.has_value())
+                {
+                    return WristRotation{ sample, priorSample };
+                }
+            }
+            return{};
+        }
+
+        static double Distance(
+            const WristRotation& a,
+            const WristRotation& b,
+            gsl::span<const double> tuning)
+        {
+            return tuning[0] *
+                std::pow(a.m_deltaOrientation.angularDistance(b.m_deltaOrientation), 2.);
+        }
+
+        WristRotation() = default;
+
+    private:
+        trivial::Quaternion m_deltaOrientation{};
+
+        WristRotation(const InputSample& sample, const InputSample& priorSample)
+        {
+            constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
+            auto wristPose = getWristPose<Handedness>(sample);
+            auto priorWristPose = getWristPose<Handedness>(sample);
+
+            m_deltaOrientation = QuaternionT{ priorWristPose.rotation().inverse() * wristPose.rotation() };
+        }
+    };
+
+    template<Handedness Handedness>
+    class EgocentricWristTranslation
+    {
+    public:
+        static constexpr std::array<double, 1> DEFAULT_TUNING{ 100. };
         static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<EgocentricWristTranslation> TryCreate(
@@ -489,11 +546,11 @@ namespace carl::descriptor
         }
     };
 
-    template <Handedness Handedness>
+    template<Handedness Handedness>
     class HandGesture
     {
     public:
-        using TuningT = Tuning<HandPose<Handedness>, EgocentricWristTranslation<Handedness>>;
+        using TuningT = Tuning<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
         static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
         static constexpr auto HANDEDNESS{ Handedness };
 
@@ -501,12 +558,12 @@ namespace carl::descriptor
             const InputSample& sample,
             const InputSample& priorSample) {
             auto handPoseSample = HandPose<Handedness>::TryCreate(sample, priorSample);
-            auto wristTranslationSample =
-                EgocentricWristTranslation<Handedness>::TryCreate(sample, priorSample);
-            if (handPoseSample.has_value() && wristTranslationSample.has_value())
+            auto wristRotationSample = WristRotation<Handedness>::TryCreate(sample, priorSample);
+            auto wristTranslationSample = EgocentricWristTranslation<Handedness>::TryCreate(sample, priorSample);
+            if (handPoseSample.has_value() && wristRotationSample.has_value() && wristTranslationSample.has_value())
             {
                 return HandGesture{
-                    std::move(handPoseSample.value()), std::move(wristTranslationSample.value()) };
+                    std::move(handPoseSample.value()), std::move(wristRotationSample.value()), std::move(wristTranslationSample.value()) };
             }
             return{};
         }
@@ -515,9 +572,13 @@ namespace carl::descriptor
             Distance(const HandGesture& a, const HandGesture& b, gsl::span<const double> tuning)
         {
             return HandPose<Handedness>::Distance(
-                a.m_handPoseSample,
-                b.m_handPoseSample,
-                TuningT::template getTuning<HandPose<Handedness>>(tuning)) +
+                    a.m_handPoseSample,
+                    b.m_handPoseSample,
+                    TuningT::template getTuning<HandPose<Handedness>>(tuning)) +
+                WristRotation<Handedness>::Distance(
+                    a.m_wristRotationSample, 
+                    b.m_wristRotationSample, 
+                    TuningT::template getTuning<WristRotation<Handedness>>(tuning)) +
                 EgocentricWristTranslation<Handedness>::Distance(
                     a.m_wristTranslationSample,
                     b.m_wristTranslationSample,
@@ -528,12 +589,15 @@ namespace carl::descriptor
 
     private:
         HandPose<Handedness> m_handPoseSample;
+        WristRotation<Handedness> m_wristRotationSample;
         EgocentricWristTranslation<Handedness> m_wristTranslationSample;
 
         HandGesture(
             HandPose<Handedness> handPoseSample,
+            WristRotation<Handedness> wristRotationSample,
             EgocentricWristTranslation<Handedness> wristTranslationSample)
             : m_handPoseSample{ std::move(handPoseSample) }
+            , m_wristRotationSample{ std::move(wristRotationSample) }
             , m_wristTranslationSample{ std::move(wristTranslationSample) }
         {
         }
@@ -549,7 +613,7 @@ namespace carl::descriptor
             const InputSample& sample,
             const InputSample& priorSample)
         {
-            if (sample.HmdPose.has_value() && 
+            if (sample.HmdPose.has_value() &&
                 sample.LeftWristPose.has_value() &&
                 sample.RightWristPose.has_value())
             {
@@ -599,7 +663,7 @@ namespace carl::descriptor
             auto leftGestureSample = HandGesture<Handedness::LeftHanded>::TryCreate(sample, priorSample);
             auto rightGestureSample = HandGesture<Handedness::RightHanded>::TryCreate(sample, priorSample);
             auto relativeSample = EgocentricRelativeWristPosition::TryCreate(sample, priorSample);
-            if (leftGestureSample.has_value() && 
+            if (leftGestureSample.has_value() &&
                 rightGestureSample.has_value() &&
                 relativeSample.has_value())
             {
