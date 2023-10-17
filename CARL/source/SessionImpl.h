@@ -92,17 +92,10 @@ namespace carl
     class Session::Impl
         : public SessionImplBase<
         200,
-        descriptor::HandShape<descriptor::Handedness::LeftHanded>,
-        descriptor::EgocentricWristOrientation<descriptor::Handedness::LeftHanded>,
         descriptor::HandPose<descriptor::Handedness::LeftHanded>,
-        descriptor::EgocentricWristTranslation<descriptor::Handedness::LeftHanded>,
         descriptor::HandGesture<descriptor::Handedness::LeftHanded>,
-        descriptor::HandShape<descriptor::Handedness::RightHanded>,
-        descriptor::EgocentricWristOrientation<descriptor::Handedness::RightHanded>,
         descriptor::HandPose<descriptor::Handedness::RightHanded>,
-        descriptor::EgocentricWristTranslation<descriptor::Handedness::RightHanded>,
         descriptor::HandGesture<descriptor::Handedness::RightHanded>,
-        descriptor::EgocentricRelativeWristPosition,
         descriptor::TwoHandGesture>
     {
     public:

@@ -262,12 +262,7 @@ namespace carl::descriptor
             static_cast<size_t>(InputSample::Joint::IndexFingerBase) };
 
     public:
-        static constexpr std::array<double, JOINTS.size()> DEFAULT_TUNING{
-            1000.,
-                1000.,
-                1000.,
-                1000.,
-                1000. };
+        static constexpr std::array<double, JOINTS.size()> DEFAULT_TUNING{ 1000., 1000., 1000., 1000., 1000. };
         static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<HandShape> TryCreate(
@@ -405,9 +400,9 @@ namespace carl::descriptor
         static double Distance(const HandPose& a, const HandPose& b, gsl::span<const double> tuning)
         {
             return HandShape<Handedness>::Distance(
-                a.m_handShapeSample,
-                b.m_handShapeSample,
-                TuningT::template getTuning<HandShape<Handedness>>(tuning)) +
+                    a.m_handShapeSample,
+                    b.m_handShapeSample,
+                    TuningT::template getTuning<HandShape<Handedness>>(tuning)) +
                 EgocentricWristOrientation<Handedness>::Distance(
                     a.m_wristOrientationSample,
                     b.m_wristOrientationSample,
@@ -679,9 +674,9 @@ namespace carl::descriptor
             Distance(const TwoHandGesture& a, const TwoHandGesture& b, gsl::span<const double> tuning)
         {
             return HandGesture<Handedness::LeftHanded>::Distance(
-                a.m_leftGestureSample,
-                b.m_leftGestureSample,
-                TuningT::template getTuning<HandGesture<Handedness::LeftHanded>>(tuning)) +
+                    a.m_leftGestureSample,
+                    b.m_leftGestureSample,
+                    TuningT::template getTuning<HandGesture<Handedness::LeftHanded>>(tuning)) +
                 HandGesture<Handedness::RightHanded>::Distance(
                     a.m_rightGestureSample,
                     b.m_rightGestureSample,
