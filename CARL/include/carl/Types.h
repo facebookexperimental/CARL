@@ -11,7 +11,7 @@
 
 namespace carl
 {
-    using NumberT = float;
+    using NumberT = double;
     using VectorT = Eigen::Vector<NumberT, 3>;
     using QuaternionT = Eigen::Quaternion<NumberT>;
     using TransformT = Eigen::Transform<NumberT, 3, Eigen::TransformTraits::Affine>;

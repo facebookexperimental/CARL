@@ -43,7 +43,7 @@ namespace carl
             [](const auto& l, const auto& r, double t) -> std::optional<TransformT> {
             if (l.has_value() && r.has_value())
             {
-                return math::Lerp(l.value(), r.value(), static_cast<float>(t));
+                return math::Lerp(l.value(), r.value(), static_cast<NumberT>(t));
             }
             else if (l.has_value())
             {
@@ -68,7 +68,7 @@ namespace carl
                 std::array<TransformT, static_cast<size_t>(Joint::COUNT)> lerped{};
                 for (size_t idx = 0; idx < lSamples.size(); ++idx)
                 {
-                    lerped[idx] = math::Lerp(lSamples[idx], rSamples[idx], static_cast<float>(t));
+                    lerped[idx] = math::Lerp(lSamples[idx], rSamples[idx], static_cast<NumberT>(t));
                 }
                 target = std::move(lerped);
             }
