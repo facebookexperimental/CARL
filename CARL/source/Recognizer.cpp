@@ -426,7 +426,7 @@ namespace carl::action
                 gsl::span<const DescriptorT> b) const
             {
                 auto [distance, imageSize] = calculateSequenceDistance(a, b);
-                return distance / imageSize;
+                return distance;
             }
 
             NumberT calculateScore(gsl::span<const DescriptorT> sequence) const
