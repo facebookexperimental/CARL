@@ -13,6 +13,8 @@
 
 #include <atomic>
 
+#include <iostream>
+
 namespace carl::action
 {
     namespace
@@ -274,6 +276,9 @@ namespace carl::action
             {
                 std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> averageDistances{};
                 const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / 2.;
+                constexpr NumberT NULL_TUNING{ 1000000 };
+                std::fill(m_tuning.begin(), m_tuning.end(), NULL_TUNING);
+                std::cout << "\"tuning dimension\",\"example a\",\"example b\",\"distance\"" << std::endl;
                 if (m_templates.size() > 1)
                 {
                     for (size_t idx = 0; idx < m_tuning.size(); ++idx)
@@ -283,11 +288,13 @@ namespace carl::action
                         {
                             for (size_t r = l + 1; r < m_templates.size(); ++r)
                             {
-                                averageDistances[idx] += calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
+                                auto distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
+                                std::cout << idx << "," << l << "," << r << "," << distance << std::endl;
+                                averageDistances[idx] += distance;
                             }
                         }
                         averageDistances[idx] /= templatesChooseTwo;
-                        m_tuning[idx] = 0.;
+                        m_tuning[idx] = NULL_TUNING;
                     }
                 }
 
@@ -295,8 +302,8 @@ namespace carl::action
                 NumberT t = m_templates.size() > 1 ? 1. / (templatesChooseTwo + 1) : defaultTuningWeight;
                 for (size_t idx = 0; idx < m_tuning.size(); ++idx)
                 {
-                    m_tuning[idx] = t * DescriptorT::DEFAULT_TUNING[idx] +
-                        (1. - t) * (1. / std::max(averageDistances[idx], kAverageDistanceEpsilon));
+                    m_tuning[idx] = 1;/*t * DescriptorT::DEFAULT_TUNING[idx] +
+                        (1. - t) * (1. / std::max(averageDistances[idx], kAverageDistanceEpsilon));*/
                 }
             }
 
@@ -342,7 +349,7 @@ namespace carl::action
                     averageDistances[l] /= m_templates.size();
                 }
 
-                constexpr NumberT DEFAULT_AVERAGE_DISTANCE{ 10. };
+                constexpr NumberT DEFAULT_AVERAGE_DISTANCE{ 0.1 };
                 constexpr NumberT DEFAULT_AVERAGE_DISTANCE_WEIGHT{ 1. };
                 NumberT averageAverageDistance{ DEFAULT_AVERAGE_DISTANCE * DEFAULT_AVERAGE_DISTANCE_WEIGHT };
                 for (size_t idx = 0; idx < m_templates.size(); ++idx)
