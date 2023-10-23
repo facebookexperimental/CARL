@@ -148,7 +148,7 @@ namespace carl::action
                 using SignalT = Signal<gsl::span<const InputSample>>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescriptorT, 1024>::Provider descriptorSequenceProvider{ inputSampleSignal }; // TODO: Magic number
+                typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
                 Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
 
                 auto samples = resample(
