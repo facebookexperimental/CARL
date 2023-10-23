@@ -364,10 +364,19 @@ namespace carl::action
                 };
             }
 
+            void createUnitScoringFunction()
+            {
+                m_scoringFunction = [this](NumberT distance)
+                {
+                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
+                };
+            }
+
             void createScoringFunction()
             {
                 // createAverageMinDistanceScoringFunction();
-                createAverageAverageDistanceScoringFunction();
+                // createAverageAverageDistanceScoringFunction();
+                createUnitScoringFunction();
             }
 
             /// <summary>

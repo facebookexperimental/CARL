@@ -307,7 +307,7 @@ namespace carl::descriptor
         HandShape() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.005, 0.025) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.005, 0.02) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{0.1};
         std::array<trivial::Point, JOINTS.size()> m_positions{};
 

@@ -99,7 +99,7 @@ namespace carl
         descriptor::TwoHandGesture>
     {
     public:
-        Impl(double duration = 1. / 20.);
+        Impl(double duration = 1. / 60.);
 
         static Session::Impl& getFromSession(Session& session);
 

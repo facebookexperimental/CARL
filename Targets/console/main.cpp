@@ -108,7 +108,32 @@ void test()
     }*/
 }
 
+void test2()
+{
+    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\definition_2.bin");
+    auto recording = definition.getExamples().front().getRecording();
+
+    int idx = 0;
+    for (; recording.getSamples()[idx + 1].Timestamp < recording.getInspector().endTimestamp(); ++idx);
+    auto sample = recording.getSamples()[idx];
+
+    carl::Session session{};
+    carl::action::Recognizer recognizer{ session, definition };
+    for (idx = 0; idx < 1000; ++idx)
+    {
+        if (idx == 900)
+        {
+            std::cout << "Ready to test" << std::endl;
+        }
+
+        auto newSample{ sample };
+        newSample.Timestamp = idx * 0.05;
+        session.addInput(newSample);
+    }
+}
+
 void main()
 {
-    test();
+    //test();
+    test2();
 }
