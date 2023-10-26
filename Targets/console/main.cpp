@@ -134,6 +134,6 @@ void test2()
 
 void main()
 {
-    //test();
-    test2();
+    test();
+    //test2();
 }

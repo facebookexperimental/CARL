@@ -254,9 +254,7 @@ namespace carl::descriptor
         {
             auto lowerBound = tuning * identicalityThreshold;
             auto upperBound = tuning * irreconcilabilityThreshold;
-            return distance < lowerBound ? 0 : static_cast<NumberT>(std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 2));
-            //return std::clamp<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 0, 1);
-            //return distance * tuning;
+            return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
         };
     }
 
@@ -299,7 +297,7 @@ namespace carl::descriptor
         static NumberT Distance(const HandShape& a, const HandShape& b, gsl::span<const NumberT> tuning) {
             NumberT distance = 0;
             for (size_t idx = 0; idx < a.m_positions.size(); ++idx) {
-                distance = std::max(distance, calculateDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]));
+                distance += calculateDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]);
             }
             return distance;
         }
@@ -376,15 +374,14 @@ namespace carl::descriptor
         static inline constexpr auto calculateDistance{ createDistanceFunction(0.17453, 0.5236) };
         trivial::Quaternion m_egocentricTemporalOrientation{};
 
-        EgocentricWristOrientation(const InputSample& sample, const InputSample& priorSample)
+        EgocentricWristOrientation(const InputSample& sample, const InputSample&)
         {
             constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
             auto wristPose = getWristPose<Handedness>(sample);
-            auto priorWristPosition =
-                (isLeftHanded ? priorSample.LeftWristPose.value() : priorSample.RightWristPose.value()).translation();
-            auto& priorHmdPose = priorSample.HmdPose.value();
+            auto wristPosition = wristPose.translation();
+            auto& hmdPose = sample.HmdPose.value();
 
-            auto ets = EgocentricTemporalSpace::getPose(priorWristPosition, priorHmdPose);
+            auto ets = EgocentricTemporalSpace::getPose(wristPosition, hmdPose);
             m_egocentricTemporalOrientation = QuaternionT{ ets.rotation().inverse() * wristPose.rotation() };
         }
     };
@@ -421,7 +418,7 @@ namespace carl::descriptor
                 a.m_wristOrientationSample,
                 b.m_wristOrientationSample,
                 TuningT::template getTuning<EgocentricWristOrientation<Handedness>>(tuning));
-            return std::max(handShapeDistance, wristOrientationDistance);
+            return handShapeDistance + wristOrientationDistance;
         }
 
         HandPose() = default;
@@ -481,7 +478,10 @@ namespace carl::descriptor
         WristRotation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.1, 0.3) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.3) };
+        // The parameters of the above distance function are based on the assumption of 20fps,
+        // so 20 is used to normalize the data to make the descriptor framerate independent.
+        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 20 };
         trivial::Quaternion m_deltaOrientation{};
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
@@ -490,7 +490,10 @@ namespace carl::descriptor
             auto wristPose = getWristPose<Handedness>(sample);
             auto priorWristPose = getWristPose<Handedness>(priorSample);
 
-            m_deltaOrientation = QuaternionT{ priorWristPose.rotation().inverse() * wristPose.rotation() };
+            AngleAxisT angleAxis{ priorWristPose.rotation().inverse() * wristPose.rotation() };
+            angleAxis.angle() = angleAxis.angle() / (sample.Timestamp - priorSample.Timestamp) / DISTANCE_PARAMETERS_FRAMES_PER_SECOND;
+
+            m_deltaOrientation = QuaternionT{ angleAxis };
         }
     };
 
@@ -540,6 +543,9 @@ namespace carl::descriptor
 
     private:
         static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.025) };
+        // The parameters of the above distance function are based on the assumption of 20fps,
+        // so 20 is used to normalize the data to make the descriptor framerate independent.
+        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 20 };
         trivial::Point m_egocentricTemporalPosition{};
 
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)
@@ -551,7 +557,9 @@ namespace carl::descriptor
             auto& priorHmdPose = priorSample.HmdPose.value();
 
             auto ets = EgocentricTemporalSpace::getPose(priorWristPose.translation(), priorHmdPose);
-            m_egocentricTemporalPosition = (ets.inverse() * wristPose.translation());
+            VectorT translation{ ets.inverse() * wristPose.translation() };
+            translation = translation / (sample.Timestamp - priorSample.Timestamp) / DISTANCE_PARAMETERS_FRAMES_PER_SECOND;
+            m_egocentricTemporalPosition = translation;
         }
     };
 
@@ -592,7 +600,7 @@ namespace carl::descriptor
                 a.m_wristTranslationSample,
                 b.m_wristTranslationSample,
                 TuningT::template getTuning<EgocentricWristTranslation<Handedness>>(tuning));
-            return std::max(handPoseDistance, std::max(wristRotationDistance, wristTranslationDistance));
+            return handPoseDistance + wristRotationDistance + wristTranslationDistance;
         }
 
         HandGesture() = default;
@@ -700,7 +708,7 @@ namespace carl::descriptor
                 a.m_relativeSample,
                 b.m_relativeSample,
                 TuningT::template getTuning<EgocentricRelativeWristPosition>(tuning));
-            return std::max(leftGestureDistance, std::max(rightGestureDistance, relativeWristPositionDistance));
+            return leftGestureDistance + rightGestureDistance + relativeWristPositionDistance;
         }
 
         TwoHandGesture() = default;

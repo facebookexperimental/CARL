@@ -97,7 +97,7 @@ namespace carl
         descriptor::TwoHandGesture>
     {
     public:
-        Impl(size_t samplesPerSecond = 60, size_t maxActionDurationSeconds = 5);
+        Impl(size_t samplesPerSecond = 30, size_t maxActionDurationSeconds = 5);
 
         static Session::Impl& getFromSession(Session& session);
 

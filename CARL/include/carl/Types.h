@@ -14,6 +14,7 @@ namespace carl
     using NumberT = float;
     using VectorT = Eigen::Vector<NumberT, 3>;
     using QuaternionT = Eigen::Quaternion<NumberT>;
+    using AngleAxisT = Eigen::AngleAxis<NumberT>;
     using TransformT = Eigen::Transform<NumberT, 3, Eigen::TransformTraits::Affine>;
 
     static inline const VectorT UNIT_SCALE{ 1, 1, 1 };

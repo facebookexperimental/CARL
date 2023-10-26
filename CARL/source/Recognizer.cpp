@@ -38,10 +38,7 @@ namespace carl::action
             size_t samplesIdx = 0;
 
             std::vector<InputSample> newSamples{};
-            size_t newSamplesCount = std::max<size_t>(
-                static_cast<size_t>(
-                    (endTimestamp - startTimestamp) / frameDuration),
-                1);
+            size_t newSamplesCount = std::max<size_t>(static_cast<size_t>(std::ceil((endTimestamp - startTimestamp) / frameDuration)), 1);
             newSamples.reserve(newSamplesCount);
 
             for (size_t idx = 0; idx < newSamplesCount; ++idx)
@@ -76,9 +73,7 @@ namespace carl::action
             return resample(original.getRecording().getSamples(), original.getStartTimestamp(), original.getEndTimestamp(), frameDuration);
         }
 
-        std::vector<action::Example> expandExamples(
-            gsl::span<const action::Example> examples,
-            NumberT durationT = 0.2)
+        std::vector<action::Example> expandExamples(gsl::span<const action::Example> examples, NumberT durationT = 0.2)
         {
             std::vector<action::Example> expandedExamples{};
 
@@ -278,7 +273,6 @@ namespace carl::action
                 const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / 2.;
                 constexpr NumberT NULL_TUNING{ 1000000 };
                 std::fill(m_tuning.begin(), m_tuning.end(), NULL_TUNING);
-                std::cout << "\"tuning dimension\",\"example a\",\"example b\",\"distance\"" << std::endl;
                 if (m_templates.size() > 1)
                 {
                     for (size_t idx = 0; idx < m_tuning.size(); ++idx)
@@ -289,7 +283,7 @@ namespace carl::action
                             for (size_t r = l + 1; r < m_templates.size(); ++r)
                             {
                                 auto distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                                std::cout << idx << "," << l << "," << r << "," << distance << std::endl;
+                                //std::cout << idx << "," << l << "," << r << "," << distance << std::endl;
                                 averageDistances[idx] += distance;
                             }
                         }
@@ -368,7 +362,7 @@ namespace carl::action
             {
                 m_scoringFunction = [this](NumberT distance)
                 {
-                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
+                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.) / DescriptorT::DEFAULT_TUNING.size(), 0.);
                 };
             }
 
