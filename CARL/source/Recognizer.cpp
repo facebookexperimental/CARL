@@ -13,8 +13,6 @@
 
 #include <atomic>
 
-#include <iostream>
-
 namespace carl::action
 {
     namespace
@@ -283,7 +281,6 @@ namespace carl::action
                             for (size_t r = l + 1; r < m_templates.size(); ++r)
                             {
                                 auto distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                                //std::cout << idx << "," << l << "," << r << "," << distance << std::endl;
                                 averageDistances[idx] += distance;
                             }
                         }
