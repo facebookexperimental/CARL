@@ -53,25 +53,87 @@ namespace
 
 void test()
 {
-    auto example0{ loadExample("C:\\scratch\\CARLFiles\\recording_0.bin") };
-    auto example1{ loadExample("C:\\scratch\\CARLFiles\\recording_1.bin") };
+    std::vector<carl::action::Example> pullRecordings{};
+    for (size_t idx = 0; idx < 10; ++idx)
+    {
+        std::stringstream ss{};
+        ss << "C:\\scratch\\CARLFiles\\pull_recordings\\recording_" << idx << ".bin";
+        pullRecordings.emplace_back(loadExample(ss.str().c_str()));
+    }
 
-    carl::action::Definition definition{
-        carl::action::Definition::ActionType::TwoHandGesture };
-    definition.addExample(example0);
-    definition.addExample(example1);
+    carl::action::Definition pullDefinition{
+        carl::action::Definition::ActionType::RightHandGesture };
+    for (const auto& example : pullRecordings)
+    {
+        pullDefinition.addExample(example);
+    }
+
+    std::vector<carl::action::Example> nodRecordings{};
+    for (size_t idx = 0; idx < 10; ++idx)
+    {
+        std::stringstream ss{};
+        ss << "C:\\scratch\\CARLFiles\\nod_recordings\\recording_" << idx << ".bin";
+        nodRecordings.emplace_back(loadExample(ss.str().c_str()));
+    }
+
+    carl::action::Definition nodDefinition{
+        carl::action::Definition::ActionType::RightHandGesture };
+    for (const auto& example : nodRecordings)
+    {
+        nodDefinition.addExample(example);
+    }
+
+    carl::action::Definition sumDefinition{
+        carl::action::Definition::ActionType::RightHandGesture };
+    for (const auto& example : pullRecordings)
+    {
+        sumDefinition.addExample(example);
+    }
+    for (const auto& example : nodRecordings)
+    {
+        sumDefinition.addExample(example);
+    }
+
+    carl::Session session{};
+    //carl::action::Recognizer pullRecognizer{ session, pullDefinition };
+    //carl::action::Recognizer nodRecognizer{ session, nodDefinition };
+    carl::action::Recognizer summRecognizer{ session, sumDefinition };
+
+    //auto autoTrimmedExample = recognizer.createAutoTrimmedExample(example1.getRecording());
+
+    /*for (const auto& sample : pullRecordings[0].getRecording().getSamples())
+    {
+        session.addInput(sample);
+        std::cout << pullRecognizer.currentScore() << std::endl;
+    }*/
+}
+
+void test2()
+{
+    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\definition_2.bin");
+    auto recording = definition.getExamples().front().getRecording();
+
+    int idx = 0;
+    for (; recording.getSamples()[idx + 1].Timestamp < recording.getInspector().endTimestamp(); ++idx);
+    auto sample = recording.getSamples()[idx];
 
     carl::Session session{};
     carl::action::Recognizer recognizer{ session, definition };
-
-    for (const auto& sample : example1.getRecording().getSamples())
+    for (idx = 0; idx < 1000; ++idx)
     {
-        session.addInput(sample);
-        std::cout << recognizer.currentScore() << std::endl;
+        if (idx == 900)
+        {
+            std::cout << "Ready to test" << std::endl;
+        }
+
+        auto newSample{ sample };
+        newSample.Timestamp = idx * 0.05;
+        session.addInput(newSample);
     }
 }
 
 void main()
 {
     test();
+    //test2();
 }

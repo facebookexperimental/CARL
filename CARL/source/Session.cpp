@@ -32,8 +32,9 @@ namespace carl
         }
     }
 
-    Session::Impl::Impl(double duration) 
-        : frameDuration{ duration }
+    Session::Impl::Impl(size_t samplesPerSecond, size_t maxActionDurationSeconds)
+        : SessionImplBase{ samplesPerSecond * maxActionDurationSeconds }
+        , frameDuration{ 1. / samplesPerSecond }
     {
     }
 

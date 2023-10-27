@@ -16,7 +16,7 @@
 extern "C"
 {
     C_API_EXPORT(uint64_t) getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size);
-    C_API_EXPORT(uint64_t) startRecording();
+    C_API_EXPORT(uint64_t) startRecording(uint64_t maxSeconds);
     C_API_EXPORT(void) recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size);
     C_API_EXPORT(uint64_t) finishRecording(uint64_t inProgressRecordingPtr);
     C_API_EXPORT(uint64_t) serializeRecording(uint64_t recordingPtr);
@@ -27,16 +27,23 @@ extern "C"
     C_API_EXPORT(double) getStartTimestamp(uint64_t recordingInspectorPtr);
     C_API_EXPORT(double) getEndTimestamp(uint64_t recordingInspectorPtr);
     C_API_EXPORT(void) disposeRecordingInspector(uint64_t recordingInspectorPtr);
+    C_API_EXPORT(uint64_t) createExample(uint64_t recordingPtr, double startTimestamp, double endTimestamp);
+    C_API_EXPORT(uint64_t) createAutoTrimmedExample(uint64_t recognizerPtr, uint64_t recordingPtr);
+    C_API_EXPORT(uint64_t) getRecording(uint64_t examplePtr);
+    C_API_EXPORT(double) getExampleStartTimestamp(uint64_t examplePtr);
+    C_API_EXPORT(double) getExampleEndTimestamp(uint64_t examplePtr);
+    C_API_EXPORT(void) disposeExample(uint64_t examplePtr);
     C_API_EXPORT(uint64_t) createdDefinition(uint64_t descriptorType);
     C_API_EXPORT(void) addExample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
+    C_API_EXPORT(void) addCounterexample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
     C_API_EXPORT(double) getDefaultSensitivity(uint64_t definitionPtr);
     C_API_EXPORT(void) setDefaultSensitivity(uint64_t definitionPtr, double defaultSensitivity);
     C_API_EXPORT(uint64_t) serializeDefinition(uint64_t definitionPtr);
     C_API_EXPORT(uint64_t) deserializeDefinition(uint8_t* bytes, uint64_t size);
     C_API_EXPORT(uint64_t) getExamplesCount(uint64_t definitionPtr);
-    C_API_EXPORT(uint64_t) getRecordingFromExampleAtIdx(uint64_t definitionPtr, uint64_t idx);
-    C_API_EXPORT(double) getStartTimestampFromExampleAtIdx(uint64_t definitionPtr, uint64_t idx);
-    C_API_EXPORT(double) getEndTimestampFromExampleAtIdx(uint64_t definitionPtr, uint64_t idx);
+    C_API_EXPORT(uint64_t) getExampleAtIdx(uint64_t definitionPtr, uint64_t idx);
+    C_API_EXPORT(uint64_t) getCounterexamplesCount(uint64_t definitionPtr);
+    C_API_EXPORT(uint64_t) getCounterexampleAtIdx(uint64_t definitionPtr, uint64_t idx);
     C_API_EXPORT(void) disposeDefinition(uint64_t definitionPtr);
     C_API_EXPORT(uint64_t) createSession();
     C_API_EXPORT(void) addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size);
@@ -63,9 +70,9 @@ uint64_t getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
     }
 }
 
-uint64_t startRecording()
+uint64_t startRecording(uint64_t maxSeconds)
 {
-    auto* ptr = new carl::action::InProgressRecording();
+    auto* ptr = new carl::action::InProgressRecording(static_cast<size_t>(maxSeconds));
     return reinterpret_cast<uint64_t>(ptr);
 }
 
@@ -139,6 +146,46 @@ void disposeRecordingInspector(uint64_t recordingInspectorPtr)
     delete ptr;
 }
 
+uint64_t createExample(uint64_t recordingPtr, double startTimestamp, double endTimestamp)
+{
+    auto& recording = *reinterpret_cast<carl::action::Recording*>(recordingPtr);
+    auto* examplePtr = new carl::action::Example(recording, startTimestamp, endTimestamp);
+    return reinterpret_cast<uint64_t>(examplePtr);
+}
+
+uint64_t createAutoTrimmedExample(uint64_t recognizerPtr, uint64_t recordingPtr)
+{
+    auto& recognizer = *reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
+    auto& recording = *reinterpret_cast<carl::action::Recording*>(recordingPtr);
+    auto* examplePtr = new carl::action::Example(recognizer.createAutoTrimmedExample(recording));
+    return reinterpret_cast<uint64_t>(examplePtr);
+}
+
+uint64_t getRecording(uint64_t examplePtr)
+{
+    auto& example = *reinterpret_cast<carl::action::Example*>(examplePtr);
+    auto* ptr = new carl::action::Recording(example.getRecording());
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+double getExampleStartTimestamp(uint64_t examplePtr)
+{
+    auto& example = *reinterpret_cast<carl::action::Example*>(examplePtr);
+    return example.getStartTimestamp();
+}
+
+double getExampleEndTimestamp(uint64_t examplePtr)
+{
+    auto& example = *reinterpret_cast<carl::action::Example*>(examplePtr);
+    return example.getEndTimestamp();
+}
+
+void disposeExample(uint64_t examplePtr)
+{
+    auto* ptr = reinterpret_cast<carl::action::Example*>(examplePtr);
+    delete ptr;
+}
+
 uint64_t createdDefinition(uint64_t descriptorType)
 {
     auto* ptr = new carl::action::Definition(static_cast<carl::action::Definition::ActionType>(descriptorType));
@@ -154,6 +201,17 @@ void addExample(
     auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
     auto& recording = *reinterpret_cast<carl::action::Recording*>(recordingPtr);
     definition.addExample({ recording, startTimestamp, endTimestamp });
+}
+
+void addCounterexample(
+    uint64_t definitionPtr,
+    uint64_t recordingPtr,
+    double startTimestamp,
+    double endTimestamp)
+{
+    auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
+    auto& recording = *reinterpret_cast<carl::action::Recording*>(recordingPtr);
+    definition.addCounterexample({ recording, startTimestamp, endTimestamp });
 }
 
 double getDefaultSensitivity(uint64_t definitionPtr)
@@ -190,23 +248,24 @@ uint64_t getExamplesCount(uint64_t definitionPtr)
     return static_cast<uint64_t>(definition.getExamples().size());
 }
 
-uint64_t getRecordingFromExampleAtIdx(uint64_t definitionPtr, uint64_t idx)
+uint64_t getExampleAtIdx(uint64_t definitionPtr, uint64_t idx)
 {
     auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
-    auto* ptr = new carl::action::Recording(definition.getExamples()[idx].getRecording());
+    auto* ptr = new carl::action::Example(definition.getExamples()[idx]);
     return reinterpret_cast<uint64_t>(ptr);
 }
 
-double getStartTimestampFromExampleAtIdx(uint64_t definitionPtr, uint64_t idx)
+uint64_t getCounterexamplesCount(uint64_t definitionPtr)
 {
     auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
-    return definition.getExamples()[idx].getStartTimestamp();
+    return static_cast<uint64_t>(definition.getCounterexamples().size());
 }
 
-double getEndTimestampFromExampleAtIdx(uint64_t definitionPtr, uint64_t idx)
+uint64_t getCounterexampleAtIdx(uint64_t definitionPtr, uint64_t idx)
 {
     auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
-    return definition.getExamples()[idx].getEndTimestamp();
+    auto* ptr = new carl::action::Example(definition.getCounterexamples()[idx]);
+    return reinterpret_cast<uint64_t>(ptr);
 }
 
 void disposeDefinition(uint64_t definitionPtr)
