@@ -58,8 +58,10 @@ namespace carl::action
                 }
                 else
                 {
-                    NumberT t = (timestamp - startTimestamp) / (endTimestamp - startTimestamp);
-                    newSamples.emplace_back(InputSample::lerp(samples[samplesIdx - 1], samples[samplesIdx], t));
+                    auto& earlierSample = samples[samplesIdx - 1];
+                    auto& laterSample = samples[samplesIdx];
+                    NumberT t = (timestamp - earlierSample.Timestamp) / (laterSample.Timestamp - earlierSample.Timestamp);
+                    newSamples.emplace_back(InputSample::lerp(earlierSample, laterSample, t));
                 }
             }
 
