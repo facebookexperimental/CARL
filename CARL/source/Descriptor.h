@@ -248,6 +248,7 @@ namespace carl::descriptor
         return math::LookTransform(zAxis, yAxis, wristPose.translation());
     }
 
+    constexpr NumberT NULL_TUNING{ 1000000 };
     constexpr auto createDistanceFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
     {
         return [identicalityThreshold, irreconcilabilityThreshold](NumberT distance, NumberT tuning)
@@ -535,14 +536,16 @@ namespace carl::descriptor
             const EgocentricWristTranslation& b,
             gsl::span<const NumberT> tuning)
         {
+            auto largerMagnitude = std::max(a.m_egocentricTemporalPosition.length(), b.m_egocentricTemporalPosition.length());
+            auto normalizationFactor = 0.5 * (largerMagnitude + 0.01);
             auto distance = a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
-            return calculateDistance(distance, tuning[0]);
+            return calculateDistance(distance / normalizationFactor, tuning[0]);
         }
 
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.025) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.5, 1) };
         // The parameters of the above distance function are based on the assumption of 20fps,
         // so 20 is used to normalize the data to make the descriptor framerate independent.
         static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 20 };

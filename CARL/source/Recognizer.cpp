@@ -111,6 +111,7 @@ namespace carl::action
 
     protected:
         virtual Example createAutoTrimmedExample(const Recording&) const = 0;
+        virtual void analyzeRecording(const Recording& recording, std::ostream& output) const = 0;
 
     protected:
         Session::Impl& m_sessionImpl;
@@ -195,9 +196,7 @@ namespace carl::action
 
                 for (const auto& t : m_templates)
                 {
-                    auto [imageDistance, imageSize] = calculateSequenceDistance(maxScoreTrimmedSequence, t);
-                    auto normalizedDistance = imageDistance / imageSize;
-
+                    auto [normalizedDistance, imageSize] = calculateSequenceDistance(maxScoreTrimmedSequence, t);
                     if (normalizedDistance < distance)
                     {
                         startT = samples[maxScoreIdx - imageSize].Timestamp;
@@ -207,6 +206,67 @@ namespace carl::action
                 }
 
                 return{ recording, startT, endT };
+            }
+
+            void analyzeRecording(const Recording& recording, std::ostream& output) const override
+            {
+                using SignalT = Signal<gsl::span<const InputSample>>;
+                arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
+                SignalT inputSampleSignal{ inputSamplesHandlers };
+                typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
+                Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
+
+                auto samples = resample(
+                    recording.getSamples(),
+                    recording.getSamples().front().Timestamp,
+                    recording.getSamples().back().Timestamp,
+                    m_sessionImpl.frameDuration);
+                size_t idx = 0;
+
+                using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescriptorT>>::TicketT>;
+                OptionalTicketT maxScoreDescriptorHandlerTicket{ descriptorSignal.addHandler(
+                    [this, &idx, &samples, &output](gsl::span<const DescriptorT> sequence) {
+                        if (sequence.size() <= m_trimmedSequenceLength)
+                        {
+                            return;
+                        }
+
+                        gsl::span<const DescriptorT> trimmedSequence{
+                            &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength};
+
+                        for (size_t templateIdx = 0; templateIdx < m_templates.size(); ++templateIdx)
+                        {
+                            output << samples[idx].Timestamp << ",";
+                            output << templateIdx << ",";
+
+                            gsl::span<const DescriptorT> t{ m_templates[templateIdx] };
+
+                            decltype(m_tuning) tuning{};
+                            std::fill(tuning.begin(), tuning.end(), descriptor::NULL_TUNING);
+                            for (size_t tuningIdx = 0; tuningIdx < tuning.size(); ++tuningIdx)
+                            {
+                                tuning[tuningIdx] = 1;
+
+                                auto distanceFunction{ [&tuning](const DescriptorT& a, const DescriptorT& b) {
+                                    return DescriptorT::Distance(a, b, tuning);
+                                } };
+                                auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistance(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
+                                output << distance << ",";
+
+                                tuning[tuningIdx] = descriptor::NULL_TUNING;
+                            }
+
+                            output << std::endl;
+                        }
+                    }) };
+
+                for (; idx < samples.size() - 1; ++idx)
+                {
+                    auto span = gsl::make_span<const InputSample>(samples.data() + idx, 2);
+                    inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
+                }
+
+                maxScoreDescriptorHandlerTicket.reset();
             }
 
         private:
@@ -271,8 +331,7 @@ namespace carl::action
             {
                 std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> averageDistances{};
                 const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / 2.;
-                constexpr NumberT NULL_TUNING{ 1000000 };
-                std::fill(m_tuning.begin(), m_tuning.end(), NULL_TUNING);
+                std::fill(m_tuning.begin(), m_tuning.end(), descriptor::NULL_TUNING);
                 if (m_templates.size() > 1)
                 {
                     for (size_t idx = 0; idx < m_tuning.size(); ++idx)
@@ -287,7 +346,7 @@ namespace carl::action
                             }
                         }
                         averageDistances[idx] /= templatesChooseTwo;
-                        m_tuning[idx] = NULL_TUNING;
+                        m_tuning[idx] = descriptor::NULL_TUNING;
                     }
                 }
 
@@ -549,5 +608,10 @@ namespace carl::action
     Example Recognizer::createAutoTrimmedExample(const Recording& recording) const
     {
         return m_impl->createAutoTrimmedExample(recording);
+    }
+
+    void Recognizer::analyzeRecording(const Recording& recording, std::ostream& output) const
+    {
+        return m_impl->analyzeRecording(recording, output);
     }
 }

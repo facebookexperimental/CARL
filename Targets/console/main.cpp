@@ -132,8 +132,24 @@ void test2()
     }
 }
 
+void test3()
+{
+    auto example0 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_0.bin");
+    auto example1 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_1.bin");
+
+    carl::action::Definition definition{ carl::action::Definition::ActionType::RightHandGesture };
+    definition.addExample(example0);
+
+    carl::Session session{};
+    
+    carl::action::Recognizer recognizer{ session, definition };
+
+    recognizer.analyzeRecording(example0.getRecording(), std::cout);
+}
+
 void main()
 {
-    test();
+    //test();
     //test2();
+    test3();
 }
