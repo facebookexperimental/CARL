@@ -250,7 +250,7 @@ namespace carl::action
                                 auto distanceFunction{ [&tuning](const DescriptorT& a, const DescriptorT& b) {
                                     return DescriptorT::Distance(a, b, tuning);
                                 } };
-                                auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistance(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
+                                auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistanceAndImageSize(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
                                 output << distance << ",";
 
                                 tuning[tuningIdx] = descriptor::NULL_TUNING;
@@ -486,7 +486,7 @@ namespace carl::action
                 auto distanceFunction{ [this](const DescriptorT& a, const DescriptorT& b) {
                   return DescriptorT::Distance(a, b, m_tuning);
                 } };
-                return DynamicTimeWarping::InjectiveDistance(longer, shorter, distanceFunction, m_minimumImageRatio);
+                return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
             }
 
             NumberT calculateNormalizedSequenceDistance(

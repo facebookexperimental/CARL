@@ -248,6 +248,17 @@ namespace carl::descriptor
         return math::LookTransform(zAxis, yAxis, wristPose.translation());
     }
 
+//#define DESCRIPTOR_ANALYSIS
+#ifdef DESCRIPTOR_ANALYSIS
+    constexpr NumberT NULL_TUNING{ 0 };
+    constexpr auto createDistanceFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
+    {
+        return [identicalityThreshold, irreconcilabilityThreshold](NumberT distance, NumberT tuning)
+        {
+            return tuning * distance;
+        };
+    }
+#else
     constexpr NumberT NULL_TUNING{ 1000000 };
     constexpr auto createDistanceFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
     {
@@ -258,6 +269,7 @@ namespace carl::descriptor
             return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
         };
     }
+#endif
 
     template<Handedness Handedness>
     class HandShape
@@ -479,10 +491,10 @@ namespace carl::descriptor
         WristRotation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.3) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.1, 0.3) };
         // The parameters of the above distance function are based on the assumption of 20fps,
         // so 20 is used to normalize the data to make the descriptor framerate independent.
-        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 20 };
+        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
         trivial::Quaternion m_deltaOrientation{};
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
@@ -545,10 +557,10 @@ namespace carl::descriptor
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.5, 1) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.3, 1.3) };
         // The parameters of the above distance function are based on the assumption of 20fps,
         // so 20 is used to normalize the data to make the descriptor framerate independent.
-        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 20 };
+        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
         trivial::Point m_egocentricTemporalPosition{};
 
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)

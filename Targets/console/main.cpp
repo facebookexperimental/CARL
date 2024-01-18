@@ -134,17 +134,19 @@ void test2()
 
 void test3()
 {
+    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\push_recordings\\definition_2.bin");
     auto example0 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_0.bin");
     auto example1 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_1.bin");
+    auto example2 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_2.bin");
 
-    carl::action::Definition definition{ carl::action::Definition::ActionType::RightHandGesture };
-    definition.addExample(example0);
+    //carl::action::Definition definition{ carl::action::Definition::ActionType::RightHandGesture };
+    //definition.addExample(example0);
 
     carl::Session session{};
     
     carl::action::Recognizer recognizer{ session, definition };
 
-    recognizer.analyzeRecording(example0.getRecording(), std::cout);
+    recognizer.analyzeRecording(example2.getRecording(), std::cout);
 }
 
 void main()
