@@ -56,8 +56,15 @@ to work well on Windows Subsystem for Linux, unfortunately.
    If you need to choose Android platform settings other than the 
    defaults, they should likely be specified in this step.
    ```
-   cmake ../CARL -D CMAKE_SYSTEM_NAME=Android -D CMAKE_ANDROID_NDK=[NDK root directory]
+   cmake ../CARL -D CMAKE_SYSTEM_NAME=Android -D CMAKE_BUILD_TYPE=Release -D CMAKE_ANDROID_ARCH_ABI="arm64-v8a" -D CMAKE_ANDROID_NDK=[NDK root directory]
    ```
+   **Note:** use of the the `CMAKE_BUILD_TYPE` and `CMAKE_ANDROID_ARCH_ABI` 
+   variables as shown above is recommended when building CARL for use as a 
+   Unity plugin on the Meta Quest 3; in particular, neglecting to specify 
+   an ABI matching that of your app can cause Unity to fail to load the 
+   library at runtime, which can be tricky to diagnose. Strictly speaking,
+   however, specifying these variables is not required and they can be 
+   omitted in situations where their default values are appropriate.
 1. Build the `carl_shared_library` target to produce a `.so` which can be 
    used in Android applications.
    ```
