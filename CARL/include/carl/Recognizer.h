@@ -11,6 +11,8 @@
 #include <carl/Session.h>
 #include <carl/Signaling.h>
 
+#include <ostream>
+
 namespace carl::action
 {
     /// <summary>
@@ -31,6 +33,8 @@ namespace carl::action
         void setSensitivity(double sensitivity);
 
         Example createAutoTrimmedExample(const Recording&) const;
+
+        void analyzeRecording(const Recording&, std::ostream&) const;
 
     private:
         std::unique_ptr<Impl> m_impl{};

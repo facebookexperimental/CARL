@@ -50,7 +50,7 @@ namespace carl::DynamicTimeWarping
     // or else the algorithm will simply find the shortest image, not the best, since every additional 
     // element introduces a nonnegative absolute distance.
     template <typename VectorT, typename CallableT, typename NumberT = double, bool ReverseTime = true>
-    std::tuple<NumberT, size_t> InjectiveDistance(
+    std::tuple<NumberT, size_t> InjectiveDistanceAndImageSize(
         gsl::span<VectorT> longer,
         gsl::span<VectorT> shorter,
         CallableT& distance,
