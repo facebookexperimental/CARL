@@ -491,7 +491,7 @@ namespace carl::descriptor
         WristRotation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.1, 0.3) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.3) };
         // The parameters of the above distance function are based on the assumption of 20fps,
         // so 20 is used to normalize the data to make the descriptor framerate independent.
         static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };

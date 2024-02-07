@@ -513,7 +513,7 @@ namespace carl::action
                 for (const auto& t : m_templates)
                 {
                     NumberT distance = calculateNormalizedSequenceDistance(trimmedSequence, t);
-                    score += m_scoringFunction(distance);
+                    score = std::max(m_scoringFunction(distance), score);
                     minDistance = std::min(distance, minDistance);
                 }
 
