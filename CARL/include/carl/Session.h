@@ -9,6 +9,8 @@
 
 #include "carl/InputSample.h"
 
+#include <arcana/threading/dispatcher.h>
+
 #include <memory>
 
 namespace carl
@@ -24,6 +26,12 @@ namespace carl
         ~Session();
 
         void addInput(InputSample);
+
+        // TODO: Figure out a better, more opaque type to return.
+        arcana::manual_dispatcher<128>& callbackScheduler();
+        // TODO: Figure out a better, more opaque type to return.
+        arcana::background_dispatcher<128>& processingScheduler();
+        void tickCallbacks(arcana::cancellation& token);
 
     private:
         friend class Impl;

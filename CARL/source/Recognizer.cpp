@@ -420,7 +420,7 @@ namespace carl::action
             {
                 m_scoringFunction = [this](NumberT distance)
                 {
-                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.) / DescriptorT::DEFAULT_TUNING.size(), 0.);
+                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
                 };
             }
 
@@ -484,7 +484,7 @@ namespace carl::action
                 auto& shorter = aLongerThanB ? b : a;
 
                 auto distanceFunction{ [this](const DescriptorT& a, const DescriptorT& b) {
-                  return DescriptorT::Distance(a, b, m_tuning);
+                  return DescriptorT::Distance(a, b, m_tuning) / DescriptorT::DEFAULT_TUNING.size();
                 } };
                 return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
             }

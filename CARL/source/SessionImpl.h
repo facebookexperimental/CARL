@@ -9,6 +9,8 @@
 
 #include "Descriptor.h"
 
+#include <arcana/threading/dispatcher.h>
+
 #include <carl/Example.h>
 #include <carl/InputSample.h>
 #include <carl/Recording.h>
@@ -103,6 +105,21 @@ namespace carl
 
         void addInputSample(const InputSample& inputSample);
 
+        auto& processingScheduler()
+        {
+            return m_processingDispatcher;
+        }
+
+        auto& callbackScheduler()
+        {
+            return m_callbackDispatcher;
+        }
+
+        void tickCallbacks(arcana::cancellation& token)
+        {
+            m_callbackDispatcher.tick(token);
+        }
+
         const double frameDuration{};
 
         template <typename DescriptorT>
@@ -112,6 +129,10 @@ namespace carl
         }
 
     private:
+        arcana::manual_dispatcher<128> m_callbackDispatcher{};
+        arcana::background_dispatcher<128> m_processingDispatcher{};
         std::vector<InputSample> m_samples{};
+        std::vector<InputSample> m_processingSamples{};
+        std::mutex m_samplesMutex{};
     };
 }

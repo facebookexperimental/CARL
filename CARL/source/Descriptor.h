@@ -319,6 +319,7 @@ namespace carl::descriptor
 
     private:
         static inline constexpr auto calculateDistance{ createDistanceFunction(0.005, 0.02) };
+        //static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.03) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{0.1};
         std::array<trivial::Point, JOINTS.size()> m_positions{};
 
@@ -385,6 +386,7 @@ namespace carl::descriptor
 
     private:
         static inline constexpr auto calculateDistance{ createDistanceFunction(0.17453, 0.5236) };
+        //static inline constexpr auto calculateDistance{ createDistanceFunction(0.1, 1.0) };
         trivial::Quaternion m_egocentricTemporalOrientation{};
 
         EgocentricWristOrientation(const InputSample& sample, const InputSample&)
@@ -559,7 +561,7 @@ namespace carl::descriptor
     private:
         static inline constexpr auto calculateDistance{ createDistanceFunction(0.3, 1.3) };
         // The parameters of the above distance function are based on the assumption of 20fps,
-        // so 20 is used to normalize the data to make the descriptor framerate independent.
+        // so 30 is used to normalize the data to make the descriptor framerate independent.
         static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
         trivial::Point m_egocentricTemporalPosition{};
 

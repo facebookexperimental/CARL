@@ -134,23 +134,39 @@ void test2()
 
 void test3()
 {
-    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\push_recordings\\definition_2.bin");
-    auto example0 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_0.bin");
-    auto example1 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_1.bin");
-    auto example2 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_2.bin");
+    //auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
+    auto definition0 = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\definition_0.bin");
+    auto example0 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_0.bin");
+    auto example1 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_1.bin");
+    auto example2 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_2.bin");
 
     //carl::action::Definition definition{ carl::action::Definition::ActionType::RightHandGesture };
     //definition.addExample(example0);
 
     carl::Session session{};
     
-    carl::action::Recognizer recognizer{ session, definition };
+    carl::action::Recognizer recognizer{ session, definition0 };
 
+    recognizer.analyzeRecording(example0.getRecording(), std::cout);
+    std::cout << std::endl;
+    recognizer.analyzeRecording(example1.getRecording(), std::cout);
+    std::cout << std::endl;
     recognizer.analyzeRecording(example2.getRecording(), std::cout);
+    std::cout << std::endl;
 }
 
 void main()
 {
+    /*
+    Tuning profile: Let the user provide a set of definitions (all of which contain examples) as 
+    well as independent examples. The definitions (obviously) represent their own action, and the 
+    independent examples represent no action. The system then analyzes every example against 
+    every other example, determining the expected distances across descriptor dimensions, trying 
+    to arrive at an optimal tuning.
+    
+    Instead of DTW, do a naive sequence match? Fail out if any single connection is too large?
+    */
+
     //test();
     //test2();
     test3();
