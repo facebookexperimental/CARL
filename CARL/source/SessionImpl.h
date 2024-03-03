@@ -17,6 +17,8 @@
 #include <carl/Session.h>
 #include <carl/Signaling.h>
 
+#include <arcana/threading/task.h>
+
 namespace carl
 {
     template<typename DescriptorT, typename = std::enable_if_t<std::is_trivially_copyable_v<DescriptorT>>>
@@ -107,7 +109,7 @@ namespace carl
 
         auto& processingScheduler()
         {
-            return m_processingDispatcher;
+            return arcana::inline_scheduler;// m_processingDispatcher;
         }
 
         auto& callbackScheduler()
@@ -125,12 +127,12 @@ namespace carl
         template <typename DescriptorT>
         auto addHandler(std::function<void(gsl::span<const DescriptorT>)> handler)
         {
-            return static_cast<typename DescriptorSequence<DescriptorT>::Provider*>(this)->addHandler(std::move(handler));
+            return typename DescriptorSequence<DescriptorT>::Provider::addHandler(std::move(handler));
         }
 
     private:
         arcana::manual_dispatcher<128> m_callbackDispatcher{};
-        arcana::background_dispatcher<128> m_processingDispatcher{};
+        //arcana::background_dispatcher<128> m_processingDispatcher{};
         std::vector<InputSample> m_samples{};
         std::vector<InputSample> m_processingSamples{};
         std::mutex m_samplesMutex{};

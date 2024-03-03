@@ -310,7 +310,7 @@ namespace carl::descriptor
         static NumberT Distance(const HandShape& a, const HandShape& b, gsl::span<const NumberT> tuning) {
             NumberT distance = 0;
             for (size_t idx = 0; idx < a.m_positions.size(); ++idx) {
-                distance += calculateDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]);
+                distance = std::max(distance, calculateDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]));
             }
             return distance;
         }
@@ -318,8 +318,8 @@ namespace carl::descriptor
         HandShape() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.005, 0.02) };
-        //static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.03) };
+        //static inline constexpr auto calculateDistance{ createDistanceFunction(0.005, 0.02) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.03) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{0.1};
         std::array<trivial::Point, JOINTS.size()> m_positions{};
 
@@ -433,7 +433,7 @@ namespace carl::descriptor
                 a.m_wristOrientationSample,
                 b.m_wristOrientationSample,
                 TuningT::template getTuning<EgocentricWristOrientation<Handedness>>(tuning));
-            return handShapeDistance + wristOrientationDistance;
+            return std::max(handShapeDistance, wristOrientationDistance);
         }
 
         HandPose() = default;
@@ -559,7 +559,7 @@ namespace carl::descriptor
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.3, 1.3) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.6, 1.2) };
         // The parameters of the above distance function are based on the assumption of 20fps,
         // so 30 is used to normalize the data to make the descriptor framerate independent.
         static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
@@ -617,7 +617,7 @@ namespace carl::descriptor
                 a.m_wristTranslationSample,
                 b.m_wristTranslationSample,
                 TuningT::template getTuning<EgocentricWristTranslation<Handedness>>(tuning));
-            return handPoseDistance + wristRotationDistance + wristTranslationDistance;
+            return std::max(handPoseDistance, std::max(wristRotationDistance, wristTranslationDistance));
         }
 
         HandGesture() = default;
@@ -725,7 +725,7 @@ namespace carl::descriptor
                 a.m_relativeSample,
                 b.m_relativeSample,
                 TuningT::template getTuning<EgocentricRelativeWristPosition>(tuning));
-            return leftGestureDistance + rightGestureDistance + relativeWristPositionDistance;
+            return std::max(leftGestureDistance, std::max(rightGestureDistance, relativeWristPositionDistance));
         }
 
         TwoHandGesture() = default;

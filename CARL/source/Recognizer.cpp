@@ -484,9 +484,9 @@ namespace carl::action
                 auto& shorter = aLongerThanB ? b : a;
 
                 auto distanceFunction{ [this](const DescriptorT& a, const DescriptorT& b) {
-                  return DescriptorT::Distance(a, b, m_tuning) / DescriptorT::DEFAULT_TUNING.size();
+                  return DescriptorT::Distance(a, b, m_tuning);
                 } };
-                return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
+                return DynamicTimeWarping::AdaptiveStartInjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
             }
 
             NumberT calculateNormalizedSequenceDistance(

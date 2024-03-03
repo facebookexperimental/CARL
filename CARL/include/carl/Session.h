@@ -30,7 +30,7 @@ namespace carl
         // TODO: Figure out a better, more opaque type to return.
         arcana::manual_dispatcher<128>& callbackScheduler();
         // TODO: Figure out a better, more opaque type to return.
-        arcana::background_dispatcher<128>& processingScheduler();
+        //arcana::background_dispatcher<128>& processingScheduler();
         void tickCallbacks(arcana::cancellation& token);
 
     private:

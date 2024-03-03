@@ -95,10 +95,10 @@ namespace carl
         m_impl->addInputSample(inputSample);
     }
 
-    arcana::background_dispatcher<128>& Session::processingScheduler()
+    /*arcana::background_dispatcher<128>& Session::processingScheduler()
     {
         return m_impl->processingScheduler();
-    }
+    }*/
 
     arcana::manual_dispatcher<128>& Session::callbackScheduler()
     {

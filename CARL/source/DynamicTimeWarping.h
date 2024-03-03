@@ -67,29 +67,59 @@ namespace carl::DynamicTimeWarping
         priorRow.resize(a.size() + 1);
         currentRow.resize(priorRow.size());
 
+        thread_local std::vector<NumberT> aToADistances{};
+        thread_local std::vector<NumberT> bToADistances{};
+        aToADistances.resize(a.size());
+        bToADistances.resize(a.size());
+
         currentRow[0] = static_cast<NumberT>(0);
         for (size_t idx = 1; idx < priorRow.size(); ++idx)
         {
             currentRow[idx] = std::numeric_limits<NumberT>::max();
         }
 
+        aToADistances[0] = static_cast<NumberT>(0);
+        for (size_t idx = 1; idx < aToADistances.size(); ++idx)
+        {
+            aToADistances[idx] = distance(a[idx - 1], a[idx]);
+        }
+
         for (size_t j = 0; j < b.size(); ++j)
         {
+            for (size_t i = 0; i < a.size(); ++i)
+            {
+                if constexpr (ReverseTime)
+                {
+                    bToADistances[i] = distance(a[a.size() - i - 1], b[b.size() - j - 1]);
+                }
+                else
+                {
+                    bToADistances[i] = distance(a[i], b[j]);
+                }
+            }
+
             priorRow.swap(currentRow);
 
             currentRow[0] = std::numeric_limits<NumberT>::max();
             for (size_t i = 0; i < a.size(); ++i)
             {
-                NumberT cost;
-                if constexpr (ReverseTime)
+                NumberT cost = bToADistances[i];
+                NumberT ssl = bToADistances[i] + (i == 0 ? bToADistances[i] : bToADistances[i - 1]);
+                NumberT bl = aToADistances[i];
+                NumberT scalar{};
+                if (bl < static_cast<NumberT>(0.00001))
                 {
-                    cost = distance(a[a.size() - i - 1], b[b.size() - j - 1]);
+                    scalar = static_cast<NumberT>(1);
                 }
                 else
                 {
-                    cost = distance(a[i], b[j]);
+                    scalar = std::min<NumberT>(std::max<NumberT>(ssl / bl - 1, 0), 1);
+                    if (scalar > 0.1 && scalar < 0.9)
+                    {
+                        scalar = scalar;
+                    }
                 }
-                currentRow[i + 1] = cost + std::min(priorRow[i], std::min(priorRow[i + 1], currentRow[i]));
+                currentRow[i + 1] = scalar * cost + std::min(priorRow[i], std::min(priorRow[i + 1], currentRow[i]));
             }
         }
 

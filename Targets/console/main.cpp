@@ -110,8 +110,8 @@ void test()
 
 void test2()
 {
-    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\definition_2.bin");
-    auto recording = definition.getExamples().front().getRecording();
+    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
+    auto recording = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_2.bin").getRecording();
 
     int idx = 0;
     for (; recording.getSamples()[idx + 1].Timestamp < recording.getInspector().endTimestamp(); ++idx);
@@ -119,23 +119,21 @@ void test2()
 
     carl::Session session{};
     carl::action::Recognizer recognizer{ session, definition };
-    for (idx = 0; idx < 1000; ++idx)
+    for (const auto& sample : recording.getSamples())
     {
-        if (idx == 900)
+        session.addInput(sample);
+        std::cout << recognizer.currentScore() << std::endl;
+        if (recognizer.currentScore() > 0.01)
         {
-            std::cout << "Ready to test" << std::endl;
+            std::cout << "Aha!" << std::endl;
         }
-
-        auto newSample{ sample };
-        newSample.Timestamp = idx * 0.05;
-        session.addInput(newSample);
     }
 }
 
 void test3()
 {
-    //auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
-    auto definition0 = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\definition_0.bin");
+    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
+    //auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\definition_0.bin");
     auto example0 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_0.bin");
     auto example1 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_1.bin");
     auto example2 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_2.bin");
@@ -145,12 +143,12 @@ void test3()
 
     carl::Session session{};
     
-    carl::action::Recognizer recognizer{ session, definition0 };
+    carl::action::Recognizer recognizer{ session, definition };
 
-    recognizer.analyzeRecording(example0.getRecording(), std::cout);
-    std::cout << std::endl;
-    recognizer.analyzeRecording(example1.getRecording(), std::cout);
-    std::cout << std::endl;
+    //recognizer.analyzeRecording(example0.getRecording(), std::cout);
+    //std::cout << std::endl;
+    //recognizer.analyzeRecording(example1.getRecording(), std::cout);
+    //std::cout << std::endl;
     recognizer.analyzeRecording(example2.getRecording(), std::cout);
     std::cout << std::endl;
 }
@@ -168,6 +166,6 @@ void main()
     */
 
     //test();
-    //test2();
-    test3();
+    test2();
+    //test3();
 }
