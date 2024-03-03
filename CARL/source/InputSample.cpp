@@ -33,7 +33,7 @@ namespace carl
         serialization << RightHandJointPoses;
     }
 
-    InputSample InputSample::lerp(const InputSample& a, const InputSample& b, double t)
+    InputSample InputSample::Lerp(const InputSample& a, const InputSample& b, double t)
     {
         InputSample result{};
 

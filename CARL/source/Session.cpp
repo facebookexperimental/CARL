@@ -10,6 +10,7 @@
 #include <arcana/threading/task.h>
 
 #include "SessionImpl.h"
+#include "Descriptor.h"
 
 namespace carl
 {
@@ -29,7 +30,7 @@ namespace carl
                 const auto& b = sample;
                 double timestamp = a.Timestamp + frameDuration;
                 double t = (timestamp - a.Timestamp) / (b.Timestamp - a.Timestamp);
-                resampling.emplace_back(InputSample::lerp(a, b, t));
+                resampling.emplace_back(InputSample::Lerp(a, b, t));
             }
         }
     }
@@ -51,7 +52,8 @@ namespace carl
         // input sequence.
         {
             std::scoped_lock lock{m_samplesMutex};
-            appendSampleToResampling(inputSample, m_samples, frameDuration);
+            //appendSampleToResampling(inputSample, m_samples, frameDuration);
+            m_samples.push_back(inputSample);
         }
         arcana::make_task(processingScheduler(), arcana::cancellation::none(), [this]() {
             {
@@ -63,17 +65,10 @@ namespace carl
                 }
             }
 
-            if (m_processingSamples.size() > 1)
+            for (const InputSample& sample : m_processingSamples)
             {
-                SignalHandlersT::apply_to_all([this](auto& callable) {
-                    // The argument passed to the handlers here should be the NEW input samples -- only ones they
-                    // haven't seen before PLUS the last one they HAVE seen before. This is a tricky and very
-                    // tight coupling that exists between the session impl and the descriptor sequence providers,
-                    // so it's okay as long as we contain it, but it should still and always be very clearly
-                    // commented.
-                    // TODO: Consider modifying the signal to make this l-value span unnecessary.
-                    gsl::span<const InputSample> span{ m_processingSamples };
-                    callable(span);
+                SignalHandlersT::apply_to_all([this, &sample](auto& callable) {
+                    callable(sample);
                 });
             }
         });
@@ -95,10 +90,10 @@ namespace carl
         m_impl->addInputSample(inputSample);
     }
 
-    /*arcana::background_dispatcher<128>& Session::processingScheduler()
+    arcana::background_dispatcher<128>& Session::processingScheduler()
     {
         return m_impl->processingScheduler();
-    }*/
+    }
 
     arcana::manual_dispatcher<128>& Session::callbackScheduler()
     {

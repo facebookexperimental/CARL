@@ -61,7 +61,7 @@ namespace carl::action
                     auto& earlierSample = samples[samplesIdx - 1];
                     auto& laterSample = samples[samplesIdx];
                     NumberT t = (timestamp - earlierSample.Timestamp) / (laterSample.Timestamp - earlierSample.Timestamp);
-                    newSamples.emplace_back(InputSample::lerp(earlierSample, laterSample, t));
+                    newSamples.emplace_back(InputSample::Lerp(earlierSample, laterSample, t));
                 }
             }
 
@@ -141,7 +141,7 @@ namespace carl::action
         protected:
             Example createAutoTrimmedExample(const Recording& recording) const override
             {
-                using SignalT = Signal<gsl::span<const InputSample>>;
+                using SignalT = Signal<const InputSample&>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
                 typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
@@ -182,10 +182,10 @@ namespace carl::action
                         }
                     }) };
 
-                for (; idx < samples.size() - 1; ++idx)
+                for (; idx < samples.size(); ++idx)
                 {
-                    auto span = gsl::make_span<const InputSample>(samples.data() + idx, 2);
-                    inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
+                    auto& sample = samples[idx];
+                    inputSamplesHandlers.apply_to_all([&sample](auto& callable) mutable { callable(sample); });
                 }
 
                 maxScoreDescriptorHandlerTicket.reset();
@@ -210,7 +210,7 @@ namespace carl::action
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
-                using SignalT = Signal<gsl::span<const InputSample>>;
+                using SignalT = Signal<const InputSample&>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
                 typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
@@ -260,10 +260,10 @@ namespace carl::action
                         }
                     }) };
 
-                for (; idx < samples.size() - 1; ++idx)
+                for (; idx < samples.size(); ++idx)
                 {
-                    auto span = gsl::make_span<const InputSample>(samples.data() + idx, 2);
-                    inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
+                    auto& sample = samples[idx];
+                    inputSamplesHandlers.apply_to_all([&sample](auto& callable) mutable { callable(sample); });
                 }
 
                 maxScoreDescriptorHandlerTicket.reset();
@@ -284,11 +284,25 @@ namespace carl::action
                 auto initializeTemplatesFromExamples = [this](gsl::span<const action::Example> examples, std::vector<std::vector<DescriptorT>>& templates) {
                     for (const auto& example : examples)
                     {
-                        auto samples = resample(example, m_sessionImpl.frameDuration);
+                        //auto samples = resample(example, m_sessionImpl.frameDuration);
 
                         templates.emplace_back();
                         auto& sequence = templates.back();
-                        sequence.reserve(samples.size() - 1);
+
+                        auto samples = example.getRecording().getSamples();
+                        InputSample mostRecentSample{};
+
+                        size_t idx = 0;
+                        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < example.getStartTimestamp())
+                        {
+                            ++idx;
+                        }
+                        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < example.getEndTimestamp())
+                        {
+                            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, DescriptorT::DEFAULT_TUNING);
+                            ++idx;
+                        }
+                        /*sequence.reserve(samples.size() - 1);
                         if (samples.size() == 1)
                         {
                             // For recordings short enough that they only contain one sample, consider them to
@@ -309,7 +323,7 @@ namespace carl::action
                                     sequence.emplace_back(std::move(descriptor.value()));
                                 }
                             }
-                        }
+                        }*/
                     }
                 };
 
@@ -486,7 +500,7 @@ namespace carl::action
                 auto distanceFunction{ [this](const DescriptorT& a, const DescriptorT& b) {
                   return DescriptorT::Distance(a, b, m_tuning);
                 } };
-                return DynamicTimeWarping::AdaptiveStartInjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
+                return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
             }
 
             NumberT calculateNormalizedSequenceDistance(

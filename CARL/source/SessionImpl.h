@@ -32,23 +32,26 @@ namespace carl
         class Provider : private WeakTableT, public DescriptorSignalT
         {
         public:
-            Provider(Signal<gsl::span<const InputSample>>& signal, size_t sequenceLength)
+            Provider(Signal<const InputSample&>& signal, size_t sequenceLength)
                 : DescriptorSignalT{ *static_cast<WeakTableT*>(this) }
                 , m_ticket{ signal.addHandler([this](auto samples) { handleInputSample(samples); }) }
                 , m_sequenceLength{ sequenceLength }
             {
             }
 
-            void handleInputSample(gsl::span<const InputSample> samples)
+            void handleInputSample(const InputSample& sample)
             {
-                for (size_t idx = 1; idx < samples.size(); ++idx)
+                /*for (size_t idx = 1; idx < samples.size(); ++idx)
                 {
                     auto descriptor = DescriptorT::TryCreate(samples[idx], samples[idx - 1]);
                     if (descriptor.has_value())
                     {
                         m_sequence.emplace_back(std::move(descriptor.value()));
                     }
-                }
+                }*/
+                size_t priorSequenceSize = m_sequence.size();
+                descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
+                bool descriptorsAdded = m_sequence.size() > priorSequenceSize;
 
                 if (m_sequence.size() > m_sequenceLength)
                 {
@@ -61,15 +64,19 @@ namespace carl
                     m_buffer.swap(m_sequence);
                 }
 
-                auto& handlers = *static_cast<WeakTableT*>(this);
-                handlers.apply_to_all([this](auto& callable) {
-                    gsl::span<const DescriptorT> span{ m_sequence };
-                    callable(span);
-                });
+                if (descriptorsAdded)
+                {
+                    auto& handlers = *static_cast<WeakTableT*>(this);
+                    handlers.apply_to_all([this](auto& callable) {
+                        gsl::span<const DescriptorT> span{ m_sequence };
+                        callable(span);
+                    });
+                }
             }
 
         private:
-            const Signal<gsl::span<const InputSample>>::TicketT m_ticket;
+            const Signal<const InputSample&>::TicketT m_ticket;
+            InputSample m_mostRecentSample{};
             std::vector<DescriptorT> m_sequence{};
             std::vector<DescriptorT> m_buffer{};
             const size_t m_sequenceLength{};
@@ -78,16 +85,16 @@ namespace carl
 
     template <typename... DescriptorTs>
     class SessionImplBase
-        : public arcana::weak_table<typename Signal<gsl::span<const InputSample>>::HandlerT>
-        , public Signal<gsl::span<const InputSample>>
+        : public arcana::weak_table<typename Signal<const InputSample&>::HandlerT>
+        , public Signal<const InputSample&>
         , protected DescriptorSequence<DescriptorTs>::Provider...
     {
     public:
-        using SignalHandlersT = arcana::weak_table<typename Signal<gsl::span<const InputSample>>::HandlerT>;
+        using SignalHandlersT = arcana::weak_table<typename Signal<const InputSample&>::HandlerT>;
 
         SessionImplBase(size_t sequenceLength)
-            : Signal<gsl::span<const InputSample>>{ *static_cast<SignalHandlersT*>(this) }
-            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<gsl::span<const InputSample>>*>(this), sequenceLength }...
+            : Signal<const InputSample&>{ *static_cast<SignalHandlersT*>(this) }
+            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<const InputSample&>*>(this), sequenceLength }...
         {
         }
     };
@@ -101,7 +108,7 @@ namespace carl
         descriptor::TwoHandGesture>
     {
     public:
-        Impl(size_t samplesPerSecond = 30, size_t maxActionDurationSeconds = 5);
+        Impl(size_t samplesPerSecond = 20, size_t maxActionDurationSeconds = 5);
 
         static Session::Impl& getFromSession(Session& session);
 
@@ -109,7 +116,7 @@ namespace carl
 
         auto& processingScheduler()
         {
-            return arcana::inline_scheduler;// m_processingDispatcher;
+            return m_processingDispatcher;
         }
 
         auto& callbackScheduler()
@@ -132,7 +139,7 @@ namespace carl
 
     private:
         arcana::manual_dispatcher<128> m_callbackDispatcher{};
-        //arcana::background_dispatcher<128> m_processingDispatcher{};
+        arcana::background_dispatcher<128> m_processingDispatcher{};
         std::vector<InputSample> m_samples{};
         std::vector<InputSample> m_processingSamples{};
         std::mutex m_samplesMutex{};
