@@ -139,46 +139,53 @@ namespace carl::action
             }
 
         protected:
+            // TODO: This has not been reworked or retested sufficiently since paradigms shifted underneath it! The underlying 
+            // logic is probably most still sound, but the implementation needs to be fixed and tested now that samples and 
+            // descriptors can differ in count.
             Example createAutoTrimmedExample(const Recording& recording) const override
             {
+                using DescT = descriptor::TimestampedDescriptor<DescriptorT>;
                 using SignalT = Signal<const InputSample&>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
-                Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
+                typename DescriptorSequence<DescT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
+                Signal<gsl::span<const DescT>>& descriptorSignal{ descriptorSequenceProvider };
 
-                auto samples = resample(
-                    recording.getSamples(),
-                    recording.getSamples().front().Timestamp,
-                    recording.getSamples().back().Timestamp,
-                    m_sessionImpl.frameDuration);
+                auto samples = recording.getSamples();
                 size_t idx = 0;
 
                 auto maxScore = std::numeric_limits<NumberT>::lowest();
                 size_t maxScoreIdx = 0;
-                std::vector<DescriptorT> maxScoreTrimmedSequence{};
 
-                using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescriptorT>>::TicketT>;
+                std::vector<DescriptorT> descriptorSequence{};
+                std::vector<DescT> maxScoreTrimmedSequence{};
+
+                using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescT>>::TicketT>;
                 OptionalTicketT maxScoreDescriptorHandlerTicket{ descriptorSignal.addHandler(
-                    [this, &idx, &samples, &maxScore, &maxScoreIdx, &maxScoreTrimmedSequence](gsl::span<const DescriptorT> sequence) {
+                    [this, &idx, &samples, &maxScore, &maxScoreIdx, &maxScoreTrimmedSequence, &descriptorSequence](gsl::span<const DescT> sequence) {
                         if (sequence.size() <= m_trimmedSequenceLength)
                         {
                             return;
                         }
 
-                        auto score = calculateScore(sequence);
+                        descriptorSequence.clear();
+                        for (const auto& element : sequence)
+                        {
+                            descriptorSequence.push_back(element.getUnderlyingDescriptor());
+                        }
+                        auto score = calculateScore(descriptorSequence);
                         if (score > maxScore)
                         {
                             maxScore = score;
                             maxScoreIdx = idx;
 
-                            gsl::span<const DescriptorT> trimmedSequence{
+                            gsl::span<const DescT> trimmedSequence{
                                 &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength};
 
                             // Note that this logic depends on the fact that descriptors are trivially copyable.
-                            static_assert(std::is_trivially_copyable<DescriptorT>::value);
+                            static_assert(std::is_trivially_copyable<DescT>::value);
                             maxScoreTrimmedSequence.resize(trimmedSequence.size());
-                            std::memcpy(maxScoreTrimmedSequence.data(), trimmedSequence.data(), sizeof(DescriptorT) * trimmedSequence.size());
+                            std::memcpy(maxScoreTrimmedSequence.data(), trimmedSequence.data(), sizeof(DescT) * trimmedSequence.size());
                         }
                     }) };
 
@@ -194,11 +201,18 @@ namespace carl::action
                 auto endT = samples[samples.size() - 1].Timestamp;
                 auto distance = std::numeric_limits<NumberT>::max();
 
+                descriptorSequence.clear();
+                for (const auto& element : maxScoreTrimmedSequence)
+                {
+                    descriptorSequence.push_back(element.getUnderlyingDescriptor());
+                }
+
                 for (const auto& t : m_templates)
                 {
-                    auto [normalizedDistance, imageSize] = calculateSequenceDistance(maxScoreTrimmedSequence, t);
+                    auto [normalizedDistance, imageSize] = calculateSequenceDistance(descriptorSequence, t);
                     if (normalizedDistance < distance)
                     {
+                        // TODO: Rework this to use descriptor timestamps!
                         startT = samples[maxScoreIdx - imageSize].Timestamp;
                         endT = samples[maxScoreIdx].Timestamp;
                         distance = normalizedDistance;
@@ -216,11 +230,7 @@ namespace carl::action
                 typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
                 Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
 
-                auto samples = resample(
-                    recording.getSamples(),
-                    recording.getSamples().front().Timestamp,
-                    recording.getSamples().back().Timestamp,
-                    m_sessionImpl.frameDuration);
+                auto samples = recording.getSamples();
                 size_t idx = 0;
 
                 using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescriptorT>>::TicketT>;
@@ -284,8 +294,6 @@ namespace carl::action
                 auto initializeTemplatesFromExamples = [this](gsl::span<const action::Example> examples, std::vector<std::vector<DescriptorT>>& templates) {
                     for (const auto& example : examples)
                     {
-                        //auto samples = resample(example, m_sessionImpl.frameDuration);
-
                         templates.emplace_back();
                         auto& sequence = templates.back();
 
@@ -302,28 +310,6 @@ namespace carl::action
                             descriptor::extendSequence(samples[idx], sequence, mostRecentSample, DescriptorT::DEFAULT_TUNING);
                             ++idx;
                         }
-                        /*sequence.reserve(samples.size() - 1);
-                        if (samples.size() == 1)
-                        {
-                            // For recordings short enough that they only contain one sample, consider them to
-                            // represent a static pose.
-                            auto descriptor = DescriptorT::TryCreate(samples[0], samples[0]);
-                            if (descriptor.has_value())
-                            {
-                                sequence.emplace_back(std::move(descriptor.value()));
-                            }
-                        }
-                        else
-                        {
-                            for (size_t idx = 0; idx < samples.size() - 1; ++idx)
-                            {
-                                auto descriptor = DescriptorT::TryCreate(samples[idx + 1], samples[idx]);
-                                if (descriptor.has_value())
-                                {
-                                    sequence.emplace_back(std::move(descriptor.value()));
-                                }
-                            }
-                        }*/
                     }
                 };
 

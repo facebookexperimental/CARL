@@ -560,6 +560,7 @@ namespace carl::descriptor
         }
     };
 
+    // TODO: Review theory of delta descriptors and assess how they work with delta sampling. Make sure creation isn't oscillating.
     template<Handedness Handedness>
     class WristRotation
     {
@@ -611,10 +612,7 @@ namespace carl::descriptor
         WristRotation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.3) };
-        // The parameters of the above distance function are based on the assumption of 20fps,
-        // so 20 is used to normalize the data to make the descriptor framerate independent.
-        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.24) };
         trivial::Quaternion m_deltaOrientation{};
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
@@ -624,12 +622,11 @@ namespace carl::descriptor
             auto priorWristPose = getWristPose<Handedness>(priorSample);
 
             AngleAxisT angleAxis{ priorWristPose.rotation().inverse() * wristPose.rotation() };
-            angleAxis.angle() = angleAxis.angle() / (sample.Timestamp - priorSample.Timestamp) / DISTANCE_PARAMETERS_FRAMES_PER_SECOND;
-
             m_deltaOrientation = QuaternionT{ angleAxis };
         }
     };
 
+    // TODO: Review theory of delta descriptors and assess how they work with delta sampling. Make sure creation isn't oscillating.
     template<Handedness Handedness>
     class EgocentricWristTranslation
     {
@@ -668,10 +665,8 @@ namespace carl::descriptor
             const EgocentricWristTranslation& b,
             gsl::span<const NumberT> tuning)
         {
-            auto largerMagnitude = std::max(a.m_egocentricTemporalPosition.length(), b.m_egocentricTemporalPosition.length());
-            auto normalizationFactor = 0.5 * (largerMagnitude + 0.01);
             auto distance = a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
-            return calculateDistance(distance / normalizationFactor, tuning[0]);
+            return calculateDistance(distance, tuning[0]);
         }
 
         static EgocentricWristTranslation Lerp(
@@ -689,10 +684,7 @@ namespace carl::descriptor
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.6, 1.2) };
-        // The parameters of the above distance function are based on the assumption of 20fps,
-        // so 30 is used to normalize the data to make the descriptor framerate independent.
-        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.02) };
         trivial::Point m_egocentricTemporalPosition{};
 
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)
@@ -705,7 +697,6 @@ namespace carl::descriptor
 
             auto ets = EgocentricTemporalSpace::getPose(priorWristPose.translation(), priorHmdPose);
             VectorT translation{ ets.inverse() * wristPose.translation() };
-            translation = translation / (sample.Timestamp - priorSample.Timestamp) / DISTANCE_PARAMETERS_FRAMES_PER_SECOND;
             m_egocentricTemporalPosition = translation;
         }
     };
@@ -902,5 +893,59 @@ namespace carl::descriptor
             , m_relativeSample{ std::move(relativeSample) }
         {
         }
+    };
+
+    template<typename DescriptorT>
+    class TimestampedDescriptor
+    {
+    public:
+        using TuningT = typename DescriptorT::TuningT;
+        static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
+        static constexpr auto HANDEDNESS{ DescriptorT::HANDEDNESS };
+
+        static std::optional<TimestampedDescriptor> TryCreate(
+            const InputSample& sample,
+            const InputSample& priorSample)
+        {
+            auto underlyingDescriptor = DescriptorT::TryCreate(sample, priorSample);
+            if (underlyingDescriptor.has_value())
+            {
+                return TimestampedDescriptor{ std::move(*underlyingDescriptor), sample.Timestamp };
+            }
+            return{};
+        }
+
+        static NumberT Distance(const TimestampedDescriptor& a, const TimestampedDescriptor& b, gsl::span<const NumberT> tuning)
+        {
+            return DescriptorT::Distance(a.m_underlyingDescriptor, b.m_underlyingDescriptor, tuning);
+        }
+
+        static TimestampedDescriptor Lerp(const TimestampedDescriptor& a, const TimestampedDescriptor& b, NumberT t)
+        {
+            auto underlyingDescriptor = DescriptorT::Lerp(a.m_underlyingDescriptor, b.m_underlyingDescriptor, t);
+            auto timestamp = (static_cast<NumberT>(1) - t) * a.m_timestamp + t * b.m_timestamp;
+            return{ std::move(underlyingDescriptor), timestamp };
+        }
+
+        TimestampedDescriptor() = default;
+
+        const DescriptorT& getUnderlyingDescriptor() const
+        {
+            return m_underlyingDescriptor;
+        }
+
+        double getTimestamp()
+        {
+            return m_timestamp;
+        }
+
+    private:
+        DescriptorT m_underlyingDescriptor{};
+        double m_timestamp{};
+
+        TimestampedDescriptor(DescriptorT underlyingDescriptor, double timestamp)
+            : m_underlyingDescriptor{ std::move(underlyingDescriptor) }
+            , m_timestamp{ timestamp }
+        {}
     };
 }
