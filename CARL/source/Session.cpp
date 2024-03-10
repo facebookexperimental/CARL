@@ -35,8 +35,19 @@ namespace carl
         }
     }
 
-    Session::Impl::Impl(size_t samplesPerSecond, size_t maxActionDurationSeconds)
+    Session::Impl::Impl(size_t samplesPerSecond, size_t maxActionDurationSeconds, bool singleThreaded)
         : SessionImplBase{ samplesPerSecond * maxActionDurationSeconds }
+        , m_callbackScheduler{ [this](auto&& work) { m_callbackDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); }}
+        , m_processingScheduler{ [this, singleThreaded]() -> SchedulerT {
+            if (singleThreaded)
+            {
+                return [this](auto&& work) { arcana::inline_scheduler(std::forward<std::remove_reference_t<decltype(work)>>(work)); };
+            }
+            else
+            {
+                return [this](auto&& work) { m_processingDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); };
+            }
+        }()}
         , frameDuration{ 1. / samplesPerSecond }
     {
     }
@@ -77,7 +88,8 @@ namespace carl
         // can happen on another thread.
     }
 
-    Session::Session() : m_impl{ std::make_unique<Impl>() }
+    Session::Session(size_t samplesPerSecond, size_t maxActionDurationSeconds, bool singleThreaded) 
+        : m_impl{ std::make_unique<Impl>(samplesPerSecond, maxActionDurationSeconds, singleThreaded) }
     {
     }
 
@@ -90,12 +102,12 @@ namespace carl
         m_impl->addInputSample(inputSample);
     }
 
-    arcana::background_dispatcher<128>& Session::processingScheduler()
+    Session::SchedulerT& Session::processingScheduler()
     {
         return m_impl->processingScheduler();
     }
 
-    arcana::manual_dispatcher<128>& Session::callbackScheduler()
+    Session::SchedulerT& Session::callbackScheduler()
     {
         return m_impl->callbackScheduler();
     }

@@ -50,6 +50,7 @@ extern "C"
     C_API_EXPORT(uint64_t) getCounterexampleAtIdx(uint64_t definitionPtr, uint64_t idx);
     C_API_EXPORT(void) disposeDefinition(uint64_t definitionPtr);
     C_API_EXPORT(uint64_t) createSession();
+    C_API_EXPORT(uint64_t) createSingleThreadedSession();
     C_API_EXPORT(void) tickCallbacks(uint64_t sessionPtr);
     C_API_EXPORT(void) addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size);
     C_API_EXPORT(void) disposeSession(uint64_t sessionPtr);
@@ -281,6 +282,12 @@ void disposeDefinition(uint64_t definitionPtr)
 uint64_t createSession()
 {
     auto* ptr = new carl::Session();
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+uint64_t createSingleThreadedSession()
+{
+    auto* ptr = new carl::Session(20, 5, true);
     return reinterpret_cast<uint64_t>(ptr);
 }
 

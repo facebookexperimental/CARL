@@ -108,7 +108,7 @@ namespace carl
         descriptor::TwoHandGesture>
     {
     public:
-        Impl(size_t samplesPerSecond = 20, size_t maxActionDurationSeconds = 5);
+        Impl(size_t samplesPerSecond, size_t maxActionDurationSeconds, bool singleThreaded);
 
         static Session::Impl& getFromSession(Session& session);
 
@@ -116,12 +116,12 @@ namespace carl
 
         auto& processingScheduler()
         {
-            return m_processingDispatcher;
+            return m_processingScheduler;
         }
 
         auto& callbackScheduler()
         {
-            return m_callbackDispatcher;
+            return m_callbackScheduler;
         }
 
         void tickCallbacks(arcana::cancellation& token)
@@ -138,8 +138,10 @@ namespace carl
         }
 
     private:
-        arcana::manual_dispatcher<128> m_callbackDispatcher{};
-        arcana::background_dispatcher<128> m_processingDispatcher{};
+        arcana::manual_dispatcher<256> m_callbackDispatcher{};
+        arcana::background_dispatcher<256> m_processingDispatcher{};
+        SchedulerT m_callbackScheduler{};
+        SchedulerT m_processingScheduler{};
         std::vector<InputSample> m_samples{};
         std::vector<InputSample> m_processingSamples{};
         std::mutex m_samplesMutex{};

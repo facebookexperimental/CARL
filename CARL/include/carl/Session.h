@@ -21,16 +21,15 @@ namespace carl
     class Session {
     public:
         class Impl;
+        using SchedulerT = stdext::inplace_function<void(stdext::inplace_function<void(), 128>&&), 128>;
 
-        Session();
+        Session(size_t samplesPerSecond = 20, size_t maxActionDurationSeconds = 5, bool singleThreaded = false);
         ~Session();
 
         void addInput(InputSample);
 
-        // TODO: Figure out a better, more opaque type to return.
-        arcana::manual_dispatcher<128>& callbackScheduler();
-        // TODO: Figure out a better, more opaque type to return.
-        arcana::background_dispatcher<128>& processingScheduler();
+        SchedulerT& callbackScheduler();
+        SchedulerT& processingScheduler();
         void tickCallbacks(arcana::cancellation& token);
 
     private:
