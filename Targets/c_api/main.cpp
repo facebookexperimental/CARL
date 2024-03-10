@@ -14,7 +14,7 @@
 #define C_API_CALLBACK(ReturnT) ReturnT __stdcall
 #else
 #define C_API_EXPORT(ReturnT) ReturnT
-#define C_API_CALLBACK(ReturnT) ReturnT
+#define C_API_CALLBACK(ReturnT) ReturnT __attribute__((stdcall))
 #endif
 
 extern "C"
@@ -51,6 +51,7 @@ extern "C"
     C_API_EXPORT(void) disposeDefinition(uint64_t definitionPtr);
     C_API_EXPORT(uint64_t) createSession();
     C_API_EXPORT(uint64_t) createSingleThreadedSession();
+    C_API_EXPORT(void) setSessionLogger(uint64_t sessionPtr, C_API_CALLBACK(void) callback(const char*));
     C_API_EXPORT(void) tickCallbacks(uint64_t sessionPtr);
     C_API_EXPORT(void) addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size);
     C_API_EXPORT(void) disposeSession(uint64_t sessionPtr);
@@ -289,6 +290,14 @@ uint64_t createSingleThreadedSession()
 {
     auto* ptr = new carl::Session(20, 5, true);
     return reinterpret_cast<uint64_t>(ptr);
+}
+
+void setSessionLogger(uint64_t sessionPtr, C_API_CALLBACK(void) callback(const char*))
+{
+    auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
+    session.setLogger([callback](std::string message) {
+        callback(message.c_str());
+    });
 }
 
 void tickCallbacks(uint64_t sessionPtr)

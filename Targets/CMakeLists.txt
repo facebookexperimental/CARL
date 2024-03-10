@@ -7,6 +7,8 @@ add_library(carl_static_library "c_api/main.cpp")
 target_link_libraries(carl_static_library PUBLIC carl_core)
 if(EMSCRIPTEN)
     target_link_options(carl_static_library PUBLIC -s EXPORTED_FUNCTIONS=["_getBytes","_startRecording","_recordInputSample","_finishRecording","_serializeRecording","_deserializeRecording","_disposeRecording","_getRecordingInspector","_inspect","_getStartTimestamp","_getEndTimestamp","_disposeRecordingInspector","_createdDefinition","_addExample","_getDefaultSensitivity","_setDefaultSensitivity","_serializeDefinition","_deserializeDefinition","_getExamplesCount","_getRecordingFromExampleAtIdx","_getStartTimestampFromExampleAtIdx","_getEndTimestampFromExampleAtIdx","_disposeDefinition","_createSession","_addInputSample","_disposeSession","_createRecognizer","_getCurrentScore","_setSensitivity","_getCanonicalRecordingInspector","_disposeRecognizer","_malloc","_free"])
+elseif(WIN32 OR WINDOWS_STORE)
+    target_compile_definitions(carl_static_library PRIVATE CARL_PLATFORM_WINDOWS)
 endif()
 set_property(TARGET carl_static_library PROPERTY FOLDER "Targets")
 

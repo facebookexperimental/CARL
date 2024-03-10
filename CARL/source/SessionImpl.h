@@ -137,6 +137,12 @@ namespace carl
             return typename DescriptorSequence<DescriptorT>::Provider::addHandler(std::move(handler));
         }
 
+        void setLogger(std::function<void(std::string)> logger)
+        {
+            std::scoped_lock lock{ m_loggerMutex };
+            m_logger = std::move(logger);
+        }
+
     private:
         arcana::manual_dispatcher<256> m_callbackDispatcher{};
         arcana::background_dispatcher<256> m_processingDispatcher{};
@@ -145,5 +151,7 @@ namespace carl
         std::vector<InputSample> m_samples{};
         std::vector<InputSample> m_processingSamples{};
         std::mutex m_samplesMutex{};
+        std::function<void(std::string)> m_logger{};
+        std::mutex m_loggerMutex{};
     };
 }

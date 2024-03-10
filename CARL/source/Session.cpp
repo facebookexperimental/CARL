@@ -7,10 +7,12 @@
 
 #include <carl/Session.h>
 
-#include <arcana/threading/task.h>
-
 #include "SessionImpl.h"
 #include "Descriptor.h"
+
+#include <arcana/threading/task.h>
+
+#include <iostream>
 
 namespace carl
 {
@@ -82,6 +84,21 @@ namespace carl
                     callable(sample);
                 });
             }
+        }).then(arcana::inline_scheduler, arcana::cancellation::none(), [this](arcana::expected<void, std::exception_ptr> expected) {
+            if (expected.has_error())
+            {
+                try
+                {
+                    std::rethrow_exception(expected.error());
+                }
+                catch (std::exception& e)
+                {
+                    arcana::make_task(m_callbackScheduler, arcana::cancellation::none(), [this, message = std::string{ e.what() }]() {
+                        std::scoped_lock lock{ m_loggerMutex };
+                        m_logger(message.c_str());
+                    });
+                }
+            }
         });
 
         // TODO: Later, decouple this so that addInputSample is synchronous and resampling and processing
@@ -110,6 +127,11 @@ namespace carl
     Session::SchedulerT& Session::callbackScheduler()
     {
         return m_impl->callbackScheduler();
+    }
+
+    void Session::setLogger(std::function<void(std::string)> logger)
+    {
+        m_impl->setLogger(std::move(logger));
     }
 
     void Session::tickCallbacks(arcana::cancellation& token)

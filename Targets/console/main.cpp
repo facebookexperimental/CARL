@@ -117,7 +117,7 @@ void test2()
     for (; recording.getSamples()[idx + 1].Timestamp < recording.getInspector().endTimestamp(); ++idx);
     auto sample = recording.getSamples()[idx];
 
-    carl::Session session{};
+    carl::Session session{ 20, 5, true };
     carl::action::Recognizer recognizer{ session, definition };
     for (const auto& sample : recording.getSamples())
     {
@@ -127,6 +127,7 @@ void test2()
         {
             std::cout << "Aha!" << std::endl;
         }
+        session.tickCallbacks(arcana::cancellation::none());
     }
 }
 
@@ -166,6 +167,6 @@ void main()
     */
 
     //test();
-    //test2();
-    test3();
+    test2();
+    //test3();
 }
