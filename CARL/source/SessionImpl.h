@@ -134,7 +134,7 @@ namespace carl
         template <typename DescriptorT>
         auto addHandler(std::function<void(gsl::span<const DescriptorT>)> handler)
         {
-            return typename DescriptorSequence<DescriptorT>::Provider::addHandler(std::move(handler));
+            return DescriptorSequence<DescriptorT>::Provider::addHandler(std::move(handler));
         }
 
         void setLogger(std::function<void(std::string)> logger)

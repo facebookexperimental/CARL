@@ -14,7 +14,7 @@
 #define C_API_CALLBACK(ReturnT) ReturnT __stdcall
 #else
 #define C_API_EXPORT(ReturnT) ReturnT
-#define C_API_CALLBACK(ReturnT) ReturnT __attribute__((stdcall))
+#define C_API_CALLBACK(ReturnT) ReturnT
 #endif
 
 extern "C"
@@ -60,6 +60,7 @@ extern "C"
     C_API_EXPORT(void) setSensitivity(uint64_t recognizerPtr, double sensitivity);
     C_API_EXPORT(uint64_t) getCanonicalRecordingInspector(uint64_t recognizerPtr);
     C_API_EXPORT(void) disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr);
+    C_API_EXPORT(void) testAsyncExceptionBehavior(uint64_t sessionPtr);
 }
 
 uint64_t getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
@@ -353,5 +354,13 @@ void disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr)
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
     arcana::make_task(session.processingScheduler(), arcana::cancellation::none(), [recognizerPtr]() {
         delete reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
+    });
+}
+
+void testAsyncExceptionBehavior(uint64_t sessionPtr)
+{
+    auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
+    session.processingScheduler()([]() {
+        throw std::runtime_error{ "Test async exception behavior" };
     });
 }
