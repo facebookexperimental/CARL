@@ -9,6 +9,10 @@
 
 #include <arcana/threading/task.h>
 
+#ifdef CARL_PLATFORM_ANDROID
+#include <android/log.h>
+#endif
+
 #ifdef CARL_PLATFORM_WINDOWS
 #define C_API_EXPORT(ReturnT) __declspec(dllexport) ReturnT __cdecl
 #define C_API_CALLBACK(ReturnT) ReturnT __stdcall
@@ -16,6 +20,22 @@
 #define C_API_EXPORT(ReturnT) ReturnT
 #define C_API_CALLBACK(ReturnT) ReturnT
 #endif
+
+namespace
+{
+#ifdef CARL_PLATFORM_ANDROID
+    void setUpSession(carl::Session& session)
+    {
+        session.setLogger([](std::string message) {
+            __android_log_print(ANDROID_LOG_ERROR, "CARL", "%s", message.c_str());
+        });
+    }
+#else
+    void setUpSession(carl::Session& session)
+    {
+    }
+#endif
+}
 
 extern "C"
 {
@@ -60,7 +80,6 @@ extern "C"
     C_API_EXPORT(void) setSensitivity(uint64_t recognizerPtr, double sensitivity);
     C_API_EXPORT(uint64_t) getCanonicalRecordingInspector(uint64_t recognizerPtr);
     C_API_EXPORT(void) disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr);
-    C_API_EXPORT(void) testAsyncExceptionBehavior(uint64_t sessionPtr);
 }
 
 uint64_t getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
@@ -284,12 +303,14 @@ void disposeDefinition(uint64_t definitionPtr)
 uint64_t createSession()
 {
     auto* ptr = new carl::Session();
+    setUpSession(*ptr);
     return reinterpret_cast<uint64_t>(ptr);
 }
 
 uint64_t createSingleThreadedSession()
 {
     auto* ptr = new carl::Session(20, 5, true);
+    setUpSession(*ptr);
     return reinterpret_cast<uint64_t>(ptr);
 }
 
@@ -354,13 +375,5 @@ void disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr)
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
     arcana::make_task(session.processingScheduler(), arcana::cancellation::none(), [recognizerPtr]() {
         delete reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
-    });
-}
-
-void testAsyncExceptionBehavior(uint64_t sessionPtr)
-{
-    auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    session.processingScheduler()([]() {
-        throw std::runtime_error{ "Test async exception behavior" };
     });
 }

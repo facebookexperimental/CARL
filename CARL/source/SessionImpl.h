@@ -143,6 +143,12 @@ namespace carl
             m_logger = std::move(logger);
         }
 
+        void log(std::string message)
+        {
+            std::scoped_lock lock{ m_loggerMutex };
+            m_logger(std::move(message));
+        }
+
     private:
         arcana::manual_dispatcher<256> m_callbackDispatcher{};
         arcana::background_dispatcher<256> m_processingDispatcher{};

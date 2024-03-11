@@ -31,6 +31,7 @@ namespace carl
         SchedulerT& callbackScheduler();
         SchedulerT& processingScheduler();
         void setLogger(std::function<void(std::string)> logger);
+        void log(std::string message);
         void tickCallbacks(arcana::cancellation& token);
 
     private:

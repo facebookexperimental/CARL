@@ -134,6 +134,11 @@ namespace carl
         m_impl->setLogger(std::move(logger));
     }
 
+    void Session::log(std::string message)
+    {
+        m_impl->log(std::move(message));
+    }
+
     void Session::tickCallbacks(arcana::cancellation& token)
     {
         m_impl->tickCallbacks(token);
