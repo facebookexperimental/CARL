@@ -15,10 +15,10 @@
 
 #ifdef CARL_PLATFORM_WINDOWS
 #define C_API_EXPORT(ReturnT) __declspec(dllexport) ReturnT __cdecl
-#define C_API_CALLBACK(ReturnT) ReturnT __stdcall
+#define C_API_CALLBACK(ReturnT) ReturnT __cdecl
 #else
-#define C_API_EXPORT(ReturnT) ReturnT
-#define C_API_CALLBACK(ReturnT) ReturnT
+#define C_API_EXPORT(ReturnT) ReturnT __cdecl
+#define C_API_CALLBACK(ReturnT) ReturnT __cdecl
 #endif
 
 namespace
@@ -75,7 +75,7 @@ extern "C"
     C_API_EXPORT(void) tickCallbacks(uint64_t sessionPtr);
     C_API_EXPORT(void) addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size);
     C_API_EXPORT(void) disposeSession(uint64_t sessionPtr);
-    C_API_EXPORT(void) createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, C_API_CALLBACK(void) callback(uint64_t));
+    C_API_EXPORT(void) createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, uint64_t requestId, C_API_CALLBACK(void) callback(uint64_t, uint64_t));
     C_API_EXPORT(double) getCurrentScore(uint64_t recognizerPtr);
     C_API_EXPORT(void) setSensitivity(uint64_t recognizerPtr, double sensitivity);
     C_API_EXPORT(uint64_t) getCanonicalRecordingInspector(uint64_t recognizerPtr);
@@ -340,14 +340,14 @@ void disposeSession(uint64_t sessionPtr)
     delete reinterpret_cast<carl::Session*>(sessionPtr);
 }
 
-void createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, C_API_CALLBACK(void) callback(uint64_t))
+void createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, uint64_t requestId, C_API_CALLBACK(void) callback(uint64_t, uint64_t))
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
     arcana::make_task(session.processingScheduler(), arcana::cancellation::none(), [&session, definitionPtr]() {
         const auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
         return new carl::action::Recognizer(session, definition);
-    }).then(session.callbackScheduler(), arcana::cancellation::none(), [callback](auto* ptr) {
-        callback(reinterpret_cast<uint64_t>(ptr));
+    }).then(session.callbackScheduler(), arcana::cancellation::none(), [callback, requestId](auto* ptr) {
+        callback(requestId, reinterpret_cast<uint64_t>(ptr));
     });
 }
 
