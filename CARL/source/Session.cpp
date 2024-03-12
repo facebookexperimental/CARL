@@ -64,11 +64,8 @@ namespace carl
 
     void Session::Impl::addInputSample(const InputSample& inputSample)
     {
-        // Send inputSample to the resampling logic. Only invoke the signal if the resampler updates the
-        // input sequence.
         {
             std::scoped_lock lock{m_samplesMutex};
-            //appendSampleToResampling(inputSample, m_samples, frameDuration);
             m_samples.push_back(inputSample);
         }
         arcana::make_task(processingScheduler(), arcana::cancellation::none(), [this]() {
@@ -103,9 +100,6 @@ namespace carl
                 }
             }
         });
-
-        // TODO: Later, decouple this so that addInputSample is synchronous and resampling and processing
-        // can happen on another thread.
     }
 
     Session::Session(bool singleThreaded) 
