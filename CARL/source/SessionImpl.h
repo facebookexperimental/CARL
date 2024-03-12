@@ -41,14 +41,6 @@ namespace carl
 
             void handleInputSample(const InputSample& sample)
             {
-                /*for (size_t idx = 1; idx < samples.size(); ++idx)
-                {
-                    auto descriptor = DescriptorT::TryCreate(samples[idx], samples[idx - 1]);
-                    if (descriptor.has_value())
-                    {
-                        m_sequence.emplace_back(std::move(descriptor.value()));
-                    }
-                }*/
                 size_t priorSequenceSize = m_sequence.size();
                 descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
                 bool descriptorsAdded = m_sequence.size() > priorSequenceSize;
