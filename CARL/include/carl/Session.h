@@ -23,7 +23,7 @@ namespace carl
         class Impl;
         using SchedulerT = stdext::inplace_function<void(stdext::inplace_function<void(), 128>&&), 128>;
 
-        Session(size_t samplesPerSecond = 20, size_t maxActionDurationSeconds = 5, bool singleThreaded = false);
+        Session(bool singleThreaded = false);
         ~Session();
 
         void addInput(InputSample);

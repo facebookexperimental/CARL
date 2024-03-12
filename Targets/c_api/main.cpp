@@ -309,7 +309,7 @@ uint64_t createSession()
 
 uint64_t createSingleThreadedSession()
 {
-    auto* ptr = new carl::Session(20, 5, true);
+    auto* ptr = new carl::Session(true);
     setUpSession(*ptr);
     return reinterpret_cast<uint64_t>(ptr);
 }

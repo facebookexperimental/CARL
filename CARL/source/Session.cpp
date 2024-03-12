@@ -37,9 +37,8 @@ namespace carl
         }
     }
 
-    Session::Impl::Impl(size_t samplesPerSecond, size_t maxActionDurationSeconds, bool singleThreaded)
-        : SessionImplBase{ samplesPerSecond * maxActionDurationSeconds }
-        , m_callbackScheduler{ [this](auto&& work) { m_callbackDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); }}
+    Session::Impl::Impl(bool singleThreaded)
+        : m_callbackScheduler{ [this](auto&& work) { m_callbackDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); }}
         , m_processingScheduler{ [this, singleThreaded]() -> SchedulerT {
             if (singleThreaded)
             {
@@ -50,7 +49,6 @@ namespace carl
                 return [this](auto&& work) { m_processingDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); };
             }
         }()}
-        , frameDuration{ 1. / samplesPerSecond }
     {
     }
 
@@ -105,8 +103,8 @@ namespace carl
         // can happen on another thread.
     }
 
-    Session::Session(size_t samplesPerSecond, size_t maxActionDurationSeconds, bool singleThreaded) 
-        : m_impl{ std::make_unique<Impl>(samplesPerSecond, maxActionDurationSeconds, singleThreaded) }
+    Session::Session(bool singleThreaded) 
+        : m_impl{ std::make_unique<Impl>(singleThreaded) }
     {
     }
 

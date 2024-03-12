@@ -32,10 +32,10 @@ namespace carl
         class Provider : private WeakTableT, public DescriptorSignalT
         {
         public:
-            Provider(Signal<const InputSample&>& signal, size_t sequenceLength)
+            Provider(Signal<const InputSample&>& signal)
                 : DescriptorSignalT{ *static_cast<WeakTableT*>(this) }
                 , m_ticket{ signal.addHandler([this](auto samples) { handleInputSample(samples); }) }
-                , m_sequenceLength{ sequenceLength }
+                , m_sequenceLength{ 10 }
             {
             }
 
@@ -66,12 +66,17 @@ namespace carl
                 }
             }
 
+            void supportSequenceOfLength(size_t length)
+            {
+                m_sequenceLength = std::max(m_sequenceLength, length);
+            }
+
         private:
             const Signal<const InputSample&>::TicketT m_ticket;
             InputSample m_mostRecentSample{};
             std::vector<DescriptorT> m_sequence{};
             std::vector<DescriptorT> m_buffer{};
-            const size_t m_sequenceLength{};
+            size_t m_sequenceLength{};
         };
     };
 
@@ -84,9 +89,9 @@ namespace carl
     public:
         using SignalHandlersT = arcana::weak_table<typename Signal<const InputSample&>::HandlerT>;
 
-        SessionImplBase(size_t sequenceLength)
+        SessionImplBase()
             : Signal<const InputSample&>{ *static_cast<SignalHandlersT*>(this) }
-            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<const InputSample&>*>(this), sequenceLength }...
+            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<const InputSample&>*>(this) }...
         {
         }
     };
@@ -100,7 +105,7 @@ namespace carl
         descriptor::TwoHandGesture>
     {
     public:
-        Impl(size_t samplesPerSecond, size_t maxActionDurationSeconds, bool singleThreaded);
+        Impl(bool singleThreaded);
 
         static Session::Impl& getFromSession(Session& session);
 
@@ -121,12 +126,16 @@ namespace carl
             m_callbackDispatcher.tick(token);
         }
 
-        const double frameDuration{};
-
         template <typename DescriptorT>
         auto addHandler(std::function<void(gsl::span<const DescriptorT>)> handler)
         {
             return DescriptorSequence<DescriptorT>::Provider::addHandler(std::move(handler));
+        }
+
+        template<typename DescriptorT>
+        void supportSequenceOfLength(size_t length)
+        {
+            DescriptorSequence<DescriptorT>::Provider::supportSequenceOfLength(length);
         }
 
         void setLogger(std::function<void(std::string)> logger)

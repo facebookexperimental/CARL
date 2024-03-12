@@ -148,7 +148,8 @@ namespace carl::action
                 using SignalT = Signal<const InputSample&>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
+                typename DescriptorSequence<DescT>::Provider descriptorSequenceProvider{ inputSampleSignal };
+                descriptorSequenceProvider.supportSequenceOfLength(2 * m_trimmedSequenceLength);
                 Signal<gsl::span<const DescT>>& descriptorSignal{ descriptorSequenceProvider };
 
                 auto samples = recording.getSamples();
@@ -227,7 +228,8 @@ namespace carl::action
                 using SignalT = Signal<const InputSample&>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal, 2 * m_trimmedSequenceLength };
+                typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal };
+                descriptorSequenceProvider.supportSequenceOfLength(2 * m_trimmedSequenceLength);
                 Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
 
                 auto samples = recording.getSamples();
@@ -325,6 +327,8 @@ namespace carl::action
                 {
                     m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * ct.size()) / 4);
                 }
+
+                m_sessionImpl.supportSequenceOfLength<DescriptorT>(2 * m_trimmedSequenceLength);
             }
 
             void calculateTuning()

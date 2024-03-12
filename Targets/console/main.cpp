@@ -117,7 +117,7 @@ void test2()
     for (; recording.getSamples()[idx + 1].Timestamp < recording.getInspector().endTimestamp(); ++idx);
     auto sample = recording.getSamples()[idx];
 
-    carl::Session session{ 20, 5, true };
+    carl::Session session{ true };
     carl::action::Recognizer recognizer{ session, definition };
     for (const auto& sample : recording.getSamples())
     {
