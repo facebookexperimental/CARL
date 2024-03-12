@@ -408,7 +408,6 @@ namespace carl::descriptor
         HandShape() = default;
 
     private:
-        //static inline constexpr auto calculateDistance{ createDistanceFunction(0.005, 0.02) };
         static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.03) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{0.1};
         std::array<trivial::Point, JOINTS.size()> m_positions{};
@@ -488,7 +487,6 @@ namespace carl::descriptor
 
     private:
         static inline constexpr auto calculateDistance{ createDistanceFunction(0.17453, 0.5236) };
-        //static inline constexpr auto calculateDistance{ createDistanceFunction(0.1, 1.0) };
         trivial::Quaternion m_egocentricTemporalOrientation{};
 
         EgocentricWristOrientation(const InputSample& sample, const InputSample&)

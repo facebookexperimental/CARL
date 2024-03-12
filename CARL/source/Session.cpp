@@ -12,8 +12,6 @@
 
 #include <arcana/threading/task.h>
 
-#include <iostream>
-
 namespace carl
 {
     namespace
