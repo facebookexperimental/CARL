@@ -9,14 +9,17 @@
 
 #include <gsl/span>
 
+#include <array>
+#include <vector>
+
 namespace carl::DynamicTimeWarping
 {
     template <typename VectorT, typename CallableT, typename NumberT = double>
     NumberT Distance(gsl::span<VectorT> a, gsl::span<VectorT> b, CallableT& distance)
     {
-        std::vector<NumberT> priorRow{};
+        thread_local std::vector<NumberT> priorRow{};
+        thread_local std::vector<NumberT> currentRow{};
         priorRow.resize(a.size() + 1);
-        std::vector<NumberT> currentRow{};
         currentRow.resize(priorRow.size());
 
         currentRow[0] = static_cast<NumberT>(0);
@@ -59,9 +62,9 @@ namespace carl::DynamicTimeWarping
         auto& a = longer;
         auto& b = shorter;
 
-        std::vector<NumberT> priorRow{};
+        thread_local std::vector<NumberT> priorRow{};
+        thread_local std::vector<NumberT> currentRow{};
         priorRow.resize(a.size() + 1);
-        std::vector<NumberT> currentRow{};
         currentRow.resize(priorRow.size());
 
         currentRow[0] = static_cast<NumberT>(0);
@@ -73,11 +76,11 @@ namespace carl::DynamicTimeWarping
         for (size_t j = 0; j < b.size(); ++j)
         {
             priorRow.swap(currentRow);
-
             currentRow[0] = std::numeric_limits<NumberT>::max();
+
             for (size_t i = 0; i < a.size(); ++i)
             {
-                NumberT cost;
+                NumberT cost{};
                 if constexpr (ReverseTime)
                 {
                     cost = distance(a[a.size() - i - 1], b[b.size() - j - 1]);
@@ -103,5 +106,28 @@ namespace carl::DynamicTimeWarping
             }
         }
         return { minimum, minimumIdx };
+    }
+
+    template <typename VectorT, typename CallableT, typename NumberT = double, bool ReverseTime = true>
+    std::tuple<NumberT, size_t> AdaptiveStartInjectiveDistanceAndImageSize(
+        gsl::span<VectorT> longer,
+        gsl::span<VectorT> shorter,
+        CallableT& distance,
+        NumberT minimumImageRatio = 0)
+    {
+        size_t maxAdaptiveStartSize = std::min(longer.size() - shorter.size(), shorter.size() / 2);
+        size_t idx = 0;
+        NumberT score = distance(longer[idx], shorter[0]);
+        for (; idx < maxAdaptiveStartSize; ++idx)
+        {
+            NumberT nextScore = distance(longer[idx + 1], shorter[0]);
+            if (nextScore > score)
+            {
+                break;
+            }
+            score = nextScore;
+        }
+        gsl::span<VectorT> newLonger = gsl::make_span<VectorT>(&longer[idx], longer.size() - idx);
+        return InjectiveDistanceAndImageSize(newLonger, shorter, distance, minimumImageRatio);
     }
 }

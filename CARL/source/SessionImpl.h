@@ -15,6 +15,9 @@
 #include <carl/Session.h>
 #include <carl/Signaling.h>
 
+#include <arcana/threading/dispatcher.h>
+#include <arcana/threading/task.h>
+
 namespace carl
 {
     template<typename DescriptorT, typename = std::enable_if_t<std::is_trivially_copyable_v<DescriptorT>>>
@@ -28,23 +31,18 @@ namespace carl
         class Provider : private WeakTableT, public DescriptorSignalT
         {
         public:
-            Provider(Signal<gsl::span<const InputSample>>& signal, size_t sequenceLength)
+            Provider(Signal<const InputSample&>& signal)
                 : DescriptorSignalT{ *static_cast<WeakTableT*>(this) }
                 , m_ticket{ signal.addHandler([this](auto samples) { handleInputSample(samples); }) }
-                , m_sequenceLength{ sequenceLength }
+                , m_sequenceLength{ 10 }
             {
             }
 
-            void handleInputSample(gsl::span<const InputSample> samples)
+            void handleInputSample(const InputSample& sample)
             {
-                for (size_t idx = 1; idx < samples.size(); ++idx)
-                {
-                    auto descriptor = DescriptorT::TryCreate(samples[idx], samples[idx - 1]);
-                    if (descriptor.has_value())
-                    {
-                        m_sequence.emplace_back(std::move(descriptor.value()));
-                    }
-                }
+                size_t priorSequenceSize = m_sequence.size();
+                descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
+                bool descriptorsAdded = m_sequence.size() > priorSequenceSize;
 
                 if (m_sequence.size() > m_sequenceLength)
                 {
@@ -57,33 +55,42 @@ namespace carl
                     m_buffer.swap(m_sequence);
                 }
 
-                auto& handlers = *static_cast<WeakTableT*>(this);
-                handlers.apply_to_all([this](auto& callable) {
-                    gsl::span<const DescriptorT> span{ m_sequence };
-                    callable(span);
-                });
+                if (descriptorsAdded)
+                {
+                    auto& handlers = *static_cast<WeakTableT*>(this);
+                    handlers.apply_to_all([this](auto& callable) {
+                        gsl::span<const DescriptorT> span{ m_sequence };
+                        callable(span);
+                    });
+                }
+            }
+
+            void supportSequenceOfLength(size_t length)
+            {
+                m_sequenceLength = std::max(m_sequenceLength, length);
             }
 
         private:
-            const Signal<gsl::span<const InputSample>>::TicketT m_ticket;
+            const Signal<const InputSample&>::TicketT m_ticket;
+            InputSample m_mostRecentSample{};
             std::vector<DescriptorT> m_sequence{};
             std::vector<DescriptorT> m_buffer{};
-            const size_t m_sequenceLength{};
+            size_t m_sequenceLength{};
         };
     };
 
     template <typename... DescriptorTs>
     class SessionImplBase
-        : public arcana::weak_table<typename Signal<gsl::span<const InputSample>>::HandlerT>
-        , public Signal<gsl::span<const InputSample>>
+        : public arcana::weak_table<typename Signal<const InputSample&>::HandlerT>
+        , public Signal<const InputSample&>
         , protected DescriptorSequence<DescriptorTs>::Provider...
     {
     public:
-        using SignalHandlersT = arcana::weak_table<typename Signal<gsl::span<const InputSample>>::HandlerT>;
+        using SignalHandlersT = arcana::weak_table<typename Signal<const InputSample&>::HandlerT>;
 
-        SessionImplBase(size_t sequenceLength)
-            : Signal<gsl::span<const InputSample>>{ *static_cast<SignalHandlersT*>(this) }
-            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<gsl::span<const InputSample>>*>(this), sequenceLength }...
+        SessionImplBase()
+            : Signal<const InputSample&>{ *static_cast<SignalHandlersT*>(this) }
+            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<const InputSample&>*>(this) }...
         {
         }
     };
@@ -97,21 +104,60 @@ namespace carl
         descriptor::TwoHandGesture>
     {
     public:
-        Impl(size_t samplesPerSecond = 30, size_t maxActionDurationSeconds = 5);
+        Impl(bool singleThreaded);
 
         static Session::Impl& getFromSession(Session& session);
 
         void addInputSample(const InputSample& inputSample);
 
-        const double frameDuration{};
+        auto& processingScheduler()
+        {
+            return m_processingScheduler;
+        }
+
+        auto& callbackScheduler()
+        {
+            return m_callbackScheduler;
+        }
+
+        void tickCallbacks(arcana::cancellation& token)
+        {
+            m_callbackDispatcher.tick(token);
+        }
 
         template <typename DescriptorT>
         auto addHandler(std::function<void(gsl::span<const DescriptorT>)> handler)
         {
-            return static_cast<typename DescriptorSequence<DescriptorT>::Provider*>(this)->addHandler(std::move(handler));
+            return DescriptorSequence<DescriptorT>::Provider::addHandler(std::move(handler));
+        }
+
+        template<typename DescriptorT>
+        void supportSequenceOfLength(size_t length)
+        {
+            DescriptorSequence<DescriptorT>::Provider::supportSequenceOfLength(length);
+        }
+
+        void setLogger(std::function<void(std::string)> logger)
+        {
+            std::scoped_lock lock{ m_loggerMutex };
+            m_logger = std::move(logger);
+        }
+
+        void log(std::string message)
+        {
+            std::scoped_lock lock{ m_loggerMutex };
+            m_logger(std::move(message));
         }
 
     private:
+        arcana::manual_dispatcher<256> m_callbackDispatcher{};
+        std::optional<arcana::background_dispatcher<256>> m_processingDispatcher{};
+        SchedulerT m_callbackScheduler{};
+        SchedulerT m_processingScheduler{};
         std::vector<InputSample> m_samples{};
+        std::vector<InputSample> m_processingSamples{};
+        std::mutex m_samplesMutex{};
+        std::function<void(std::string)> m_logger{};
+        std::mutex m_loggerMutex{};
     };
 }

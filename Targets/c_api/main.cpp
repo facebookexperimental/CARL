@@ -7,11 +7,35 @@
 
 #include <carl/Carl.h>
 
+#include <arcana/threading/task.h>
+
+#ifdef CARL_PLATFORM_ANDROID
+#include <android/log.h>
+#endif
+
 #ifdef CARL_PLATFORM_WINDOWS
 #define C_API_EXPORT(ReturnT) __declspec(dllexport) ReturnT __cdecl
+#define C_API_CALLBACK(ReturnT) ReturnT __cdecl
 #else
-#define C_API_EXPORT(ReturnT) ReturnT
+#define C_API_EXPORT(ReturnT) ReturnT __cdecl
+#define C_API_CALLBACK(ReturnT) ReturnT __cdecl
 #endif
+
+namespace
+{
+#ifdef CARL_PLATFORM_ANDROID
+    void setUpSession(carl::Session& session)
+    {
+        session.setLogger([](std::string message) {
+            __android_log_print(ANDROID_LOG_ERROR, "CARL", "%s", message.c_str());
+        });
+    }
+#else
+    void setUpSession(carl::Session& session)
+    {
+    }
+#endif
+}
 
 extern "C"
 {
@@ -46,13 +70,16 @@ extern "C"
     C_API_EXPORT(uint64_t) getCounterexampleAtIdx(uint64_t definitionPtr, uint64_t idx);
     C_API_EXPORT(void) disposeDefinition(uint64_t definitionPtr);
     C_API_EXPORT(uint64_t) createSession();
+    C_API_EXPORT(uint64_t) createSingleThreadedSession();
+    C_API_EXPORT(void) setSessionLogger(uint64_t sessionPtr, C_API_CALLBACK(void) callback(const char*));
+    C_API_EXPORT(void) tickCallbacks(uint64_t sessionPtr);
     C_API_EXPORT(void) addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size);
     C_API_EXPORT(void) disposeSession(uint64_t sessionPtr);
-    C_API_EXPORT(uint64_t) createRecognizer(uint64_t sessionPtr, uint64_t definitionPtr);
+    C_API_EXPORT(void) createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, uint64_t requestId, C_API_CALLBACK(void) callback(uint64_t, uint64_t));
     C_API_EXPORT(double) getCurrentScore(uint64_t recognizerPtr);
     C_API_EXPORT(void) setSensitivity(uint64_t recognizerPtr, double sensitivity);
     C_API_EXPORT(uint64_t) getCanonicalRecordingInspector(uint64_t recognizerPtr);
-    C_API_EXPORT(void) disposeRecognizer(uint64_t recognizerPtr);
+    C_API_EXPORT(void) disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr);
 }
 
 uint64_t getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
@@ -276,7 +303,29 @@ void disposeDefinition(uint64_t definitionPtr)
 uint64_t createSession()
 {
     auto* ptr = new carl::Session();
+    setUpSession(*ptr);
     return reinterpret_cast<uint64_t>(ptr);
+}
+
+uint64_t createSingleThreadedSession()
+{
+    auto* ptr = new carl::Session(true);
+    setUpSession(*ptr);
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+void setSessionLogger(uint64_t sessionPtr, C_API_CALLBACK(void) callback(const char*))
+{
+    auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
+    session.setLogger([callback](std::string message) {
+        callback(message.c_str());
+    });
+}
+
+void tickCallbacks(uint64_t sessionPtr)
+{
+    auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
+    session.tickCallbacks(arcana::cancellation::none());
 }
 
 void addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size)
@@ -291,13 +340,15 @@ void disposeSession(uint64_t sessionPtr)
     delete reinterpret_cast<carl::Session*>(sessionPtr);
 }
 
-uint64_t createRecognizer(uint64_t sessionPtr, uint64_t definitionPtr)
+void createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, uint64_t requestId, C_API_CALLBACK(void) callback(uint64_t, uint64_t))
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    const auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
-
-    auto* ptr = new carl::action::Recognizer(session, definition);
-    return reinterpret_cast<uint64_t>(ptr);
+    arcana::make_task(session.processingScheduler(), arcana::cancellation::none(), [&session, definitionPtr]() {
+        const auto& definition = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
+        return new carl::action::Recognizer(session, definition);
+    }).then(session.callbackScheduler(), arcana::cancellation::none(), [callback, requestId](auto* ptr) {
+        callback(requestId, reinterpret_cast<uint64_t>(ptr));
+    });
 }
 
 double getCurrentScore(uint64_t recognizerPtr)
@@ -319,7 +370,10 @@ uint64_t getCanonicalRecordingInspector(uint64_t recognizerPtr)
     return reinterpret_cast<uint64_t>(ptr);
 }
 
-void disposeRecognizer(uint64_t recognizerPtr)
+void disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr)
 {
-    delete reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
+    auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
+    arcana::make_task(session.processingScheduler(), arcana::cancellation::none(), [recognizerPtr]() {
+        delete reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
+    });
 }

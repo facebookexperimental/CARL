@@ -8,6 +8,9 @@
 #include <carl/Session.h>
 
 #include "SessionImpl.h"
+#include "Descriptor.h"
+
+#include <arcana/threading/task.h>
 
 namespace carl
 {
@@ -27,14 +30,28 @@ namespace carl
                 const auto& b = sample;
                 double timestamp = a.Timestamp + frameDuration;
                 double t = (timestamp - a.Timestamp) / (b.Timestamp - a.Timestamp);
-                resampling.emplace_back(InputSample::lerp(a, b, t));
+                resampling.emplace_back(InputSample::Lerp(a, b, t));
             }
         }
     }
 
-    Session::Impl::Impl(size_t samplesPerSecond, size_t maxActionDurationSeconds)
-        : SessionImplBase{ samplesPerSecond * maxActionDurationSeconds }
-        , frameDuration{ 1. / samplesPerSecond }
+    Session::Impl::Impl(bool singleThreaded)
+        : m_callbackScheduler{ [this](auto&& work) { m_callbackDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); }}
+        , m_processingScheduler{ [this, singleThreaded]() -> SchedulerT {
+            if (singleThreaded)
+            {
+                return [](auto&& work) { 
+                    arcana::inline_scheduler(std::forward<std::remove_reference_t<decltype(work)>>(work));
+                };
+            }
+            else
+            {
+                m_processingDispatcher.emplace();
+                return [&dispatcher = m_processingDispatcher.value()](auto&& work) {
+                    dispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work));
+                };
+            }
+        }()}
     {
     }
 
@@ -45,30 +62,46 @@ namespace carl
 
     void Session::Impl::addInputSample(const InputSample& inputSample)
     {
-        // Send inputSample to the resampling logic. Only invoke the signal if the resampler updates the
-        // input sequence.
-        appendSampleToResampling(inputSample, m_samples, frameDuration);
-        if (m_samples.size() > 1)
         {
-            SignalHandlersT::apply_to_all([this](auto& callable) {
-                // The argument passed to the handlers here should be the NEW input samples -- only ones they
-                // haven't seen before PLUS the last one they HAVE seen before. This is a tricky and very
-                // tight coupling that exists between the session impl and the descriptor sequence providers,
-                // so it's okay as long as we contain it, but it should still and always be very clearly
-                // commented.
-                // TODO: Consider modifying the signal to make this l-value span unnecessary.
-                gsl::span<const InputSample> span{ m_samples };
-                callable(span);
-            });
+            std::scoped_lock lock{m_samplesMutex};
+            m_samples.push_back(inputSample);
         }
-        m_samples[0] = m_samples.back();
-        m_samples.resize(1);
+        arcana::make_task(processingScheduler(), arcana::cancellation::none(), [this]() {
+            {
+                std::scoped_lock lock{m_samplesMutex};
+                if (m_samples.size() > 1) {
+                    m_processingSamples.swap(m_samples);
+                    m_samples.resize(1);
+                    m_samples[0] = m_processingSamples.back();
+                }
+            }
 
-        // TODO: Later, decouple this so that addInputSample is synchronous and resampling and processing
-        // can happen on another thread.
+            for (const InputSample& sample : m_processingSamples)
+            {
+                SignalHandlersT::apply_to_all([this, &sample](auto& callable) {
+                    callable(sample);
+                });
+            }
+        }).then(arcana::inline_scheduler, arcana::cancellation::none(), [this](arcana::expected<void, std::exception_ptr> expected) {
+            if (expected.has_error())
+            {
+                try
+                {
+                    std::rethrow_exception(expected.error());
+                }
+                catch (std::exception& e)
+                {
+                    arcana::make_task(m_callbackScheduler, arcana::cancellation::none(), [this, message = std::string{ e.what() }]() {
+                        std::scoped_lock lock{ m_loggerMutex };
+                        m_logger(message.c_str());
+                    });
+                }
+            }
+        });
     }
 
-    Session::Session() : m_impl{ std::make_unique<Impl>() }
+    Session::Session(bool singleThreaded) 
+        : m_impl{ std::make_unique<Impl>(singleThreaded) }
     {
     }
 
@@ -79,5 +112,30 @@ namespace carl
     void Session::addInput(InputSample inputSample)
     {
         m_impl->addInputSample(inputSample);
+    }
+
+    Session::SchedulerT& Session::processingScheduler()
+    {
+        return m_impl->processingScheduler();
+    }
+
+    Session::SchedulerT& Session::callbackScheduler()
+    {
+        return m_impl->callbackScheduler();
+    }
+
+    void Session::setLogger(std::function<void(std::string)> logger)
+    {
+        m_impl->setLogger(std::move(logger));
+    }
+
+    void Session::log(std::string message)
+    {
+        m_impl->log(std::move(message));
+    }
+
+    void Session::tickCallbacks(arcana::cancellation& token)
+    {
+        m_impl->tickCallbacks(token);
     }
 }

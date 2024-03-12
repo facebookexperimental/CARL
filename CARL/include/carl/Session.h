@@ -9,6 +9,8 @@
 
 #include "carl/InputSample.h"
 
+#include <arcana/threading/dispatcher.h>
+
 #include <memory>
 
 namespace carl
@@ -19,11 +21,18 @@ namespace carl
     class Session {
     public:
         class Impl;
+        using SchedulerT = stdext::inplace_function<void(stdext::inplace_function<void(), 128>&&), 128>;
 
-        Session();
+        Session(bool singleThreaded = false);
         ~Session();
 
         void addInput(InputSample);
+
+        SchedulerT& callbackScheduler();
+        SchedulerT& processingScheduler();
+        void setLogger(std::function<void(std::string)> logger);
+        void log(std::string message);
+        void tickCallbacks(arcana::cancellation& token);
 
     private:
         friend class Impl;

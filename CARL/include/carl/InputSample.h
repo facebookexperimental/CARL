@@ -63,6 +63,6 @@ namespace carl
         std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> LeftHandJointPoses{};
         std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> RightHandJointPoses{};
 
-        static InputSample lerp(const InputSample& a, const InputSample& b, double t);
+        static InputSample Lerp(const InputSample& a, const InputSample& b, double t);
     };
 }

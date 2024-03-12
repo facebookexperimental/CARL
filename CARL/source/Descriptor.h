@@ -55,6 +55,11 @@ namespace carl::descriptor
                 return *this;
             }
 
+            operator VectorT() const
+            {
+                return{ X, Y, Z };
+            }
+
             Point operator-(const Point& other) const
             {
                 return{ X - other.X, Y - other.Y, Z - other.Z };
@@ -123,6 +128,11 @@ namespace carl::descriptor
                     W * other.Z + X * other.Y - Y * other.X + Z * other.W,
                     W * other.W - X * other.X - Y * other.Y - Z * other.Z,
                 };
+            }
+            
+            operator QuaternionT() const
+            {
+                return{ W, X, Y, Z };
             }
 
             Quaternion conjugate() const
@@ -271,6 +281,74 @@ namespace carl::descriptor
     }
 #endif
 
+    // TODO: Find a better place for this (and everything above it) to live.
+    template<typename DescriptorT>
+    void extendSequence(const InputSample& newSample, std::vector<DescriptorT>& sequence, InputSample& mostRecentSample, gsl::span<const NumberT> tuning)
+    {
+        constexpr NumberT THRESHOLD{ 0.5 };
+
+        // Handle startup, in which case m_mostRecentSample will be a default value.
+        if (sequence.empty())
+        {
+            auto descriptor = DescriptorT::TryCreate(newSample, newSample);
+            if (descriptor.has_value())
+            {
+                sequence.emplace_back(std::move(*descriptor));
+                mostRecentSample = newSample;
+            }
+        }
+        else
+        {
+            // Iteratively create new mostRecentSamples and descriptors until the most recent descriptor is sufficiently close to that of newSample.
+            // TODO: Figure out if delta descriptors (rotation, translation, etc.) will play correctly with this, since lerping inputs should not 
+            //       change them. Might be necessary to mute such descriptors with tuning.
+            while (true)
+            {
+                auto sampleDesc = DescriptorT::TryCreate(newSample, mostRecentSample);
+
+                // If we weren't able to create a descriptor, stop iterating.
+                if (!sampleDesc.has_value())
+                {
+                    break;
+                }
+
+                auto outerDistance = DescriptorT::Distance(*sampleDesc, sequence.back(), tuning);
+                if (outerDistance < THRESHOLD)
+                {
+                    break;
+                }
+
+                // Posit new samples, and associated descriptors, to bring the end of sequence closer to newSample.
+                NumberT upper = 1;
+                NumberT lower = 0;
+                NumberT mid{};
+                while (true)
+                {
+                    mid = (upper + lower) / NumberT{2};
+                    auto intermediateDesc = DescriptorT::Lerp(sequence.back(), *sampleDesc, mid);
+                    auto distance = DescriptorT::Distance(intermediateDesc, sequence.back(), tuning);
+                    if (distance > THRESHOLD)
+                    {
+                        // intermediate sample is too distant, continue searching for a nearer sample
+                        upper = mid;
+                    }
+                    else if (distance < NumberT{0.9} *THRESHOLD)
+                    {
+                        // intermediate sample is too close, continue searching for a more distant sample
+                        lower = mid;
+                    }
+                    else
+                    {
+                        // intermediate sample is satisfactory, stop searching
+                        sequence.push_back(intermediateDesc);
+                        mostRecentSample = InputSample::Lerp(mostRecentSample, newSample, mid);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     template<Handedness Handedness>
     class HandShape
     {
@@ -310,15 +388,27 @@ namespace carl::descriptor
         static NumberT Distance(const HandShape& a, const HandShape& b, gsl::span<const NumberT> tuning) {
             NumberT distance = 0;
             for (size_t idx = 0; idx < a.m_positions.size(); ++idx) {
-                distance += calculateDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]);
+                distance = std::max(distance, calculateDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]));
             }
             return distance;
+        }
+
+        static HandShape Lerp(const HandShape& a, const HandShape& b, NumberT t)
+        {
+            HandShape result{};
+            for (size_t idx = 0; idx < JOINTS.size(); ++idx)
+            {
+                VectorT aVec{ a.m_positions[idx] };
+                VectorT bVec{ b.m_positions[idx] };
+                result.m_positions[idx] = (static_cast<NumberT>(1) - t) * aVec + t * bVec;
+            }
+            return result;
         }
 
         HandShape() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.005, 0.02) };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.03) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{0.1};
         std::array<trivial::Point, JOINTS.size()> m_positions{};
 
@@ -381,6 +471,18 @@ namespace carl::descriptor
             return calculateDistance(distance, tuning[0]);
         }
 
+        static EgocentricWristOrientation Lerp(
+            const EgocentricWristOrientation& a,
+            const EgocentricWristOrientation& b,
+            NumberT t)
+        {
+            QuaternionT aQuat{ a.m_egocentricTemporalOrientation };
+            QuaternionT bQuat{ b.m_egocentricTemporalOrientation };
+            EgocentricWristOrientation result{};
+            result.m_egocentricTemporalOrientation = aQuat.slerp(t, bQuat);
+            return result;
+        }
+
         EgocentricWristOrientation() = default;
 
     private:
@@ -431,7 +533,14 @@ namespace carl::descriptor
                 a.m_wristOrientationSample,
                 b.m_wristOrientationSample,
                 TuningT::template getTuning<EgocentricWristOrientation<Handedness>>(tuning));
-            return handShapeDistance + wristOrientationDistance;
+            return std::max(handShapeDistance, wristOrientationDistance);
+        }
+
+        static HandPose Lerp(const HandPose& a, const HandPose& b, NumberT t)
+        {
+            auto handShape = HandShape<Handedness>::Lerp(a.m_handShapeSample, b.m_handShapeSample, t);
+            auto wristOrientation = EgocentricWristOrientation<Handedness>::Lerp(a.m_wristOrientationSample, b.m_wristOrientationSample, t);
+            return{ std::move(handShape), std::move(wristOrientation) };
         }
 
         HandPose() = default;
@@ -449,6 +558,7 @@ namespace carl::descriptor
         }
     };
 
+    // TODO: Review theory of delta descriptors and assess how they work with delta sampling. Make sure creation isn't oscillating.
     template<Handedness Handedness>
     class WristRotation
     {
@@ -488,13 +598,19 @@ namespace carl::descriptor
             return calculateDistance(distance, tuning[0]);
         }
 
+        static WristRotation Lerp(const WristRotation& a, const WristRotation& b, NumberT t)
+        {
+            QuaternionT aQuat{ a.m_deltaOrientation };
+            QuaternionT bQuat{ b.m_deltaOrientation };
+            WristRotation result{};
+            result.m_deltaOrientation = aQuat.slerp(t, bQuat);
+            return result;
+        }
+
         WristRotation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.3) };
-        // The parameters of the above distance function are based on the assumption of 20fps,
-        // so 20 is used to normalize the data to make the descriptor framerate independent.
-        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.24) };
         trivial::Quaternion m_deltaOrientation{};
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
@@ -504,12 +620,11 @@ namespace carl::descriptor
             auto priorWristPose = getWristPose<Handedness>(priorSample);
 
             AngleAxisT angleAxis{ priorWristPose.rotation().inverse() * wristPose.rotation() };
-            angleAxis.angle() = angleAxis.angle() / (sample.Timestamp - priorSample.Timestamp) / DISTANCE_PARAMETERS_FRAMES_PER_SECOND;
-
             m_deltaOrientation = QuaternionT{ angleAxis };
         }
     };
 
+    // TODO: Review theory of delta descriptors and assess how they work with delta sampling. Make sure creation isn't oscillating.
     template<Handedness Handedness>
     class EgocentricWristTranslation
     {
@@ -548,19 +663,26 @@ namespace carl::descriptor
             const EgocentricWristTranslation& b,
             gsl::span<const NumberT> tuning)
         {
-            auto largerMagnitude = std::max(a.m_egocentricTemporalPosition.length(), b.m_egocentricTemporalPosition.length());
-            auto normalizationFactor = 0.5 * (largerMagnitude + 0.01);
             auto distance = a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
-            return calculateDistance(distance / normalizationFactor, tuning[0]);
+            return calculateDistance(distance, tuning[0]);
+        }
+
+        static EgocentricWristTranslation Lerp(
+            const EgocentricWristTranslation& a,
+            const EgocentricWristTranslation& b,
+            NumberT t)
+        {
+            VectorT aVec{ a.m_egocentricTemporalPosition };
+            VectorT bVec{ b.m_egocentricTemporalPosition };
+            EgocentricWristTranslation result{};
+            result.m_egocentricTemporalPosition = (static_cast<NumberT>(1) - t) * aVec + t * bVec;
+            return result;
         }
 
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.3, 1.3) };
-        // The parameters of the above distance function are based on the assumption of 20fps,
-        // so 20 is used to normalize the data to make the descriptor framerate independent.
-        static inline constexpr NumberT DISTANCE_PARAMETERS_FRAMES_PER_SECOND{ 30 };
+        static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.02) };
         trivial::Point m_egocentricTemporalPosition{};
 
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)
@@ -573,7 +695,6 @@ namespace carl::descriptor
 
             auto ets = EgocentricTemporalSpace::getPose(priorWristPose.translation(), priorHmdPose);
             VectorT translation{ ets.inverse() * wristPose.translation() };
-            translation = translation / (sample.Timestamp - priorSample.Timestamp) / DISTANCE_PARAMETERS_FRAMES_PER_SECOND;
             m_egocentricTemporalPosition = translation;
         }
     };
@@ -615,7 +736,15 @@ namespace carl::descriptor
                 a.m_wristTranslationSample,
                 b.m_wristTranslationSample,
                 TuningT::template getTuning<EgocentricWristTranslation<Handedness>>(tuning));
-            return handPoseDistance + wristRotationDistance + wristTranslationDistance;
+            return std::max(handPoseDistance, std::max(wristRotationDistance, wristTranslationDistance));
+        }
+
+        static HandGesture Lerp(const HandGesture& a, const HandGesture& b, NumberT t)
+        {
+            auto handPose = HandPose<Handedness>::Lerp(a.m_handPoseSample, b.m_handPoseSample, t);
+            auto wristRotation = WristRotation<Handedness>::Lerp(a.m_wristRotationSample, b.m_wristRotationSample, t);
+            auto wristTranslation = EgocentricWristTranslation<Handedness>::Lerp(a.m_wristTranslationSample, b.m_wristTranslationSample, t);
+            return{ std::move(handPose), std::move(wristRotation), std::move(wristTranslation) };
         }
 
         HandGesture() = default;
@@ -662,6 +791,18 @@ namespace carl::descriptor
         {
             auto distance = a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
             return calculateDistance(distance, tuning[0]);
+        }
+
+        static EgocentricRelativeWristPosition Lerp(
+            const EgocentricRelativeWristPosition& a,
+            const EgocentricRelativeWristPosition& b,
+            NumberT t)
+        {
+            VectorT aVec{ a.m_egocentricRelativeWristPosition };
+            VectorT bVec{ b.m_egocentricRelativeWristPosition };
+            EgocentricRelativeWristPosition result{};
+            result.m_egocentricRelativeWristPosition = (static_cast<NumberT>(1) - t) * aVec + t * bVec;
+            return result;
         }
 
         EgocentricRelativeWristPosition() = default;
@@ -723,7 +864,15 @@ namespace carl::descriptor
                 a.m_relativeSample,
                 b.m_relativeSample,
                 TuningT::template getTuning<EgocentricRelativeWristPosition>(tuning));
-            return leftGestureDistance + rightGestureDistance + relativeWristPositionDistance;
+            return std::max(leftGestureDistance, std::max(rightGestureDistance, relativeWristPositionDistance));
+        }
+
+        static TwoHandGesture Lerp(const TwoHandGesture& a, const TwoHandGesture& b, NumberT t)
+        {
+            auto leftGesture = HandGesture<Handedness::LeftHanded>::Lerp(a.m_leftGestureSample, b.m_leftGestureSample, t);
+            auto rightGesture = HandGesture<Handedness::RightHanded>::Lerp(a.m_rightGestureSample, b.m_rightGestureSample, t);
+            auto relativeWristPosition = EgocentricRelativeWristPosition::Lerp(a.m_relativeSample, b.m_relativeSample, t);
+            return{ leftGesture, rightGesture, relativeWristPosition };
         }
 
         TwoHandGesture() = default;
@@ -742,5 +891,59 @@ namespace carl::descriptor
             , m_relativeSample{ std::move(relativeSample) }
         {
         }
+    };
+
+    template<typename DescriptorT>
+    class TimestampedDescriptor
+    {
+    public:
+        using TuningT = typename DescriptorT::TuningT;
+        static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
+        static constexpr auto HANDEDNESS{ DescriptorT::HANDEDNESS };
+
+        static std::optional<TimestampedDescriptor> TryCreate(
+            const InputSample& sample,
+            const InputSample& priorSample)
+        {
+            auto underlyingDescriptor = DescriptorT::TryCreate(sample, priorSample);
+            if (underlyingDescriptor.has_value())
+            {
+                return TimestampedDescriptor{ std::move(*underlyingDescriptor), sample.Timestamp };
+            }
+            return{};
+        }
+
+        static NumberT Distance(const TimestampedDescriptor& a, const TimestampedDescriptor& b, gsl::span<const NumberT> tuning)
+        {
+            return DescriptorT::Distance(a.m_underlyingDescriptor, b.m_underlyingDescriptor, tuning);
+        }
+
+        static TimestampedDescriptor Lerp(const TimestampedDescriptor& a, const TimestampedDescriptor& b, NumberT t)
+        {
+            auto underlyingDescriptor = DescriptorT::Lerp(a.m_underlyingDescriptor, b.m_underlyingDescriptor, t);
+            auto timestamp = (static_cast<NumberT>(1) - t) * a.m_timestamp + t * b.m_timestamp;
+            return{ std::move(underlyingDescriptor), timestamp };
+        }
+
+        TimestampedDescriptor() = default;
+
+        const DescriptorT& getUnderlyingDescriptor() const
+        {
+            return m_underlyingDescriptor;
+        }
+
+        double getTimestamp()
+        {
+            return m_timestamp;
+        }
+
+    private:
+        DescriptorT m_underlyingDescriptor{};
+        double m_timestamp{};
+
+        TimestampedDescriptor(DescriptorT underlyingDescriptor, double timestamp)
+            : m_underlyingDescriptor{ std::move(underlyingDescriptor) }
+            , m_timestamp{ timestamp }
+        {}
     };
 }

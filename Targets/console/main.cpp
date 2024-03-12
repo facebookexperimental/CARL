@@ -110,34 +110,34 @@ void test()
 
 void test2()
 {
-    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\definition_2.bin");
-    auto recording = definition.getExamples().front().getRecording();
+    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
+    auto recording = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_2.bin").getRecording();
 
     int idx = 0;
     for (; recording.getSamples()[idx + 1].Timestamp < recording.getInspector().endTimestamp(); ++idx);
     auto sample = recording.getSamples()[idx];
 
-    carl::Session session{};
+    carl::Session session{ true };
     carl::action::Recognizer recognizer{ session, definition };
-    for (idx = 0; idx < 1000; ++idx)
+    for (const auto& sample : recording.getSamples())
     {
-        if (idx == 900)
+        session.addInput(sample);
+        std::cout << recognizer.currentScore() << std::endl;
+        if (recognizer.currentScore() > 0.01)
         {
-            std::cout << "Ready to test" << std::endl;
+            std::cout << "Aha!" << std::endl;
         }
-
-        auto newSample{ sample };
-        newSample.Timestamp = idx * 0.05;
-        session.addInput(newSample);
+        session.tickCallbacks(arcana::cancellation::none());
     }
 }
 
 void test3()
 {
-    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\push_recordings\\definition_2.bin");
-    auto example0 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_0.bin");
-    auto example1 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_1.bin");
-    auto example2 = loadExample("C:\\scratch\\CARLFiles\\push_recordings\\recording_2.bin");
+    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
+    //auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\definition_0.bin");
+    auto example0 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_0.bin");
+    auto example1 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_1.bin");
+    auto example2 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_2.bin");
 
     //carl::action::Definition definition{ carl::action::Definition::ActionType::RightHandGesture };
     //definition.addExample(example0);
@@ -146,12 +146,27 @@ void test3()
     
     carl::action::Recognizer recognizer{ session, definition };
 
+    //recognizer.analyzeRecording(example0.getRecording(), std::cout);
+    //std::cout << std::endl;
+    //recognizer.analyzeRecording(example1.getRecording(), std::cout);
+    //std::cout << std::endl;
     recognizer.analyzeRecording(example2.getRecording(), std::cout);
+    std::cout << std::endl;
 }
 
 void main()
 {
+    /*
+    Tuning profile: Let the user provide a set of definitions (all of which contain examples) as 
+    well as independent examples. The definitions (obviously) represent their own action, and the 
+    independent examples represent no action. The system then analyzes every example against 
+    every other example, determining the expected distances across descriptor dimensions, trying 
+    to arrive at an optimal tuning.
+    
+    Instead of DTW, do a naive sequence match? Fail out if any single connection is too large?
+    */
+
     //test();
-    //test2();
-    test3();
+    test2();
+    //test3();
 }
