@@ -9,14 +9,13 @@
 
 #include "Descriptor.h"
 
-#include <arcana/threading/dispatcher.h>
-
 #include <carl/Example.h>
 #include <carl/InputSample.h>
 #include <carl/Recording.h>
 #include <carl/Session.h>
 #include <carl/Signaling.h>
 
+#include <arcana/threading/dispatcher.h>
 #include <arcana/threading/task.h>
 
 namespace carl
@@ -152,7 +151,7 @@ namespace carl
 
     private:
         arcana::manual_dispatcher<256> m_callbackDispatcher{};
-        arcana::background_dispatcher<256> m_processingDispatcher{};
+        std::optional<arcana::background_dispatcher<256>> m_processingDispatcher{};
         SchedulerT m_callbackScheduler{};
         SchedulerT m_processingScheduler{};
         std::vector<InputSample> m_samples{};

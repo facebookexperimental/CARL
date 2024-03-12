@@ -42,11 +42,16 @@ namespace carl
         , m_processingScheduler{ [this, singleThreaded]() -> SchedulerT {
             if (singleThreaded)
             {
-                return [this](auto&& work) { arcana::inline_scheduler(std::forward<std::remove_reference_t<decltype(work)>>(work)); };
+                return [](auto&& work) { 
+                    arcana::inline_scheduler(std::forward<std::remove_reference_t<decltype(work)>>(work));
+                };
             }
             else
             {
-                return [this](auto&& work) { m_processingDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); };
+                m_processingDispatcher.emplace();
+                return [&dispatcher = m_processingDispatcher.value()](auto&& work) {
+                    dispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work));
+                };
             }
         }()}
     {
