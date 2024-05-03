@@ -155,15 +155,15 @@ namespace carl::action
                 auto samples = recording.getSamples();
                 size_t idx = 0;
 
-                auto maxScore = std::numeric_limits<NumberT>::lowest();
-                size_t maxScoreIdx = 0;
+                auto minDistance = std::numeric_limits<NumberT>::max();
+                size_t minDistanceIdx = 0;
 
                 std::vector<DescriptorT> descriptorSequence{};
                 std::vector<DescT> maxScoreTrimmedSequence{};
 
                 using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescT>>::TicketT>;
                 OptionalTicketT maxScoreDescriptorHandlerTicket{ descriptorSignal.addHandler(
-                    [this, &idx, &samples, &maxScore, &maxScoreIdx, &maxScoreTrimmedSequence, &descriptorSequence](gsl::span<const DescT> sequence) {
+                    [this, &idx, &samples, &minDistance, &minDistanceIdx, &maxScoreTrimmedSequence, &descriptorSequence](gsl::span<const DescT> sequence) {
                         if (sequence.size() <= m_trimmedSequenceLength)
                         {
                             return;
@@ -174,19 +174,26 @@ namespace carl::action
                         {
                             descriptorSequence.push_back(element.getUnderlyingDescriptor());
                         }
-                        auto score = calculateScore(descriptorSequence);
-                        if (score > maxScore)
-                        {
-                            maxScore = score;
-                            maxScoreIdx = idx;
+                        gsl::span<const DescriptorT> trimmedSequence{ &descriptorSequence[descriptorSequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
 
-                            gsl::span<const DescT> trimmedSequence{
+                        NumberT distance = std::numeric_limits<NumberT>::max();
+                        for (const auto& t : m_templates)
+                        {
+                            distance = std::min(calculateNormalizedSequenceDistance(trimmedSequence, t), distance);
+                        }
+
+                        if (distance < minDistance)
+                        {
+                            minDistance = distance;
+                            minDistanceIdx = idx;
+
+                            gsl::span<const DescT> ts{
                                 &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength};
 
                             // Note that this logic depends on the fact that descriptors are trivially copyable.
                             static_assert(std::is_trivially_copyable<DescT>::value);
-                            maxScoreTrimmedSequence.resize(trimmedSequence.size());
-                            std::memcpy(maxScoreTrimmedSequence.data(), trimmedSequence.data(), sizeof(DescT) * trimmedSequence.size());
+                            maxScoreTrimmedSequence.resize(ts.size());
+                            std::memcpy(maxScoreTrimmedSequence.data(), ts.data(), sizeof(DescT) * ts.size());
                         }
                     }) };
 
@@ -213,9 +220,8 @@ namespace carl::action
                     auto [normalizedDistance, imageSize] = calculateSequenceDistance(descriptorSequence, t);
                     if (normalizedDistance < distance)
                     {
-                        // TODO: Rework this to use descriptor timestamps!
-                        startT = samples[maxScoreIdx - imageSize].Timestamp;
-                        endT = samples[maxScoreIdx].Timestamp;
+                        startT = maxScoreTrimmedSequence[maxScoreTrimmedSequence.size() - imageSize].getTimestamp();
+                        endT = maxScoreTrimmedSequence.back().getTimestamp();
                         distance = normalizedDistance;
                     }
                 }
@@ -480,13 +486,10 @@ namespace carl::action
             }
 
             std::tuple<NumberT, size_t> calculateSequenceDistance(
-                gsl::span<const DescriptorT> a,
-                gsl::span<const DescriptorT> b) const
+                gsl::span<const DescriptorT> longer,
+                gsl::span<const DescriptorT> shorter) const
             {
-                bool aLongerThanB = a.size() > b.size();
-                auto& longer = aLongerThanB ? a : b;
-                auto& shorter = aLongerThanB ? b : a;
-
+                assert(longer.size() >= shorter.size());
                 auto distanceFunction{ [this](const DescriptorT& a, const DescriptorT& b) {
                   return DescriptorT::Distance(a, b, m_tuning);
                 } };
@@ -494,11 +497,12 @@ namespace carl::action
             }
 
             NumberT calculateNormalizedSequenceDistance(
-                gsl::span<const DescriptorT> a,
-                gsl::span<const DescriptorT> b) const
+                gsl::span<const DescriptorT> longer,
+                gsl::span<const DescriptorT> shorter) const
             {
-                auto [distance, imageSize] = calculateSequenceDistance(a, b);
-                return distance;
+                auto [distance, imageSize] = calculateSequenceDistance(longer, shorter);
+                size_t connectionsCount = std::max(imageSize, shorter.size());
+                return distance / connectionsCount;
             }
 
             NumberT calculateScore(gsl::span<const DescriptorT> sequence) const

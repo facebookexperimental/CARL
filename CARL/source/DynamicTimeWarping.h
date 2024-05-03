@@ -47,11 +47,7 @@ namespace carl::DynamicTimeWarping
     // When you compare the sequences backwards, you effectively ask, "Did this template end now?"
     // Allow the query sequence to be longer than the template sequence, then find the minimimum
     // cost along the bottom row near the length of the template sequence. This will be the "injective"
-    // cost of matching the template against the "most recent" part of the input sequence. Note that 
-    // the "minimum distance along the bottom row" operation must be assessed as a NORMALIZED distance
-    // (the distance divided by the number of matches, which equals the larger of the matched sequences) 
-    // or else the algorithm will simply find the shortest image, not the best, since every additional 
-    // element introduces a nonnegative absolute distance.
+    // cost of matching the template against the "most recent" part of the input sequence.
     template <typename VectorT, typename CallableT, typename NumberT = double, bool ReverseTime = true>
     std::tuple<NumberT, size_t> InjectiveDistanceAndImageSize(
         gsl::span<VectorT> longer,
@@ -98,11 +94,10 @@ namespace carl::DynamicTimeWarping
         size_t minimumIdx = disallowedImageLength;
         for (size_t idx = disallowedImageLength; idx < currentRow.size(); ++idx)
         {
-            size_t connectionsCount = std::max(idx, b.size());
-            if (currentRow[idx] / connectionsCount < minimum)
+            if (currentRow[idx] < minimum)
             {
                 minimumIdx = idx;
-                minimum = currentRow[minimumIdx] / connectionsCount;
+                minimum = currentRow[minimumIdx];
             }
         }
         return { minimum, minimumIdx };
