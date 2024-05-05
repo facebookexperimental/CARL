@@ -130,4 +130,68 @@ namespace carl::DynamicTimeWarping
         gsl::span<VectorT> newLonger = gsl::make_span<VectorT>(&longer[idx], longer.size() - idx);
         return InjectiveDistanceAndImageSize(newLonger, shorter, distance, minimumImageRatio);
     }
+
+    template <typename VectorT, typename CallableT, typename NumberT = double>
+    auto Match(
+        gsl::span<VectorT> target,
+        gsl::span<VectorT> query,
+        CallableT& distance,
+        NumberT minimumImageRatio = 0)
+    {
+        thread_local std::vector<std::pair<NumberT, size_t>> priorRow{};
+        thread_local std::vector<std::pair<NumberT, size_t>> currentRow{};
+        priorRow.resize(target.size() + 1);
+        currentRow.resize(priorRow.size());
+
+        NumberT cost{};
+
+        constexpr std::pair<NumberT, size_t> sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max() };
+        priorRow[0] = sentinel;
+        currentRow[0] = sentinel;
+
+        for (size_t i = 0; i < target.size(); ++i)
+        {
+            currentRow[i + 1] = { distance(target[i], query[0]), i };
+        }
+
+        for (size_t j = 1; j < query.size(); ++j)
+        {
+            priorRow.swap(currentRow);
+
+            for (size_t i = 0; i < target.size(); ++i)
+            {
+                cost = distance(target[i], query[j]);
+
+                auto ancestor = priorRow[i];
+                if (priorRow[i + 1].first < ancestor.first)
+                {
+                    ancestor = priorRow[i + 1];
+                }
+                if (currentRow[i].first < ancestor.first)
+                {
+                    ancestor = currentRow[i];
+                }
+                currentRow[i + 1] = { cost + ancestor.first, ancestor.second };
+            }
+        }
+
+        size_t disallowedImageLength = static_cast<size_t>(std::floor(minimumImageRatio * query.size()));
+        NumberT minimum = std::numeric_limits<NumberT>::max();
+        size_t minimumIdx = disallowedImageLength;
+        for (size_t idx = disallowedImageLength; idx < currentRow.size(); ++idx)
+        {
+            if (currentRow[idx].first < minimum)
+            {
+                minimumIdx = idx;
+                minimum = currentRow[minimumIdx].first;
+            }
+        }
+        struct
+        {
+            size_t ImageStartIdx{};
+            size_t ImageSize{};
+            NumberT MatchCost{};
+        } result{ currentRow[minimumIdx].second, minimumIdx - currentRow[minimumIdx].second, minimum };
+        return result;
+    }
 }
