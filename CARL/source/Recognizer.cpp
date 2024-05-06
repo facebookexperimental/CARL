@@ -351,7 +351,15 @@ namespace carl::action
                         {
                             for (size_t r = l + 1; r < m_templates.size(); ++r)
                             {
-                                auto distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
+                                NumberT distance;
+                                if (m_templates[l].size() > m_templates[r].size())
+                                {
+                                    distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
+                                }
+                                else
+                                {
+                                    distance = calculateNormalizedSequenceDistance(m_templates[r], m_templates[l]);
+                                }
                                 averageDistances[idx] += distance;
                             }
                         }

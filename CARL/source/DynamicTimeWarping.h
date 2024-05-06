@@ -130,8 +130,7 @@ namespace carl::DynamicTimeWarping
     auto Match(
         gsl::span<VectorT> target,
         gsl::span<VectorT> query,
-        CallableT& distance,
-        NumberT minimumImageRatio = 0)
+        CallableT& distance)
     {
         thread_local std::vector<std::pair<NumberT, size_t>> priorRow{};
         thread_local std::vector<std::pair<NumberT, size_t>> currentRow{};
@@ -170,10 +169,9 @@ namespace carl::DynamicTimeWarping
             }
         }
 
-        size_t disallowedImageLength = static_cast<size_t>(std::floor(minimumImageRatio * query.size()));
         NumberT minimum = std::numeric_limits<NumberT>::max();
-        size_t minimumIdx = disallowedImageLength;
-        for (size_t idx = disallowedImageLength; idx < currentRow.size(); ++idx)
+        size_t minimumIdx = 0;
+        for (size_t idx = 0; idx < currentRow.size(); ++idx)
         {
             if (currentRow[idx].first < minimum)
             {
