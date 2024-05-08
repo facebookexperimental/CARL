@@ -339,41 +339,41 @@ namespace carl::action
 
             void calculateTuning()
             {
+                if (m_templates.size() < 2)
+                {
+                    m_tuning = DescriptorT::DEFAULT_TUNING;
+                    return;
+                }
+
                 std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> averageDistances{};
                 const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / 2.;
                 std::fill(m_tuning.begin(), m_tuning.end(), descriptor::NULL_TUNING);
-                if (m_templates.size() > 1)
-                {
-                    for (size_t idx = 0; idx < m_tuning.size(); ++idx)
-                    {
-                        m_tuning[idx] = 1.;
-                        for (size_t l = 0; l < m_templates.size(); ++l)
-                        {
-                            for (size_t r = l + 1; r < m_templates.size(); ++r)
-                            {
-                                NumberT distance;
-                                if (m_templates[l].size() > m_templates[r].size())
-                                {
-                                    distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                                }
-                                else
-                                {
-                                    distance = calculateNormalizedSequenceDistance(m_templates[r], m_templates[l]);
-                                }
-                                averageDistances[idx] += distance;
-                            }
-                        }
-                        averageDistances[idx] /= templatesChooseTwo;
-                        m_tuning[idx] = descriptor::NULL_TUNING;
-                    }
-                }
-
-                constexpr NumberT defaultTuningWeight{ 1. };
-                NumberT t = m_templates.size() > 1 ? 1. / (templatesChooseTwo + 1) : defaultTuningWeight;
                 for (size_t idx = 0; idx < m_tuning.size(); ++idx)
                 {
-                    m_tuning[idx] = 1;/*t * DescriptorT::DEFAULT_TUNING[idx] +
-                        (1. - t) * (1. / std::max(averageDistances[idx], kAverageDistanceEpsilon));*/
+                    m_tuning[idx] = 1.;
+                    for (size_t l = 0; l < m_templates.size(); ++l)
+                    {
+                        for (size_t r = l + 1; r < m_templates.size(); ++r)
+                        {
+                            NumberT distance;
+                            if (m_templates[l].size() > m_templates[r].size())
+                            {
+                                distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
+                            }
+                            else
+                            {
+                                distance = calculateNormalizedSequenceDistance(m_templates[r], m_templates[l]);
+                            }
+                            averageDistances[idx] += distance;
+                        }
+                    }
+                    averageDistances[idx] /= templatesChooseTwo;
+                    m_tuning[idx] = descriptor::NULL_TUNING;
+                }
+
+                for (size_t idx = 0; idx < m_tuning.size(); ++idx)
+                {
+                    m_tuning[idx] = 1;// std::max<NumberT>(averageDistances[idx], 1);
                 }
             }
 

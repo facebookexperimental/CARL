@@ -154,22 +154,6 @@ void test3()
     std::cout << std::endl;
 }
 
-void test4()
-{
-    auto example0 = loadExample("C:\\scratch\\CARLFiles\\me_and_colin_pull\\recording_0.bin");
-    auto example1 = loadExample("C:\\scratch\\CARLFiles\\me_and_colin_pull\\recording_1.bin");
-
-    carl::action::Definition definition{ carl::action::Definition::ActionType::RightHandGesture };
-    definition.addExample(example0);
-
-    carl::Session session{};
-    carl::action::Recognizer recognizer{ session, definition };
-
-    auto autotrimmed = recognizer.createAutoTrimmedExample(example1.getRecording());
-    recognizer.analyzeRecording(example1.getRecording(), std::cout);
-    std::cout << std::endl;
-}
-
 void main()
 {
     /*
@@ -184,6 +168,5 @@ void main()
 
     //test();
     //test2();
-    //test3();
-    test4();
+    test3();
 }
