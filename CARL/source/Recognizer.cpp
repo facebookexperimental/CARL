@@ -131,6 +131,7 @@ namespace carl::action
                 : Recognizer::Impl{ session, sensitivity }
                 , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
+                , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
             {
                 initializeTemplates(examples, counterexamples);
                 calculateTuning();
@@ -179,7 +180,7 @@ namespace carl::action
                         NumberT distance = std::numeric_limits<NumberT>::max();
                         for (const auto& t : m_templates)
                         {
-                            distance = std::min(calculateNormalizedSequenceDistance(trimmedSequence, t), distance);
+                            distance = std::min(calculateMatchDistance(trimmedSequence, t), distance);
                         }
 
                         if (distance < minDistance)
@@ -265,9 +266,9 @@ namespace carl::action
                             {
                                 tuning[tuningIdx] = 1;
 
-                                auto distanceFunction{ [&tuning](const DescriptorT& a, const DescriptorT& b) {
+                                auto distanceFunction = [&tuning](const DescriptorT& a, const DescriptorT& b) {
                                     return DescriptorT::Distance(a, b, tuning);
-                                } };
+                                };
                                 auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistanceAndImageSize(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
                                 output << distance << ",";
 
@@ -294,6 +295,7 @@ namespace carl::action
             size_t m_trimmedSequenceLength{};
             NumberT m_minimumImageRatio{ 0.8 }; // TODO: Parameterize?
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
+            std::function<NumberT(const DescriptorT&, const DescriptorT)> m_distanceFunction{};
             std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
 
@@ -346,25 +348,16 @@ namespace carl::action
                 }
 
                 std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> averageDistances{};
-                const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / 2.;
+                const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / NumberT{ 2 };
                 std::fill(m_tuning.begin(), m_tuning.end(), descriptor::NULL_TUNING);
                 for (size_t idx = 0; idx < m_tuning.size(); ++idx)
                 {
-                    m_tuning[idx] = 1.;
+                    m_tuning[idx] = 1;
                     for (size_t l = 0; l < m_templates.size(); ++l)
                     {
                         for (size_t r = l + 1; r < m_templates.size(); ++r)
                         {
-                            NumberT distance;
-                            if (m_templates[l].size() > m_templates[r].size())
-                            {
-                                distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                            }
-                            else
-                            {
-                                distance = calculateNormalizedSequenceDistance(m_templates[r], m_templates[l]);
-                            }
-                            averageDistances[idx] += distance;
+                            averageDistances[idx] += calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
                         }
                     }
                     averageDistances[idx] /= templatesChooseTwo;
@@ -498,18 +491,24 @@ namespace carl::action
                 gsl::span<const DescriptorT> shorter) const
             {
                 assert(longer.size() >= shorter.size());
-                auto distanceFunction{ [this](const DescriptorT& a, const DescriptorT& b) {
-                  return DescriptorT::Distance(a, b, m_tuning);
-                } };
-                return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
+                return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, m_distanceFunction, m_minimumImageRatio);
+            }
+
+            NumberT calculateMatchDistance(
+                gsl::span<const DescriptorT> target, 
+                gsl::span<const DescriptorT> query) const
+            {
+                auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction);
+                auto connectionsCount = std::max(query.size(), result.ImageSize);
+                return result.MatchCost / connectionsCount;
             }
 
             NumberT calculateNormalizedSequenceDistance(
-                gsl::span<const DescriptorT> longer,
-                gsl::span<const DescriptorT> shorter) const
+                gsl::span<const DescriptorT> a,
+                gsl::span<const DescriptorT> b) const
             {
-                auto [distance, imageSize] = calculateSequenceDistance(longer, shorter);
-                size_t connectionsCount = std::max(imageSize, shorter.size());
+                auto distance = DynamicTimeWarping::Distance(a, b, m_distanceFunction);
+                auto connectionsCount = std::max(a.size(), b.size());
                 return distance / connectionsCount;
             }
 
@@ -528,7 +527,7 @@ namespace carl::action
                 NumberT minDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_templates)
                 {
-                    NumberT distance = calculateNormalizedSequenceDistance(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t);
                     score = std::max(m_scoringFunction(distance), score);
                     minDistance = std::min(distance, minDistance);
                 }
@@ -540,7 +539,7 @@ namespace carl::action
                 NumberT minCounterDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_countertemplates)
                 {
-                    NumberT distance = calculateNormalizedSequenceDistance(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t);
                     minCounterDistance = std::min(distance, minCounterDistance);
                 }
                 if (minDistance >= minCounterDistance)
