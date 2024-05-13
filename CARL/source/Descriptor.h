@@ -129,7 +129,7 @@ namespace carl::descriptor
                     W * other.W - X * other.X - Y * other.Y - Z * other.Z,
                 };
             }
-            
+
             operator QuaternionT() const
             {
                 return{ W, X, Y, Z };
@@ -258,26 +258,26 @@ namespace carl::descriptor
         return math::LookTransform(zAxis, yAxis, wristPose.translation());
     }
 
-//#define DESCRIPTOR_ANALYSIS
+    //#define DESCRIPTOR_ANALYSIS
 #ifdef DESCRIPTOR_ANALYSIS
     constexpr NumberT NULL_TUNING{ 0 };
     constexpr auto createDistanceFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
     {
         return [identicalityThreshold, irreconcilabilityThreshold](NumberT distance, NumberT tuning)
-        {
-            return tuning * distance;
-        };
+            {
+                return tuning * distance;
+            };
     }
 #else
     constexpr NumberT NULL_TUNING{ 1000000 };
-    constexpr auto createDistanceFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
+    constexpr auto createDistanceNormalizationFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
     {
         return [identicalityThreshold, irreconcilabilityThreshold](NumberT distance, NumberT tuning)
-        {
-            auto lowerBound = tuning * identicalityThreshold;
-            auto upperBound = tuning * irreconcilabilityThreshold;
-            return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
-        };
+            {
+                auto lowerBound = tuning * identicalityThreshold;
+                auto upperBound = tuning * irreconcilabilityThreshold;
+                return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
+            };
     }
 #endif
 
@@ -324,7 +324,7 @@ namespace carl::descriptor
                 NumberT mid{};
                 while (true)
                 {
-                    mid = (upper + lower) / NumberT{2};
+                    mid = (upper + lower) / NumberT{ 2 };
                     auto intermediateDesc = DescriptorT::Lerp(sequence.back(), *sampleDesc, mid);
                     auto distance = DescriptorT::Distance(intermediateDesc, sequence.back(), tuning);
                     if (distance > THRESHOLD)
@@ -332,7 +332,7 @@ namespace carl::descriptor
                         // intermediate sample is too distant, continue searching for a nearer sample
                         upper = mid;
                     }
-                    else if (distance < NumberT{0.9} *THRESHOLD)
+                    else if (distance < NumberT{ 0.9 } *THRESHOLD)
                     {
                         // intermediate sample is too close, continue searching for a more distant sample
                         lower = mid;
@@ -385,10 +385,11 @@ namespace carl::descriptor
             return {};
         }
 
-        static NumberT Distance(const HandShape& a, const HandShape& b, gsl::span<const NumberT> tuning) {
+        static NumberT Distance(const HandShape& a, const HandShape& b, gsl::span<const NumberT> tuning)
+        {
             NumberT distance = 0;
             for (size_t idx = 0; idx < a.m_positions.size(); ++idx) {
-                distance = std::max(distance, calculateDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]));
+                distance = std::max(distance, normalizeDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]));
             }
             return distance;
         }
@@ -405,11 +406,17 @@ namespace carl::descriptor
             return result;
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            return DEFAULT_TUNING;
+        }
+
         HandShape() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.03) };
-        static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{0.1};
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.01, 0.03) };
+        static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{ 0.1 };
         std::array<trivial::Point, JOINTS.size()> m_positions{};
 
         HandShape(const InputSample& sample, const InputSample&)
@@ -468,7 +475,7 @@ namespace carl::descriptor
             gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_egocentricTemporalOrientation.angularDistance(b.m_egocentricTemporalOrientation);
-            return calculateDistance(distance, tuning[0]);
+            return normalizeDistance(distance, tuning[0]);
         }
 
         static EgocentricWristOrientation Lerp(
@@ -483,10 +490,16 @@ namespace carl::descriptor
             return result;
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            return DEFAULT_TUNING;
+        }
+
         EgocentricWristOrientation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.17453, 0.5236) };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.17453, 0.5236) };
         trivial::Quaternion m_egocentricTemporalOrientation{};
 
         EgocentricWristOrientation(const InputSample& sample, const InputSample&)
@@ -543,6 +556,32 @@ namespace carl::descriptor
             return{ std::move(handShape), std::move(wristOrientation) };
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            std::vector<std::vector<HandShape<Handedness>>> handShapeExamples{};
+            handShapeExamples.reserve(examples.size());
+            std::vector<std::vector<EgocentricWristOrientation<Handedness>>> wristOrientationExamples{};
+            wristOrientationExamples.reserve(examples.size());
+            for (gsl::span<const HandPose<Handedness>> example : examples)
+            {
+                handShapeExamples.emplace_back();
+                auto& handShapeExample = handShapeExamples.back();
+                wristOrientationExamples.emplace_back();
+                auto& wristOrientationExample = wristOrientationExamples.back();
+
+                for (const HandPose<Handedness>& descriptor : example)
+                {
+                    handShapeExample.push_back(descriptor.m_handShapeSample);
+                    wristOrientationExample.push_back(descriptor.m_wristOrientationSample);
+                }
+            }
+
+            auto handShapeTuning = HandShape<Handedness>::CalculateTuning(handShapeExamples);
+            auto wristOrientationTuning = EgocentricWristOrientation<Handedness>::CalculateTuning(wristOrientationExamples);
+            return arrayConcat(handShapeTuning, wristOrientationTuning);
+        }
+
         HandPose() = default;
 
     private:
@@ -595,7 +634,7 @@ namespace carl::descriptor
         static NumberT Distance(const WristRotation& a, const WristRotation& b, gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_deltaOrientation.angularDistance(b.m_deltaOrientation);
-            return calculateDistance(distance, tuning[0]);
+            return normalizeDistance(distance, tuning[0]);
         }
 
         static WristRotation Lerp(const WristRotation& a, const WristRotation& b, NumberT t)
@@ -607,10 +646,16 @@ namespace carl::descriptor
             return result;
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            return DEFAULT_TUNING;
+        }
+
         WristRotation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.2, 0.24) };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.2, 0.24) };
         trivial::Quaternion m_deltaOrientation{};
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
@@ -664,7 +709,7 @@ namespace carl::descriptor
             gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
-            return calculateDistance(distance, tuning[0]);
+            return normalizeDistance(distance, tuning[0]);
         }
 
         static EgocentricWristTranslation Lerp(
@@ -679,10 +724,16 @@ namespace carl::descriptor
             return result;
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            return DEFAULT_TUNING;
+        }
+
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.01, 0.02) };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.01, 0.02) };
         trivial::Point m_egocentricTemporalPosition{};
 
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)
@@ -747,6 +798,38 @@ namespace carl::descriptor
             return{ std::move(handPose), std::move(wristRotation), std::move(wristTranslation) };
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            std::vector<std::vector<HandPose<Handedness>>> handPoseExamples{};
+            handPoseExamples.reserve(examples.size());
+            std::vector<std::vector<WristRotation<Handedness>>> wristRotationExamples{};
+            wristRotationExamples.reserve(examples.size());
+            std::vector<std::vector<EgocentricWristTranslation<Handedness>>> wristTranslationExamples{};
+            wristTranslationExamples.reserve(examples.size());
+            for (gsl::span<const HandGesture<Handedness>> example : examples)
+            {
+                handPoseExamples.emplace_back();
+                auto& handPoseExample = handPoseExamples.back();
+                wristRotationExamples.emplace_back();
+                auto& wristRotationExample = wristRotationExamples.back();
+                wristTranslationExamples.emplace_back();
+                auto& wristTranslationExample = wristTranslationExamples.back();
+
+                for (const HandGesture<Handedness>& descriptor : example)
+                {
+                    handPoseExample.push_back(descriptor.m_handPoseSample);
+                    wristRotationExample.push_back(descriptor.m_wristRotationSample);
+                    wristTranslationExample.push_back(descriptor.m_wristTranslationSample);
+                }
+            }
+
+            auto handPoseTuning = HandPose<Handedness>::CalculateTuning(handPoseExamples);
+            auto wristRotationTuning = WristRotation<Handedness>::CalculateTuning(wristRotationExamples);
+            auto wristTranslationTuning = EgocentricWristTranslation<Handedness>::CalculateTuning(wristTranslationExamples);
+            return arrayConcat(handPoseTuning, wristRotationTuning, wristTranslationTuning);
+        }
+
         HandGesture() = default;
 
     private:
@@ -790,7 +873,7 @@ namespace carl::descriptor
             gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
-            return calculateDistance(distance, tuning[0]);
+            return normalizeDistance(distance, tuning[0]);
         }
 
         static EgocentricRelativeWristPosition Lerp(
@@ -805,10 +888,16 @@ namespace carl::descriptor
             return result;
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            return DEFAULT_TUNING;
+        }
+
         EgocentricRelativeWristPosition() = default;
 
     private:
-        static inline constexpr auto calculateDistance{ createDistanceFunction(0.04, 0.2) };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.04, 0.2) };
         trivial::Point m_egocentricRelativeWristPosition{};
 
         EgocentricRelativeWristPosition(const InputSample& sample, const InputSample&)
@@ -875,6 +964,38 @@ namespace carl::descriptor
             return{ leftGesture, rightGesture, relativeWristPosition };
         }
 
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            std::vector<std::vector<HandGesture<Handedness::LeftHanded>>> leftExamples{};
+            leftExamples.reserve(examples.size());
+            std::vector<std::vector<HandGesture<Handedness::RightHanded>>> rightExamples{};
+            rightExamples.reserve(examples.size());
+            std::vector<std::vector<EgocentricRelativeWristPosition>> relativeExamples{};
+            relativeExamples.reserve(examples.size());
+            for (gsl::span<const TwoHandGesture> example : examples)
+            {
+                leftExamples.emplace_back();
+                auto& leftExample = leftExamples.back();
+                rightExamples.emplace_back();
+                auto& rightExample = rightExamples.back();
+                relativeExamples.emplace_back();
+                auto& relativeExample = relativeExamples.back();
+
+                for (const TwoHandGesture& descriptor : example)
+                {
+                    leftExample.push_back(descriptor.m_leftGestureSample);
+                    rightExample.push_back(descriptor.m_rightGestureSample);
+                    relativeExample.push_back(descriptor.m_relativeSample);
+                }
+            }
+
+            auto leftTuning = HandGesture<Handedness::LeftHanded>::CalculateTuning(leftExamples);
+            auto rightTuning = HandGesture<Handedness::RightHanded>::CalculateTuning(rightExamples);
+            auto relativeTuning = EgocentricRelativeWristPosition::CalculateTuning(relativeExamples);
+            return arrayConcat(leftTuning, rightTuning, relativeTuning);
+        }
+
         TwoHandGesture() = default;
 
     private:
@@ -923,6 +1044,12 @@ namespace carl::descriptor
             auto underlyingDescriptor = DescriptorT::Lerp(a.m_underlyingDescriptor, b.m_underlyingDescriptor, t);
             auto timestamp = (static_cast<NumberT>(1) - t) * a.m_timestamp + t * b.m_timestamp;
             return{ std::move(underlyingDescriptor), timestamp };
+        }
+
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            return DescriptorT::CalculateTuning(examples);
         }
 
         TimestampedDescriptor() = default;

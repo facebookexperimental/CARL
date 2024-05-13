@@ -295,7 +295,7 @@ namespace carl::action
             size_t m_trimmedSequenceLength{};
             NumberT m_minimumImageRatio{ 0.8 }; // TODO: Parameterize?
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
-            std::function<NumberT(const DescriptorT&, const DescriptorT)> m_distanceFunction{};
+            std::function<NumberT(const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
             std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
 
@@ -341,33 +341,7 @@ namespace carl::action
 
             void calculateTuning()
             {
-                if (m_templates.size() < 2)
-                {
-                    m_tuning = DescriptorT::DEFAULT_TUNING;
-                    return;
-                }
-
-                std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> averageDistances{};
-                const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / NumberT{ 2 };
-                std::fill(m_tuning.begin(), m_tuning.end(), descriptor::NULL_TUNING);
-                for (size_t idx = 0; idx < m_tuning.size(); ++idx)
-                {
-                    m_tuning[idx] = 1;
-                    for (size_t l = 0; l < m_templates.size(); ++l)
-                    {
-                        for (size_t r = l + 1; r < m_templates.size(); ++r)
-                        {
-                            averageDistances[idx] += calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                        }
-                    }
-                    averageDistances[idx] /= templatesChooseTwo;
-                    m_tuning[idx] = descriptor::NULL_TUNING;
-                }
-
-                for (size_t idx = 0; idx < m_tuning.size(); ++idx)
-                {
-                    m_tuning[idx] = 1;// std::max<NumberT>(averageDistances[idx], 1);
-                }
+                m_tuning = DescriptorT::CalculateTuning(m_templates);
             }
 
             void createAverageMinDistanceScoringFunction()
