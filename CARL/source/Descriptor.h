@@ -418,21 +418,20 @@ namespace carl::descriptor
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
             {
-                NumberT maxAverageCostPerConnection = 0;
+                NumberT maxConnectionCost = 0;
                 for (size_t j = 0; j < examples.size(); ++j)
                 {
-                    for (size_t i = 0; i < examples.size(); ++i)
+                    for (size_t i = j + 1; i < examples.size(); ++i)
                     {
                         auto distanceFunction = [idx](const auto& a, const auto& b) {
                             return a.m_positions[idx].distance(b.m_positions[idx]);
                         };
-                        auto distance = DynamicTimeWarping::Distance<const HandShape<Handedness>>(examples[i], examples[j], distanceFunction);
-                        auto connectionsCount = std::max(examples[i].size(), examples[j].size());
-                        maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                        auto result = DynamicTimeWarping::Distance<const HandShape<Handedness>>(examples[i], examples[j], distanceFunction);
+                        maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                     }
                 }
                 NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-                tuning[idx] = maxAverageCostPerConnection / midpoint;
+                tuning[idx] = maxConnectionCost / midpoint;
             }
             return tuning;
         }
@@ -526,21 +525,20 @@ namespace carl::descriptor
             }
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxAverageCostPerConnection = 0;
+            NumberT maxConnectionCost = 0;
             for (size_t j = 0; j < examples.size(); ++j)
             {
-                for (size_t i = 0; i < examples.size(); ++i)
+                for (size_t i = j + 1; i < examples.size(); ++i)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_egocentricTemporalOrientation.angularDistance(b.m_egocentricTemporalOrientation);
                     };
-                    auto distance = DynamicTimeWarping::Distance<const EgocentricWristOrientation<Handedness>>(examples[i], examples[j], distanceFunction);
-                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
-                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                    auto result = DynamicTimeWarping::Distance<const EgocentricWristOrientation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = maxAverageCostPerConnection / midpoint;
+            tuning[0] = maxConnectionCost / midpoint;
             return tuning;
         }
 
@@ -705,22 +703,21 @@ namespace carl::descriptor
             }
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxAverageCostPerConnection = 0;
+            NumberT maxConnectionCost = 0;
             for (size_t j = 0; j < examples.size(); ++j)
             {
-                for (size_t i = 0; i < examples.size(); ++i)
+                for (size_t i = j + 1; i < examples.size(); ++i)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_deltaOrientation.angularDistance(b.m_deltaOrientation);
                     };
-                    auto distance = DynamicTimeWarping::Distance<const WristRotation<Handedness>>(examples[i], examples[j], distanceFunction);
-                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
-                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                    auto result = DynamicTimeWarping::Distance<const WristRotation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             // This descriptor is comparatively noisy and should mostly serve as a failsafe for other descriptors, so we tune 
             // to its identicality threshold rather than its midpoint.
-            tuning[0] = maxAverageCostPerConnection / IDENTICALITY_THRESHOLD;
+            tuning[0] = maxConnectionCost / IDENTICALITY_THRESHOLD;
             return tuning;
         }
 
@@ -807,21 +804,20 @@ namespace carl::descriptor
             }
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxAverageCostPerConnection = 0;
+            NumberT maxConnectionCost = 0;
             for (size_t j = 0; j < examples.size(); ++j)
             {
-                for (size_t i = 0; i < examples.size(); ++i)
+                for (size_t i = j + 1; i < examples.size(); ++i)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
                         };
-                    auto distance = DynamicTimeWarping::Distance<const EgocentricWristTranslation<Handedness>>(examples[i], examples[j], distanceFunction);
-                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
-                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                    auto result = DynamicTimeWarping::Distance<const EgocentricWristTranslation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = maxAverageCostPerConnection / midpoint;
+            tuning[0] = maxConnectionCost / midpoint;
             return tuning;
         }
 
@@ -994,21 +990,20 @@ namespace carl::descriptor
             }
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxAverageCostPerConnection = 0;
+            NumberT maxConnectionCost = 0;
             for (size_t j = 0; j < examples.size(); ++j)
             {
-                for (size_t i = 0; i < examples.size(); ++i)
+                for (size_t i = j + 1; i < examples.size(); ++i)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
                         };
-                    auto distance = DynamicTimeWarping::Distance<const EgocentricRelativeWristPosition>(examples[i], examples[j], distanceFunction);
-                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
-                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                    auto result = DynamicTimeWarping::Distance<const EgocentricRelativeWristPosition>(examples[i], examples[j], distanceFunction);
+                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = maxAverageCostPerConnection / midpoint;
+            tuning[0] = maxConnectionCost / midpoint;
             return tuning;
         }
 

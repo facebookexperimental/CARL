@@ -414,17 +414,7 @@ namespace carl::action
                 gsl::span<const DescriptorT> query) const
             {
                 auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction);
-                auto connectionsCount = std::max(query.size(), result.ImageSize);
-                return result.MatchCost / connectionsCount;
-            }
-
-            NumberT calculateNormalizedSequenceDistance(
-                gsl::span<const DescriptorT> a,
-                gsl::span<const DescriptorT> b) const
-            {
-                auto distance = DynamicTimeWarping::Distance(a, b, m_distanceFunction);
-                auto connectionsCount = std::max(a.size(), b.size());
-                return distance / connectionsCount;
+                return result.MatchCost / result.Connections;
             }
 
             NumberT calculateScore(gsl::span<const DescriptorT> sequence) const
