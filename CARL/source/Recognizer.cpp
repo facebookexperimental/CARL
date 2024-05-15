@@ -140,92 +140,38 @@ namespace carl::action
             }
 
         protected:
-            // TODO: This has not been reworked or retested sufficiently since paradigms shifted underneath it! The underlying 
-            // logic is probably most still sound, but the implementation needs to be fixed and tested now that samples and 
-            // descriptors can differ in count.
             Example createAutoTrimmedExample(const Recording& recording) const override
             {
-                using DescT = descriptor::TimestampedDescriptor<DescriptorT>;
-                using SignalT = Signal<const InputSample&>;
-                arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
-                SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescT>::Provider descriptorSequenceProvider{ inputSampleSignal };
-                descriptorSequenceProvider.supportSequenceOfLength(2 * m_trimmedSequenceLength);
-                Signal<gsl::span<const DescT>>& descriptorSignal{ descriptorSequenceProvider };
-
+                std::vector<descriptor::TimestampedDescriptor<DescriptorT>> timestampedSequence{};
                 auto samples = recording.getSamples();
-                size_t idx = 0;
-
-                auto minDistance = std::numeric_limits<NumberT>::max();
-                size_t minDistanceIdx = 0;
-
-                std::vector<DescriptorT> descriptorSequence{};
-                std::vector<DescT> maxScoreTrimmedSequence{};
-
-                using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescT>>::TicketT>;
-                OptionalTicketT maxScoreDescriptorHandlerTicket{ descriptorSignal.addHandler(
-                    [this, &idx, &samples, &minDistance, &minDistanceIdx, &maxScoreTrimmedSequence, &descriptorSequence](gsl::span<const DescT> sequence) {
-                        if (sequence.size() <= m_trimmedSequenceLength)
-                        {
-                            return;
-                        }
-
-                        descriptorSequence.clear();
-                        for (const auto& element : sequence)
-                        {
-                            descriptorSequence.push_back(element.getUnderlyingDescriptor());
-                        }
-                        gsl::span<const DescriptorT> trimmedSequence{ &descriptorSequence[descriptorSequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
-
-                        NumberT distance = std::numeric_limits<NumberT>::max();
-                        for (const auto& t : m_templates)
-                        {
-                            distance = std::min(calculateMatchDistance(trimmedSequence, t), distance);
-                        }
-
-                        if (distance < minDistance)
-                        {
-                            minDistance = distance;
-                            minDistanceIdx = idx;
-
-                            gsl::span<const DescT> ts{
-                                &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength};
-
-                            // Note that this logic depends on the fact that descriptors are trivially copyable.
-                            static_assert(std::is_trivially_copyable<DescT>::value);
-                            maxScoreTrimmedSequence.resize(ts.size());
-                            std::memcpy(maxScoreTrimmedSequence.data(), ts.data(), sizeof(DescT) * ts.size());
-                        }
-                    }) };
-
-                for (; idx < samples.size(); ++idx)
+                auto mostRecentSample = samples.front();
+                for (const auto& sample : recording.getSamples())
                 {
-                    auto& sample = samples[idx];
-                    inputSamplesHandlers.apply_to_all([&sample](auto& callable) mutable { callable(sample); });
+                    descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning);
                 }
 
-                maxScoreDescriptorHandlerTicket.reset();
-
-                auto startT = samples[0].Timestamp;
-                auto endT = samples[samples.size() - 1].Timestamp;
-                auto distance = std::numeric_limits<NumberT>::max();
-
-                descriptorSequence.clear();
-                for (const auto& element : maxScoreTrimmedSequence)
+                std::vector<DescriptorT> sequence{};
+                sequence.reserve(timestampedSequence.size());
+                for (const auto& desc : timestampedSequence)
                 {
-                    descriptorSequence.push_back(element.getUnderlyingDescriptor());
+                    sequence.push_back(desc.getUnderlyingDescriptor());
                 }
 
-                for (const auto& t : m_templates)
+                const auto distanceFunction = [this](const auto& a, const auto& b) {
+                    return DescriptorT::Distance(a, b, m_tuning);
+                };
+                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], distanceFunction);
+                for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
-                    auto [normalizedDistance, imageSize] = calculateSequenceDistance(descriptorSequence, t);
-                    if (normalizedDistance < distance)
+                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], distanceFunction);
+                    if (matchResult.MatchCost < bestMatchResult.MatchCost)
                     {
-                        startT = maxScoreTrimmedSequence[maxScoreTrimmedSequence.size() - imageSize].getTimestamp();
-                        endT = maxScoreTrimmedSequence.back().getTimestamp();
-                        distance = normalizedDistance;
+                        bestMatchResult = matchResult;
                     }
                 }
+
+                auto startT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
+                auto endT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize].getTimestamp();
 
                 return{ recording, startT, endT };
             }
@@ -399,14 +345,6 @@ namespace carl::action
                     }
                 }
                 m_canonicalRecording = std::make_unique<Recording>(std::move(recording));
-            }
-
-            std::tuple<NumberT, size_t> calculateSequenceDistance(
-                gsl::span<const DescriptorT> longer,
-                gsl::span<const DescriptorT> shorter) const
-            {
-                assert(longer.size() >= shorter.size());
-                return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, m_distanceFunction, m_minimumImageRatio);
             }
 
             NumberT calculateMatchDistance(
