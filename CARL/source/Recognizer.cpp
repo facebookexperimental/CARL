@@ -264,7 +264,7 @@ namespace carl::action
                             std::fill(tuning.begin(), tuning.end(), descriptor::NULL_TUNING);
                             for (size_t tuningIdx = 0; tuningIdx < tuning.size(); ++tuningIdx)
                             {
-                                tuning[tuningIdx] = 1;
+                                tuning[tuningIdx] = m_tuning[tuningIdx];
 
                                 auto distanceFunction = [&tuning](const DescriptorT& a, const DescriptorT& b) {
                                     return DescriptorT::Distance(a, b, tuning);
@@ -344,63 +344,6 @@ namespace carl::action
                 m_tuning = DescriptorT::CalculateTuning(m_templates);
             }
 
-            void createAverageMinDistanceScoringFunction()
-            {
-                std::vector<NumberT> minDistances{};
-                minDistances.resize(m_templates.size(), std::numeric_limits<NumberT>::max());
-                for (size_t l = 0; l < m_templates.size(); ++l)
-                {
-                    for (size_t r = l + 1; r < m_templates.size(); ++r)
-                    {
-                        NumberT distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                        minDistances[l] = std::min(distance, minDistances[l]);
-                        minDistances[r] = std::min(distance, minDistances[r]);
-                    }
-                }
-
-                NumberT averageMinDistance = 0.;
-                for (size_t idx = 0; idx < m_templates.size(); ++idx)
-                {
-                    averageMinDistance += minDistances[idx];
-                }
-                averageMinDistance /= m_templates.size();
-
-                m_scoringFunction = [this, averageMinDistance](NumberT distance)
-                {
-                    return std::max(1. - std::pow(distance / (m_sensitivity * 3. * averageMinDistance), 2.), 0.);
-                };
-            }
-
-            void createAverageAverageDistanceScoringFunction()
-            {
-                std::vector<NumberT> averageDistances{};
-                averageDistances.resize(m_templates.size());
-                for (size_t l = 0; l < m_templates.size(); ++l)
-                {
-                    for (size_t r = l + 1; r < m_templates.size(); ++r)
-                    {
-                        NumberT distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                        averageDistances[l] += distance;
-                        averageDistances[r] += distance;
-                    }
-                    averageDistances[l] /= m_templates.size();
-                }
-
-                constexpr NumberT DEFAULT_AVERAGE_DISTANCE{ 0.1 };
-                constexpr NumberT DEFAULT_AVERAGE_DISTANCE_WEIGHT{ 1. };
-                NumberT averageAverageDistance{ DEFAULT_AVERAGE_DISTANCE * DEFAULT_AVERAGE_DISTANCE_WEIGHT };
-                for (size_t idx = 0; idx < m_templates.size(); ++idx)
-                {
-                    averageAverageDistance += averageDistances[idx];
-                }
-                averageAverageDistance /= (m_templates.size() + DEFAULT_AVERAGE_DISTANCE_WEIGHT);
-
-                m_scoringFunction = [this, averageAverageDistance](NumberT distance)
-                {
-                    return std::max(1. - std::pow(distance / (m_sensitivity * 3. * averageAverageDistance), 2.), 0.);
-                };
-            }
-
             void createUnitScoringFunction()
             {
                 m_scoringFunction = [this](NumberT distance)
@@ -411,8 +354,6 @@ namespace carl::action
 
             void createScoringFunction()
             {
-                // createAverageMinDistanceScoringFunction();
-                // createAverageAverageDistanceScoringFunction();
                 createUnitScoringFunction();
             }
 

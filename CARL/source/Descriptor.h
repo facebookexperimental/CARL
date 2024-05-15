@@ -10,6 +10,7 @@
 #include "EgocentricTemporalSpace.h"
 
 #include "carl/InputSample.h"
+#include "DynamicTimeWarping.h"
 
 #include <gsl/span>
 
@@ -409,13 +410,39 @@ namespace carl::descriptor
         template<typename ExamplesT>
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
         {
-            return DEFAULT_TUNING;
+            if (examples.size() < 2)
+            {
+                return DEFAULT_TUNING;
+            }
+
+            auto tuning = DEFAULT_TUNING;
+            for (size_t idx = 0; idx < tuning.size(); ++idx)
+            {
+                NumberT maxAverageCostPerConnection = 0;
+                for (size_t j = 0; j < examples.size(); ++j)
+                {
+                    for (size_t i = 0; i < examples.size(); ++i)
+                    {
+                        auto distanceFunction = [idx](const auto& a, const auto& b) {
+                            return a.m_positions[idx].distance(b.m_positions[idx]);
+                        };
+                        auto distance = DynamicTimeWarping::Distance<const HandShape<Handedness>>(examples[i], examples[j], distanceFunction);
+                        auto connectionsCount = std::max(examples[i].size(), examples[j].size());
+                        maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                    }
+                }
+                NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
+                tuning[idx] = maxAverageCostPerConnection / midpoint;
+            }
+            return tuning;
         }
 
         HandShape() = default;
 
     private:
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.01, 0.03) };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.01 };
+        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.03 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{ 0.1 };
         std::array<trivial::Point, JOINTS.size()> m_positions{};
 
@@ -493,13 +520,36 @@ namespace carl::descriptor
         template<typename ExamplesT>
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
         {
-            return DEFAULT_TUNING;
+            if (examples.size() < 2)
+            {
+                return DEFAULT_TUNING;
+            }
+
+            auto tuning = DEFAULT_TUNING;
+            NumberT maxAverageCostPerConnection = 0;
+            for (size_t j = 0; j < examples.size(); ++j)
+            {
+                for (size_t i = 0; i < examples.size(); ++i)
+                {
+                    auto distanceFunction = [](const auto& a, const auto& b) {
+                        return a.m_egocentricTemporalOrientation.angularDistance(b.m_egocentricTemporalOrientation);
+                    };
+                    auto distance = DynamicTimeWarping::Distance<const EgocentricWristOrientation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
+                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                }
+            }
+            NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
+            tuning[0] = maxAverageCostPerConnection / midpoint;
+            return tuning;
         }
 
         EgocentricWristOrientation() = default;
 
     private:
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.17453, 0.5236) };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.17453 };
+        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.5236 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
         trivial::Quaternion m_egocentricTemporalOrientation{};
 
         EgocentricWristOrientation(const InputSample& sample, const InputSample&)
@@ -649,13 +699,37 @@ namespace carl::descriptor
         template<typename ExamplesT>
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
         {
-            return DEFAULT_TUNING;
+            if (examples.size() < 2)
+            {
+                return DEFAULT_TUNING;
+            }
+
+            auto tuning = DEFAULT_TUNING;
+            NumberT maxAverageCostPerConnection = 0;
+            for (size_t j = 0; j < examples.size(); ++j)
+            {
+                for (size_t i = 0; i < examples.size(); ++i)
+                {
+                    auto distanceFunction = [](const auto& a, const auto& b) {
+                        return a.m_deltaOrientation.angularDistance(b.m_deltaOrientation);
+                    };
+                    auto distance = DynamicTimeWarping::Distance<const WristRotation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
+                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                }
+            }
+            // This descriptor is comparatively noisy and should mostly serve as a failsafe for other descriptors, so we tune 
+            // to its identicality threshold rather than its midpoint.
+            tuning[0] = maxAverageCostPerConnection / IDENTICALITY_THRESHOLD;
+            return tuning;
         }
 
         WristRotation() = default;
 
     private:
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.2, 0.24) };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.1 };
+        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.2 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
         trivial::Quaternion m_deltaOrientation{};
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
@@ -727,13 +801,36 @@ namespace carl::descriptor
         template<typename ExamplesT>
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
         {
-            return DEFAULT_TUNING;
+            if (examples.size() < 2)
+            {
+                return DEFAULT_TUNING;
+            }
+
+            auto tuning = DEFAULT_TUNING;
+            NumberT maxAverageCostPerConnection = 0;
+            for (size_t j = 0; j < examples.size(); ++j)
+            {
+                for (size_t i = 0; i < examples.size(); ++i)
+                {
+                    auto distanceFunction = [](const auto& a, const auto& b) {
+                        return a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
+                        };
+                    auto distance = DynamicTimeWarping::Distance<const EgocentricWristTranslation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
+                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                }
+            }
+            NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
+            tuning[0] = maxAverageCostPerConnection / midpoint;
+            return tuning;
         }
 
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.01, 0.02) };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.01 };
+        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.02 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
         trivial::Point m_egocentricTemporalPosition{};
 
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)
@@ -891,13 +988,36 @@ namespace carl::descriptor
         template<typename ExamplesT>
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
         {
-            return DEFAULT_TUNING;
+            if (examples.size() < 2)
+            {
+                return DEFAULT_TUNING;
+            }
+
+            auto tuning = DEFAULT_TUNING;
+            NumberT maxAverageCostPerConnection = 0;
+            for (size_t j = 0; j < examples.size(); ++j)
+            {
+                for (size_t i = 0; i < examples.size(); ++i)
+                {
+                    auto distanceFunction = [](const auto& a, const auto& b) {
+                        return a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
+                        };
+                    auto distance = DynamicTimeWarping::Distance<const EgocentricRelativeWristPosition>(examples[i], examples[j], distanceFunction);
+                    auto connectionsCount = std::max(examples[i].size(), examples[j].size());
+                    maxAverageCostPerConnection = std::max<NumberT>(distance / connectionsCount, maxAverageCostPerConnection);
+                }
+            }
+            NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
+            tuning[0] = maxAverageCostPerConnection / midpoint;
+            return tuning;
         }
 
         EgocentricRelativeWristPosition() = default;
 
     private:
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(0.04, 0.2) };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.04 };
+        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.2 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
         trivial::Point m_egocentricRelativeWristPosition{};
 
         EgocentricRelativeWristPosition(const InputSample& sample, const InputSample&)
