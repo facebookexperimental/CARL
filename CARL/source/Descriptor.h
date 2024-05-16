@@ -9,7 +9,7 @@
 
 #include "EgocentricTemporalSpace.h"
 
-#include "carl/InputSample.h"
+#include "carl/Example.h"
 #include "DynamicTimeWarping.h"
 
 #include <gsl/span>
@@ -350,6 +350,40 @@ namespace carl::descriptor
         }
     }
 
+    template<typename DescriptorT>
+    std::vector<DescriptorT> createDescriptorSequenceFromRecording(const action::Recording& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning)
+    {
+        std::vector<DescriptorT> sequence{};
+
+        auto samples = recording.getSamples();
+        InputSample mostRecentSample{};
+
+        size_t idx = 0;
+        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < startTimestamp)
+        {
+            ++idx;
+        }
+        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < endTimestamp)
+        {
+            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning);
+            ++idx;
+        }
+
+        return sequence;
+    }
+
+    template<typename DescriptorT>
+    std::vector<std::vector<DescriptorT>> createDescriptorSequencesFromExamples(gsl::span<const action::Example> examples, gsl::span<const NumberT> tuning, double padding = 0.)
+    {
+        std::vector<std::vector<DescriptorT>> sequences{};
+        sequences.reserve(examples.size());
+        for (const auto& example : examples)
+        {
+            sequences.push_back(createDescriptorSequenceFromRecording<DescriptorT>(example.getRecording(), example.getStartTimestamp() - padding, example.getEndTimestamp() + padding, tuning));
+        }
+        return sequences;
+    }
+
     template<Handedness Handedness>
     class HandShape
     {
@@ -407,31 +441,33 @@ namespace carl::descriptor
             return result;
         }
 
-        template<typename ExamplesT>
-        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(gsl::span<const action::Example> examples)
         {
             if (examples.size() < 2)
             {
                 return DEFAULT_TUNING;
             }
 
+            auto sequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING, 1.);
+
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
             {
                 NumberT maxConnectionCost = 0;
-                for (size_t j = 0; j < examples.size(); ++j)
+                for (const auto& extendedSequence : extendedSequences)
                 {
-                    for (size_t i = j + 1; i < examples.size(); ++i)
+                    for (const auto& sequence : sequences)
                     {
                         auto distanceFunction = [idx](const auto& a, const auto& b) {
                             return a.m_positions[idx].distance(b.m_positions[idx]);
                         };
-                        auto result = DynamicTimeWarping::Distance<const HandShape<Handedness>>(examples[i], examples[j], distanceFunction);
+                        auto result = DynamicTimeWarping::Match<const HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
                         maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                     }
                 }
                 NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-                tuning[idx] = maxConnectionCost / midpoint;
+                tuning[idx] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[idx]);
             }
             return tuning;
         }
@@ -524,21 +560,24 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
-            for (size_t j = 0; j < examples.size(); ++j)
+            for (const auto& extendedSequence : extendedSequences)
             {
-                for (size_t i = j + 1; i < examples.size(); ++i)
+                for (const auto& sequence : sequences)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_egocentricTemporalOrientation.angularDistance(b.m_egocentricTemporalOrientation);
                     };
-                    auto result = DynamicTimeWarping::Distance<const EgocentricWristOrientation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = maxConnectionCost / midpoint;
+            tuning[0] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -607,26 +646,8 @@ namespace carl::descriptor
         template<typename ExamplesT>
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
         {
-            std::vector<std::vector<HandShape<Handedness>>> handShapeExamples{};
-            handShapeExamples.reserve(examples.size());
-            std::vector<std::vector<EgocentricWristOrientation<Handedness>>> wristOrientationExamples{};
-            wristOrientationExamples.reserve(examples.size());
-            for (gsl::span<const HandPose<Handedness>> example : examples)
-            {
-                handShapeExamples.emplace_back();
-                auto& handShapeExample = handShapeExamples.back();
-                wristOrientationExamples.emplace_back();
-                auto& wristOrientationExample = wristOrientationExamples.back();
-
-                for (const HandPose<Handedness>& descriptor : example)
-                {
-                    handShapeExample.push_back(descriptor.m_handShapeSample);
-                    wristOrientationExample.push_back(descriptor.m_wristOrientationSample);
-                }
-            }
-
-            auto handShapeTuning = HandShape<Handedness>::CalculateTuning(handShapeExamples);
-            auto wristOrientationTuning = EgocentricWristOrientation<Handedness>::CalculateTuning(wristOrientationExamples);
+            auto handShapeTuning = HandShape<Handedness>::CalculateTuning(examples);
+            auto wristOrientationTuning = EgocentricWristOrientation<Handedness>::CalculateTuning(examples);
             return arrayConcat(handShapeTuning, wristOrientationTuning);
         }
 
@@ -702,22 +723,25 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            auto sequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
-            for (size_t j = 0; j < examples.size(); ++j)
+            for (const auto& extendedSequence : extendedSequences)
             {
-                for (size_t i = j + 1; i < examples.size(); ++i)
+                for (const auto& sequence : sequences)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_deltaOrientation.angularDistance(b.m_deltaOrientation);
                     };
-                    auto result = DynamicTimeWarping::Distance<const WristRotation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    auto result = DynamicTimeWarping::Distance<const WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             // This descriptor is comparatively noisy and should mostly serve as a failsafe for other descriptors, so we tune 
             // to its identicality threshold rather than its midpoint.
-            tuning[0] = maxConnectionCost / IDENTICALITY_THRESHOLD;
+            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -803,21 +827,24 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
-            for (size_t j = 0; j < examples.size(); ++j)
+            for (const auto& extendedSequence : extendedSequences)
             {
-                for (size_t i = j + 1; i < examples.size(); ++i)
+                for (const auto& sequence : sequences)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
                         };
-                    auto result = DynamicTimeWarping::Distance<const EgocentricWristTranslation<Handedness>>(examples[i], examples[j], distanceFunction);
+                    auto result = DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = maxConnectionCost / midpoint;
+            tuning[0] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -894,32 +921,9 @@ namespace carl::descriptor
         template<typename ExamplesT>
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
         {
-            std::vector<std::vector<HandPose<Handedness>>> handPoseExamples{};
-            handPoseExamples.reserve(examples.size());
-            std::vector<std::vector<WristRotation<Handedness>>> wristRotationExamples{};
-            wristRotationExamples.reserve(examples.size());
-            std::vector<std::vector<EgocentricWristTranslation<Handedness>>> wristTranslationExamples{};
-            wristTranslationExamples.reserve(examples.size());
-            for (gsl::span<const HandGesture<Handedness>> example : examples)
-            {
-                handPoseExamples.emplace_back();
-                auto& handPoseExample = handPoseExamples.back();
-                wristRotationExamples.emplace_back();
-                auto& wristRotationExample = wristRotationExamples.back();
-                wristTranslationExamples.emplace_back();
-                auto& wristTranslationExample = wristTranslationExamples.back();
-
-                for (const HandGesture<Handedness>& descriptor : example)
-                {
-                    handPoseExample.push_back(descriptor.m_handPoseSample);
-                    wristRotationExample.push_back(descriptor.m_wristRotationSample);
-                    wristTranslationExample.push_back(descriptor.m_wristTranslationSample);
-                }
-            }
-
-            auto handPoseTuning = HandPose<Handedness>::CalculateTuning(handPoseExamples);
-            auto wristRotationTuning = WristRotation<Handedness>::CalculateTuning(wristRotationExamples);
-            auto wristTranslationTuning = EgocentricWristTranslation<Handedness>::CalculateTuning(wristTranslationExamples);
+            auto handPoseTuning = HandPose<Handedness>::CalculateTuning(examples);
+            auto wristRotationTuning = WristRotation<Handedness>::CalculateTuning(examples);
+            auto wristTranslationTuning = EgocentricWristTranslation<Handedness>::CalculateTuning(examples);
             return arrayConcat(handPoseTuning, wristRotationTuning, wristTranslationTuning);
         }
 
@@ -989,21 +993,24 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, 1.);
+
             auto tuning = DEFAULT_TUNING;
             NumberT maxConnectionCost = 0;
-            for (size_t j = 0; j < examples.size(); ++j)
+            for (const auto& extendedSequence : extendedSequences)
             {
-                for (size_t i = j + 1; i < examples.size(); ++i)
+                for (const auto& sequence : sequences)
                 {
                     auto distanceFunction = [](const auto& a, const auto& b) {
                         return a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
                         };
-                    auto result = DynamicTimeWarping::Distance<const EgocentricRelativeWristPosition>(examples[i], examples[j], distanceFunction);
+                    auto result = DynamicTimeWarping::Match<const EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = maxConnectionCost / midpoint;
+            tuning[0] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -1079,35 +1086,11 @@ namespace carl::descriptor
             return{ leftGesture, rightGesture, relativeWristPosition };
         }
 
-        template<typename ExamplesT>
-        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(gsl::span<const action::Example> examples)
         {
-            std::vector<std::vector<HandGesture<Handedness::LeftHanded>>> leftExamples{};
-            leftExamples.reserve(examples.size());
-            std::vector<std::vector<HandGesture<Handedness::RightHanded>>> rightExamples{};
-            rightExamples.reserve(examples.size());
-            std::vector<std::vector<EgocentricRelativeWristPosition>> relativeExamples{};
-            relativeExamples.reserve(examples.size());
-            for (gsl::span<const TwoHandGesture> example : examples)
-            {
-                leftExamples.emplace_back();
-                auto& leftExample = leftExamples.back();
-                rightExamples.emplace_back();
-                auto& rightExample = rightExamples.back();
-                relativeExamples.emplace_back();
-                auto& relativeExample = relativeExamples.back();
-
-                for (const TwoHandGesture& descriptor : example)
-                {
-                    leftExample.push_back(descriptor.m_leftGestureSample);
-                    rightExample.push_back(descriptor.m_rightGestureSample);
-                    relativeExample.push_back(descriptor.m_relativeSample);
-                }
-            }
-
-            auto leftTuning = HandGesture<Handedness::LeftHanded>::CalculateTuning(leftExamples);
-            auto rightTuning = HandGesture<Handedness::RightHanded>::CalculateTuning(rightExamples);
-            auto relativeTuning = EgocentricRelativeWristPosition::CalculateTuning(relativeExamples);
+            auto leftTuning = HandGesture<Handedness::LeftHanded>::CalculateTuning(examples);
+            auto rightTuning = HandGesture<Handedness::RightHanded>::CalculateTuning(examples);
+            auto relativeTuning = EgocentricRelativeWristPosition::CalculateTuning(examples);
             return arrayConcat(leftTuning, rightTuning, relativeTuning);
         }
 
@@ -1161,8 +1144,7 @@ namespace carl::descriptor
             return{ std::move(underlyingDescriptor), timestamp };
         }
 
-        template<typename ExamplesT>
-        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(gsl::span<const action::Example> examples)
         {
             return DescriptorT::CalculateTuning(examples);
         }

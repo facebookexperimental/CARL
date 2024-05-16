@@ -17,19 +17,6 @@ namespace carl::action
 {
     namespace
     {
-        // This is an extremely naive hack for dealing with the problem of inifinitessimal differences. This
-        // problem most prominently emerges when comparing single-frame actions, which by their nature will
-        // contain no motion and will thus will have no difference in translation space. This will cause a 0
-        // average distance, which in turn will put infinity into the tunings, causing all sorts of
-        // problems. This hack is _sort of_ on the path to one of the correct approaches to solving this,
-        // but not really. Two different approaches should be solved to try this. First, there SHOULD be
-        // average distance epsilons (essentially default [or possibly minimum] average distances), but they
-        // should be hand-tuned per descriptor tuning dimension; this is because descriptors themselves are
-        // the only place with a reasonable idea of expected variance (this is sort of a way to allow
-        // descriptors to self-normalize their distance space). Second, an alternate creation path should be
-        // introduced for static pose gestures where the system dices up a longer segment into chunks.
-        constexpr NumberT kAverageDistanceEpsilon{ 0.000000001 };
-
         // Slightly less naive holistic resampling. Still linear, though.
         std::vector<InputSample> resample(gsl::span<const InputSample> samples, NumberT startTimestamp, NumberT endTimestamp, NumberT frameDuration)
         {
@@ -133,8 +120,12 @@ namespace carl::action
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
                 , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
             {
+                m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
-                calculateTuning();
+                calculateTuning(examples);
+                // TODO: Figure out why the tuning resampling negatively impacts recognition, then substitute the following for the above
+                // calculateTuning(examples);
+                // initializeTemplates(examples, counterexamples);
                 createScoringFunction();
                 createCanonicalRecording(examples);
             }
@@ -247,30 +238,8 @@ namespace carl::action
 
             void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
-                auto initializeTemplatesFromExamples = [this](gsl::span<const action::Example> examples, std::vector<std::vector<DescriptorT>>& templates) {
-                    for (const auto& example : examples)
-                    {
-                        templates.emplace_back();
-                        auto& sequence = templates.back();
-
-                        auto samples = example.getRecording().getSamples();
-                        InputSample mostRecentSample{};
-
-                        size_t idx = 0;
-                        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < example.getStartTimestamp())
-                        {
-                            ++idx;
-                        }
-                        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < example.getEndTimestamp())
-                        {
-                            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, DescriptorT::DEFAULT_TUNING);
-                            ++idx;
-                        }
-                    }
-                };
-
-                initializeTemplatesFromExamples(examples, m_templates);
-                initializeTemplatesFromExamples(counterexamples, m_countertemplates);
+                m_templates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(examples, m_tuning);
+                m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning);
 
                 // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
                 for (const auto& t : m_templates)
@@ -285,9 +254,9 @@ namespace carl::action
                 m_sessionImpl.supportSequenceOfLength<DescriptorT>(2 * m_trimmedSequenceLength);
             }
 
-            void calculateTuning()
+            void calculateTuning(gsl::span<const Example> examples)
             {
-                m_tuning = DescriptorT::CalculateTuning(m_templates);
+                m_tuning = DescriptorT::CalculateTuning(examples);
             }
 
             void createUnitScoringFunction()
