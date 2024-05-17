@@ -118,7 +118,7 @@ namespace carl::action
                 : Recognizer::Impl{ session, sensitivity }
                 , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
-                , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
+            , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
@@ -150,7 +150,7 @@ namespace carl::action
 
                 const auto distanceFunction = [this](const auto& a, const auto& b) {
                     return DescriptorT::Distance(a, b, m_tuning);
-                };
+                    };
                 auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], distanceFunction);
                 for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
@@ -262,9 +262,9 @@ namespace carl::action
             void createUnitScoringFunction()
             {
                 m_scoringFunction = [this](NumberT distance)
-                {
-                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
-                };
+                    {
+                        return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
+                    };
             }
 
             void createScoringFunction()
@@ -317,7 +317,7 @@ namespace carl::action
             }
 
             NumberT calculateMatchDistance(
-                gsl::span<const DescriptorT> target, 
+                gsl::span<const DescriptorT> target,
                 gsl::span<const DescriptorT> query) const
             {
                 auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction);
