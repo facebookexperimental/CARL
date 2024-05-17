@@ -17,19 +17,6 @@ namespace carl::action
 {
     namespace
     {
-        // This is an extremely naive hack for dealing with the problem of inifinitessimal differences. This
-        // problem most prominently emerges when comparing single-frame actions, which by their nature will
-        // contain no motion and will thus will have no difference in translation space. This will cause a 0
-        // average distance, which in turn will put infinity into the tunings, causing all sorts of
-        // problems. This hack is _sort of_ on the path to one of the correct approaches to solving this,
-        // but not really. Two different approaches should be solved to try this. First, there SHOULD be
-        // average distance epsilons (essentially default [or possibly minimum] average distances), but they
-        // should be hand-tuned per descriptor tuning dimension; this is because descriptors themselves are
-        // the only place with a reasonable idea of expected variance (this is sort of a way to allow
-        // descriptors to self-normalize their distance space). Second, an alternate creation path should be
-        // introduced for static pose gestures where the system dices up a longer segment into chunks.
-        constexpr NumberT kAverageDistanceEpsilon{ 0.000000001 };
-
         // Slightly less naive holistic resampling. Still linear, though.
         std::vector<InputSample> resample(gsl::span<const InputSample> samples, NumberT startTimestamp, NumberT endTimestamp, NumberT frameDuration)
         {
@@ -131,100 +118,51 @@ namespace carl::action
                 : Recognizer::Impl{ session, sensitivity }
                 , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
+            , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
             {
+                m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
-                calculateTuning();
+                calculateTuning(examples);
+                // TODO: Figure out why the tuning resampling negatively impacts recognition, then substitute the following for the above
+                // calculateTuning(examples);
+                // initializeTemplates(examples, counterexamples);
                 createScoringFunction();
                 createCanonicalRecording(examples);
             }
 
         protected:
-            // TODO: This has not been reworked or retested sufficiently since paradigms shifted underneath it! The underlying 
-            // logic is probably most still sound, but the implementation needs to be fixed and tested now that samples and 
-            // descriptors can differ in count.
             Example createAutoTrimmedExample(const Recording& recording) const override
             {
-                using DescT = descriptor::TimestampedDescriptor<DescriptorT>;
-                using SignalT = Signal<const InputSample&>;
-                arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
-                SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescT>::Provider descriptorSequenceProvider{ inputSampleSignal };
-                descriptorSequenceProvider.supportSequenceOfLength(2 * m_trimmedSequenceLength);
-                Signal<gsl::span<const DescT>>& descriptorSignal{ descriptorSequenceProvider };
-
+                std::vector<descriptor::TimestampedDescriptor<DescriptorT>> timestampedSequence{};
                 auto samples = recording.getSamples();
-                size_t idx = 0;
-
-                auto minDistance = std::numeric_limits<NumberT>::max();
-                size_t minDistanceIdx = 0;
-
-                std::vector<DescriptorT> descriptorSequence{};
-                std::vector<DescT> maxScoreTrimmedSequence{};
-
-                using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescT>>::TicketT>;
-                OptionalTicketT maxScoreDescriptorHandlerTicket{ descriptorSignal.addHandler(
-                    [this, &idx, &samples, &minDistance, &minDistanceIdx, &maxScoreTrimmedSequence, &descriptorSequence](gsl::span<const DescT> sequence) {
-                        if (sequence.size() <= m_trimmedSequenceLength)
-                        {
-                            return;
-                        }
-
-                        descriptorSequence.clear();
-                        for (const auto& element : sequence)
-                        {
-                            descriptorSequence.push_back(element.getUnderlyingDescriptor());
-                        }
-                        gsl::span<const DescriptorT> trimmedSequence{ &descriptorSequence[descriptorSequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
-
-                        NumberT distance = std::numeric_limits<NumberT>::max();
-                        for (const auto& t : m_templates)
-                        {
-                            distance = std::min(calculateNormalizedSequenceDistance(trimmedSequence, t), distance);
-                        }
-
-                        if (distance < minDistance)
-                        {
-                            minDistance = distance;
-                            minDistanceIdx = idx;
-
-                            gsl::span<const DescT> ts{
-                                &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength};
-
-                            // Note that this logic depends on the fact that descriptors are trivially copyable.
-                            static_assert(std::is_trivially_copyable<DescT>::value);
-                            maxScoreTrimmedSequence.resize(ts.size());
-                            std::memcpy(maxScoreTrimmedSequence.data(), ts.data(), sizeof(DescT) * ts.size());
-                        }
-                    }) };
-
-                for (; idx < samples.size(); ++idx)
+                auto mostRecentSample = samples.front();
+                for (const auto& sample : recording.getSamples())
                 {
-                    auto& sample = samples[idx];
-                    inputSamplesHandlers.apply_to_all([&sample](auto& callable) mutable { callable(sample); });
+                    descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning);
                 }
 
-                maxScoreDescriptorHandlerTicket.reset();
-
-                auto startT = samples[0].Timestamp;
-                auto endT = samples[samples.size() - 1].Timestamp;
-                auto distance = std::numeric_limits<NumberT>::max();
-
-                descriptorSequence.clear();
-                for (const auto& element : maxScoreTrimmedSequence)
+                std::vector<DescriptorT> sequence{};
+                sequence.reserve(timestampedSequence.size());
+                for (const auto& desc : timestampedSequence)
                 {
-                    descriptorSequence.push_back(element.getUnderlyingDescriptor());
+                    sequence.push_back(desc.getUnderlyingDescriptor());
                 }
 
-                for (const auto& t : m_templates)
+                const auto distanceFunction = [this](const auto& a, const auto& b) {
+                    return DescriptorT::Distance(a, b, m_tuning);
+                    };
+                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], distanceFunction);
+                for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
-                    auto [normalizedDistance, imageSize] = calculateSequenceDistance(descriptorSequence, t);
-                    if (normalizedDistance < distance)
+                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], distanceFunction);
+                    if (matchResult.MatchCost < bestMatchResult.MatchCost)
                     {
-                        startT = maxScoreTrimmedSequence[maxScoreTrimmedSequence.size() - imageSize].getTimestamp();
-                        endT = maxScoreTrimmedSequence.back().getTimestamp();
-                        distance = normalizedDistance;
+                        bestMatchResult = matchResult;
                     }
                 }
+
+                auto startT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
+                auto endT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize].getTimestamp();
 
                 return{ recording, startT, endT };
             }
@@ -263,11 +201,11 @@ namespace carl::action
                             std::fill(tuning.begin(), tuning.end(), descriptor::NULL_TUNING);
                             for (size_t tuningIdx = 0; tuningIdx < tuning.size(); ++tuningIdx)
                             {
-                                tuning[tuningIdx] = 1;
+                                tuning[tuningIdx] = m_tuning[tuningIdx];
 
-                                auto distanceFunction{ [&tuning](const DescriptorT& a, const DescriptorT& b) {
+                                auto distanceFunction = [&tuning](const DescriptorT& a, const DescriptorT& b) {
                                     return DescriptorT::Distance(a, b, tuning);
-                                } };
+                                };
                                 auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistanceAndImageSize(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
                                 output << distance << ",";
 
@@ -294,35 +232,14 @@ namespace carl::action
             size_t m_trimmedSequenceLength{};
             NumberT m_minimumImageRatio{ 0.8 }; // TODO: Parameterize?
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
+            std::function<NumberT(const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
             std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
 
             void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
-                auto initializeTemplatesFromExamples = [this](gsl::span<const action::Example> examples, std::vector<std::vector<DescriptorT>>& templates) {
-                    for (const auto& example : examples)
-                    {
-                        templates.emplace_back();
-                        auto& sequence = templates.back();
-
-                        auto samples = example.getRecording().getSamples();
-                        InputSample mostRecentSample{};
-
-                        size_t idx = 0;
-                        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < example.getStartTimestamp())
-                        {
-                            ++idx;
-                        }
-                        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < example.getEndTimestamp())
-                        {
-                            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, DescriptorT::DEFAULT_TUNING);
-                            ++idx;
-                        }
-                    }
-                };
-
-                initializeTemplatesFromExamples(examples, m_templates);
-                initializeTemplatesFromExamples(counterexamples, m_countertemplates);
+                m_templates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(examples, m_tuning);
+                m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning);
 
                 // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
                 for (const auto& t : m_templates)
@@ -337,115 +254,21 @@ namespace carl::action
                 m_sessionImpl.supportSequenceOfLength<DescriptorT>(2 * m_trimmedSequenceLength);
             }
 
-            void calculateTuning()
+            void calculateTuning(gsl::span<const Example> examples)
             {
-                if (m_templates.size() < 2)
-                {
-                    m_tuning = DescriptorT::DEFAULT_TUNING;
-                    return;
-                }
-
-                std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> averageDistances{};
-                const NumberT templatesChooseTwo = (m_templates.size() * (m_templates.size() - 1)) / 2.;
-                std::fill(m_tuning.begin(), m_tuning.end(), descriptor::NULL_TUNING);
-                for (size_t idx = 0; idx < m_tuning.size(); ++idx)
-                {
-                    m_tuning[idx] = 1.;
-                    for (size_t l = 0; l < m_templates.size(); ++l)
-                    {
-                        for (size_t r = l + 1; r < m_templates.size(); ++r)
-                        {
-                            NumberT distance;
-                            if (m_templates[l].size() > m_templates[r].size())
-                            {
-                                distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                            }
-                            else
-                            {
-                                distance = calculateNormalizedSequenceDistance(m_templates[r], m_templates[l]);
-                            }
-                            averageDistances[idx] += distance;
-                        }
-                    }
-                    averageDistances[idx] /= templatesChooseTwo;
-                    m_tuning[idx] = descriptor::NULL_TUNING;
-                }
-
-                for (size_t idx = 0; idx < m_tuning.size(); ++idx)
-                {
-                    m_tuning[idx] = 1;// std::max<NumberT>(averageDistances[idx], 1);
-                }
-            }
-
-            void createAverageMinDistanceScoringFunction()
-            {
-                std::vector<NumberT> minDistances{};
-                minDistances.resize(m_templates.size(), std::numeric_limits<NumberT>::max());
-                for (size_t l = 0; l < m_templates.size(); ++l)
-                {
-                    for (size_t r = l + 1; r < m_templates.size(); ++r)
-                    {
-                        NumberT distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                        minDistances[l] = std::min(distance, minDistances[l]);
-                        minDistances[r] = std::min(distance, minDistances[r]);
-                    }
-                }
-
-                NumberT averageMinDistance = 0.;
-                for (size_t idx = 0; idx < m_templates.size(); ++idx)
-                {
-                    averageMinDistance += minDistances[idx];
-                }
-                averageMinDistance /= m_templates.size();
-
-                m_scoringFunction = [this, averageMinDistance](NumberT distance)
-                {
-                    return std::max(1. - std::pow(distance / (m_sensitivity * 3. * averageMinDistance), 2.), 0.);
-                };
-            }
-
-            void createAverageAverageDistanceScoringFunction()
-            {
-                std::vector<NumberT> averageDistances{};
-                averageDistances.resize(m_templates.size());
-                for (size_t l = 0; l < m_templates.size(); ++l)
-                {
-                    for (size_t r = l + 1; r < m_templates.size(); ++r)
-                    {
-                        NumberT distance = calculateNormalizedSequenceDistance(m_templates[l], m_templates[r]);
-                        averageDistances[l] += distance;
-                        averageDistances[r] += distance;
-                    }
-                    averageDistances[l] /= m_templates.size();
-                }
-
-                constexpr NumberT DEFAULT_AVERAGE_DISTANCE{ 0.1 };
-                constexpr NumberT DEFAULT_AVERAGE_DISTANCE_WEIGHT{ 1. };
-                NumberT averageAverageDistance{ DEFAULT_AVERAGE_DISTANCE * DEFAULT_AVERAGE_DISTANCE_WEIGHT };
-                for (size_t idx = 0; idx < m_templates.size(); ++idx)
-                {
-                    averageAverageDistance += averageDistances[idx];
-                }
-                averageAverageDistance /= (m_templates.size() + DEFAULT_AVERAGE_DISTANCE_WEIGHT);
-
-                m_scoringFunction = [this, averageAverageDistance](NumberT distance)
-                {
-                    return std::max(1. - std::pow(distance / (m_sensitivity * 3. * averageAverageDistance), 2.), 0.);
-                };
+                m_tuning = DescriptorT::CalculateTuning(examples);
             }
 
             void createUnitScoringFunction()
             {
                 m_scoringFunction = [this](NumberT distance)
-                {
-                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
-                };
+                    {
+                        return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
+                    };
             }
 
             void createScoringFunction()
             {
-                // createAverageMinDistanceScoringFunction();
-                // createAverageAverageDistanceScoringFunction();
                 createUnitScoringFunction();
             }
 
@@ -493,24 +316,12 @@ namespace carl::action
                 m_canonicalRecording = std::make_unique<Recording>(std::move(recording));
             }
 
-            std::tuple<NumberT, size_t> calculateSequenceDistance(
-                gsl::span<const DescriptorT> longer,
-                gsl::span<const DescriptorT> shorter) const
+            NumberT calculateMatchDistance(
+                gsl::span<const DescriptorT> target,
+                gsl::span<const DescriptorT> query) const
             {
-                assert(longer.size() >= shorter.size());
-                auto distanceFunction{ [this](const DescriptorT& a, const DescriptorT& b) {
-                  return DescriptorT::Distance(a, b, m_tuning);
-                } };
-                return DynamicTimeWarping::InjectiveDistanceAndImageSize(longer, shorter, distanceFunction, m_minimumImageRatio);
-            }
-
-            NumberT calculateNormalizedSequenceDistance(
-                gsl::span<const DescriptorT> longer,
-                gsl::span<const DescriptorT> shorter) const
-            {
-                auto [distance, imageSize] = calculateSequenceDistance(longer, shorter);
-                size_t connectionsCount = std::max(imageSize, shorter.size());
-                return distance / connectionsCount;
+                auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction);
+                return result.MatchCost / result.Connections;
             }
 
             NumberT calculateScore(gsl::span<const DescriptorT> sequence) const
@@ -528,7 +339,7 @@ namespace carl::action
                 NumberT minDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_templates)
                 {
-                    NumberT distance = calculateNormalizedSequenceDistance(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t);
                     score = std::max(m_scoringFunction(distance), score);
                     minDistance = std::min(distance, minDistance);
                 }
@@ -540,7 +351,7 @@ namespace carl::action
                 NumberT minCounterDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_countertemplates)
                 {
-                    NumberT distance = calculateNormalizedSequenceDistance(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t);
                     minCounterDistance = std::min(distance, minCounterDistance);
                 }
                 if (minDistance >= minCounterDistance)

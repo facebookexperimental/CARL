@@ -15,28 +15,44 @@
 namespace carl::DynamicTimeWarping
 {
     template <typename VectorT, typename CallableT, typename NumberT = double>
-    NumberT Distance(gsl::span<VectorT> a, gsl::span<VectorT> b, CallableT& distance)
+    auto Distance(gsl::span<VectorT> a, gsl::span<VectorT> b, CallableT& distance)
     {
-        thread_local std::vector<NumberT> priorRow{};
-        thread_local std::vector<NumberT> currentRow{};
+        struct Entry
+        {
+            NumberT Cost{};
+            size_t Connections{};
+            NumberT MaxConnectionCost{};
+        };
+
+        thread_local std::vector<Entry> priorRow{};
+        thread_local std::vector<Entry> currentRow{};
         priorRow.resize(a.size() + 1);
         currentRow.resize(priorRow.size());
 
-        currentRow[0] = static_cast<NumberT>(0);
+        currentRow[0] = { static_cast<NumberT>(0), 0 };
         for (size_t idx = 1; idx < currentRow.size(); ++idx)
         {
-            currentRow[idx] = std::numeric_limits<NumberT>::max();
+            currentRow[idx] = { std::numeric_limits<NumberT>::max(), 0, std::numeric_limits<NumberT>::max() };
         }
 
         for (size_t j = 0; j < b.size(); ++j)
         {
             currentRow.swap(priorRow);
 
-            currentRow[0] = std::numeric_limits<NumberT>::max();
+            currentRow[0] = { std::numeric_limits<NumberT>::max(), 0, std::numeric_limits<NumberT>::max() };
             for (size_t i = 0; i < a.size(); ++i)
             {
                 NumberT cost = distance(a[i], b[j]);
-                currentRow[i + 1] = cost + std::min(priorRow[i], std::min(priorRow[i + 1], currentRow[i]));
+                auto ancestor = priorRow[i];
+                if (priorRow[i + 1].Cost < ancestor.Cost)
+                {
+                    ancestor = priorRow[i + 1];
+                }
+                if (currentRow[i].Cost < ancestor.Cost)
+                {
+                    ancestor = currentRow[i];
+                }
+                currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost) };
             }
         }
 
@@ -132,20 +148,29 @@ namespace carl::DynamicTimeWarping
         gsl::span<VectorT> query,
         CallableT& distance)
     {
-        thread_local std::vector<std::pair<NumberT, size_t>> priorRow{};
-        thread_local std::vector<std::pair<NumberT, size_t>> currentRow{};
+        struct Entry
+        {
+            NumberT Cost{};
+            size_t Connections{};
+            NumberT MaxConnectionCost{};
+            size_t StartIdx{};
+        };
+
+        thread_local std::vector<Entry> priorRow{};
+        thread_local std::vector<Entry> currentRow{};
         priorRow.resize(target.size() + 1);
         currentRow.resize(priorRow.size());
 
         NumberT cost{};
 
-        constexpr std::pair<NumberT, size_t> sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max() };
+        constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max() };
         priorRow[0] = sentinel;
         currentRow[0] = sentinel;
 
         for (size_t i = 0; i < target.size(); ++i)
         {
-            currentRow[i + 1] = { distance(target[i], query[0]), i };
+            cost = distance(target[i], query[0]);
+            currentRow[i + 1] = { cost, 1, cost, i };
         }
 
         for (size_t j = 1; j < query.size(); ++j)
@@ -157,34 +182,44 @@ namespace carl::DynamicTimeWarping
                 cost = distance(target[i], query[j]);
 
                 auto ancestor = priorRow[i];
-                if (priorRow[i + 1].first < ancestor.first)
+                if (priorRow[i + 1].Cost < ancestor.Cost)
                 {
                     ancestor = priorRow[i + 1];
                 }
-                if (currentRow[i].first < ancestor.first)
+                if (currentRow[i].Cost < ancestor.Cost)
                 {
                     ancestor = currentRow[i];
                 }
-                currentRow[i + 1] = { cost + ancestor.first, ancestor.second };
+                currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx};
             }
         }
 
-        NumberT minimum = std::numeric_limits<NumberT>::max();
-        size_t minimumIdx = 0;
+        NumberT matchCost = std::numeric_limits<NumberT>::max();
+        size_t matchIdx = 0;
         for (size_t idx = 0; idx < currentRow.size(); ++idx)
         {
-            if (currentRow[idx].first < minimum)
+            if (currentRow[idx].Cost < matchCost)
             {
-                minimumIdx = idx;
-                minimum = currentRow[minimumIdx].first;
+                matchIdx = idx;
+                matchCost = currentRow[matchIdx].Cost;
             }
         }
+
+        auto& match = currentRow[matchIdx];
         struct
         {
+            NumberT MatchCost{};
+            size_t Connections{};
+            NumberT MaxConnectionCost{};
             size_t ImageStartIdx{};
             size_t ImageSize{};
-            NumberT MatchCost{};
-        } result{ currentRow[minimumIdx].second, minimumIdx - currentRow[minimumIdx].second, minimum };
+        } result{
+            match.Cost,
+            match.Connections,
+            match.MaxConnectionCost,
+            match.StartIdx,
+            matchIdx - match.StartIdx,
+        };
         return result;
     }
 }
