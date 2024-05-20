@@ -331,13 +331,26 @@ namespace carl::action
                 // Early-out if the provided sequence is too short.
                 if (sequence.size() <= m_trimmedSequenceLength)
                 {
-                    return 0.;
+                    return 0;
                 }
 
                 gsl::span<const DescriptorT> trimmedSequence{ &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
 
+                // Early-out if no template's end is scored as appearing in the sequence
+                NumberT score = std::numeric_limits<NumberT>::lowest();
+                for (const auto& t : m_templates)
+                {
+                    auto endSpan = gsl::make_span<const DescriptorT>(&t.back(), 1);
+                    auto distance = calculateMatchDistance(trimmedSequence, endSpan);
+                    score = std::max(m_scoringFunction(distance), score);
+                }
+                if (score < std::numeric_limits<NumberT>::epsilon())
+                {
+                    return 0;
+                }
+
                 // Calculate the base score based on proximity to templates
-                NumberT score{ 0 };
+                score = std::numeric_limits<NumberT>::lowest();
                 NumberT minDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_templates)
                 {
