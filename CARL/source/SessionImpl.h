@@ -31,14 +31,32 @@ namespace carl
         class Provider : private WeakTableT, public DescriptorSignalT
         {
         public:
-            Provider(Signal<const InputSample&>& signal)
+            Provider(Signal<gsl::span<const InputSample>>& signal)
                 : DescriptorSignalT{ *static_cast<WeakTableT*>(this) }
-                , m_ticket{ signal.addHandler([this](auto samples) { handleInputSample(samples); }) }
+                , m_ticket{ signal.addHandler([this](auto samples) { handleInputSamples(samples); }) }
                 , m_sequenceLength{ 10 }
             {
             }
 
-            void handleInputSample(const InputSample& sample)
+            void handleInputSamples(gsl::span<const InputSample> samples)
+            {
+                bool descriptorsAdded = false;
+                for (const auto& sample : samples)
+                {
+                    descriptorsAdded = descriptorsAdded || handleInputSample(sample);
+                }
+
+                if (descriptorsAdded)
+                {
+                    auto& handlers = *static_cast<WeakTableT*>(this);
+                    handlers.apply_to_all([this](auto& callable) {
+                        gsl::span<const DescriptorT> span{ m_sequence };
+                        callable(span);
+                    });
+                }
+            }
+
+            bool handleInputSample(const InputSample& sample)
             {
                 size_t priorSequenceSize = m_sequence.size();
                 descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
@@ -55,14 +73,7 @@ namespace carl
                     m_buffer.swap(m_sequence);
                 }
 
-                if (descriptorsAdded)
-                {
-                    auto& handlers = *static_cast<WeakTableT*>(this);
-                    handlers.apply_to_all([this](auto& callable) {
-                        gsl::span<const DescriptorT> span{ m_sequence };
-                        callable(span);
-                    });
-                }
+                return descriptorsAdded;
             }
 
             void supportSequenceOfLength(size_t length)
@@ -71,7 +82,7 @@ namespace carl
             }
 
         private:
-            const Signal<const InputSample&>::TicketT m_ticket;
+            const Signal<gsl::span<const InputSample>>::TicketT m_ticket;
             InputSample m_mostRecentSample{};
             std::vector<DescriptorT> m_sequence{};
             std::vector<DescriptorT> m_buffer{};
@@ -81,16 +92,16 @@ namespace carl
 
     template <typename... DescriptorTs>
     class SessionImplBase
-        : public arcana::weak_table<typename Signal<const InputSample&>::HandlerT>
-        , public Signal<const InputSample&>
+        : public arcana::weak_table<typename Signal<gsl::span<const InputSample>>::HandlerT>
+        , public Signal<gsl::span<const InputSample>>
         , protected DescriptorSequence<DescriptorTs>::Provider...
     {
     public:
-        using SignalHandlersT = arcana::weak_table<typename Signal<const InputSample&>::HandlerT>;
+        using SignalHandlersT = arcana::weak_table<typename Signal<gsl::span<const InputSample>>::HandlerT>;
 
         SessionImplBase()
-            : Signal<const InputSample&>{ *static_cast<SignalHandlersT*>(this) }
-            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<const InputSample&>*>(this) }...
+            : Signal<gsl::span<const InputSample>>{ *static_cast<SignalHandlersT*>(this) }
+            , DescriptorSequence<DescriptorTs>::Provider{ *static_cast<Signal<gsl::span<const InputSample>>*>(this) }...
         {
         }
     };

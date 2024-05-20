@@ -169,7 +169,7 @@ namespace carl::action
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
-                using SignalT = Signal<const InputSample&>;
+                using SignalT = Signal<gsl::span<const InputSample>>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
                 typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal };
@@ -219,7 +219,8 @@ namespace carl::action
                 for (; idx < samples.size(); ++idx)
                 {
                     auto& sample = samples[idx];
-                    inputSamplesHandlers.apply_to_all([&sample](auto& callable) mutable { callable(sample); });
+                    gsl::span<const InputSample> span{ &sample, 1 };
+                    inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
                 }
 
                 maxScoreDescriptorHandlerTicket.reset();
