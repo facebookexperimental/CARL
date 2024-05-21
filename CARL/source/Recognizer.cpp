@@ -302,6 +302,7 @@ namespace carl::action
                     if (sample.Timestamp >= canonicalExample.getStartTimestamp() && sample.Timestamp <= canonicalExample.getEndTimestamp())
                     {
                         auto sampleCopy{ sample };
+                        /* TODO: Is this necessary?
                         if constexpr (DescriptorT::HANDEDNESS == descriptor::Handedness::LeftHanded)
                         {
                             sampleCopy.RightWristPose.reset();
@@ -312,6 +313,7 @@ namespace carl::action
                             sampleCopy.LeftHandJointPoses.reset();
                             sampleCopy.LeftHandJointPoses.reset();
                         }
+                        */
                         recording.addSample(std::move(sampleCopy));
                     }
                 }

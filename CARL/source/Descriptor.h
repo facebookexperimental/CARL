@@ -148,6 +148,51 @@ namespace carl::descriptor
                 return static_cast<NumberT>(2) * std::atan2(pt.length(), std::abs(qt.W));
             }
         };
+
+        template<typename...>
+        class Tuple;
+
+        template<>
+        class Tuple<> {};
+
+        template<typename T, typename... Ts>
+        class Tuple<T, Ts...>
+        {
+        public:
+            Tuple() = default;
+
+            Tuple(T&& t, Ts&&... ts)
+                : m_t{ std::forward<T>(t) }, m_tail{ std::forward<Ts>(ts)... }
+            {}
+
+            template<size_t Idx, typename = std::enable_if_t<Idx != 0 && Idx <= sizeof...(Ts)>>
+            auto& get()
+            {
+                return m_tail.get<Idx - 1>();
+            }
+
+            template<size_t Idx, typename = std::enable_if_t<Idx != 0 && Idx <= sizeof...(Ts)>>
+            const auto& get() const
+            {
+                return m_tail.get<Idx - 1>();
+            }
+
+            template<size_t Idx, typename = std::enable_if_t<Idx == 0>>
+            T& get()
+            {
+                return m_t;
+            }
+
+            template<size_t Idx, typename = std::enable_if_t<Idx == 0>>
+            const T& get() const
+            {
+                return m_t;
+            }
+
+        private:
+            T m_t;
+            Tuple<Ts...> m_tail;
+        };
     }
 
     template<typename...>
@@ -262,14 +307,13 @@ namespace carl::descriptor
     constexpr NumberT NULL_TUNING{ 1000000 };
     constexpr auto createDistanceNormalizationFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
     {
-        return [identicalityThreshold, irreconcilabilityThreshold](NumberT distance, NumberT tuning)
-            {
-                auto lowerBound = tuning * identicalityThreshold;
-                auto upperBound = tuning * irreconcilabilityThreshold;
-                return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
-            };
+        return [identicalityThreshold, irreconcilabilityThreshold](NumberT distance, NumberT tuning) {
+            auto lowerBound = tuning * identicalityThreshold;
+            auto upperBound = tuning * irreconcilabilityThreshold;
+            return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
+        };
     }
-    
+
     constexpr auto createDistanceNormalizationFunction(NumberT identicalityThreshold)
     {
         return createDistanceNormalizationFunction(identicalityThreshold, 2 * identicalityThreshold);
@@ -392,7 +436,6 @@ namespace carl::descriptor
 
     public:
         static constexpr std::array<NumberT, JOINTS.size()> DEFAULT_TUNING{ 1., 1., 1., 1., 1. };
-        static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<HandShape> TryCreate(
             const InputSample& sample,
@@ -494,7 +537,6 @@ namespace carl::descriptor
     {
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
-        static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<EgocentricWristOrientation> TryCreate(
             const InputSample& sample,
@@ -590,78 +632,12 @@ namespace carl::descriptor
         }
     };
 
-    template<Handedness Handedness>
-    class HandPose
-    {
-    public:
-        using TuningT = Tuning<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
-        static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
-        static constexpr auto HANDEDNESS{ Handedness };
-
-        static std::optional<HandPose> TryCreate(
-            const InputSample& sample,
-            const InputSample& priorSample)
-        {
-            auto handShapeSample = HandShape<Handedness>::TryCreate(sample, priorSample);
-            auto wristOrientationSample =
-                EgocentricWristOrientation<Handedness>::TryCreate(sample, priorSample);
-            if (handShapeSample.has_value() && wristOrientationSample.has_value())
-            {
-                return HandPose{ std::move(handShapeSample.value()), std::move(wristOrientationSample.value()) };
-            }
-            return{};
-        }
-
-        static NumberT Distance(const HandPose& a, const HandPose& b, gsl::span<const NumberT> tuning)
-        {
-            auto handShapeDistance = HandShape<Handedness>::Distance(
-                a.m_handShapeSample,
-                b.m_handShapeSample,
-                TuningT::template getTuning<HandShape<Handedness>>(tuning));
-            auto wristOrientationDistance = EgocentricWristOrientation<Handedness>::Distance(
-                a.m_wristOrientationSample,
-                b.m_wristOrientationSample,
-                TuningT::template getTuning<EgocentricWristOrientation<Handedness>>(tuning));
-            return handShapeDistance + wristOrientationDistance;
-        }
-
-        static HandPose Lerp(const HandPose& a, const HandPose& b, NumberT t)
-        {
-            auto handShape = HandShape<Handedness>::Lerp(a.m_handShapeSample, b.m_handShapeSample, t);
-            auto wristOrientation = EgocentricWristOrientation<Handedness>::Lerp(a.m_wristOrientationSample, b.m_wristOrientationSample, t);
-            return{ std::move(handShape), std::move(wristOrientation) };
-        }
-
-        template<typename ExamplesT>
-        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
-        {
-            auto handShapeTuning = HandShape<Handedness>::CalculateTuning(examples);
-            auto wristOrientationTuning = EgocentricWristOrientation<Handedness>::CalculateTuning(examples);
-            return arrayConcat(handShapeTuning, wristOrientationTuning);
-        }
-
-        HandPose() = default;
-
-    private:
-        HandShape<Handedness> m_handShapeSample;
-        EgocentricWristOrientation<Handedness> m_wristOrientationSample;
-
-        HandPose(
-            HandShape<Handedness> handShapeSample,
-            EgocentricWristOrientation<Handedness> wristOrientationSample)
-            : m_handShapeSample{ std::move(handShapeSample) }
-            , m_wristOrientationSample{ std::move(wristOrientationSample) }
-        {
-        }
-    };
-
     // TODO: Review theory of delta descriptors and assess how they work with delta sampling. Make sure creation isn't oscillating.
     template<Handedness Handedness>
     class WristRotation
     {
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
-        static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<WristRotation> TryCreate(
             const InputSample& sample,
@@ -756,7 +732,6 @@ namespace carl::descriptor
     {
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
-        static constexpr auto HANDEDNESS{ Handedness };
 
         static std::optional<EgocentricWristTranslation> TryCreate(
             const InputSample& sample,
@@ -854,81 +829,6 @@ namespace carl::descriptor
         }
     };
 
-    template<Handedness Handedness>
-    class HandGesture
-    {
-    public:
-        using TuningT = Tuning<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
-        static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
-        static constexpr auto HANDEDNESS{ Handedness };
-
-        static std::optional<HandGesture> TryCreate(
-            const InputSample& sample,
-            const InputSample& priorSample) {
-            auto handPoseSample = HandPose<Handedness>::TryCreate(sample, priorSample);
-            auto wristRotationSample = WristRotation<Handedness>::TryCreate(sample, priorSample);
-            auto wristTranslationSample = EgocentricWristTranslation<Handedness>::TryCreate(sample, priorSample);
-            if (handPoseSample.has_value() && wristRotationSample.has_value() && wristTranslationSample.has_value())
-            {
-                return HandGesture{
-                    std::move(handPoseSample.value()), std::move(wristRotationSample.value()), std::move(wristTranslationSample.value()) };
-            }
-            return{};
-        }
-
-        static NumberT
-            Distance(const HandGesture& a, const HandGesture& b, gsl::span<const NumberT> tuning)
-        {
-            auto handPoseDistance = HandPose<Handedness>::Distance(
-                a.m_handPoseSample,
-                b.m_handPoseSample,
-                TuningT::template getTuning<HandPose<Handedness>>(tuning));
-            auto wristRotationDistance = WristRotation<Handedness>::Distance(
-                a.m_wristRotationSample,
-                b.m_wristRotationSample,
-                TuningT::template getTuning<WristRotation<Handedness>>(tuning));
-            auto wristTranslationDistance = EgocentricWristTranslation<Handedness>::Distance(
-                a.m_wristTranslationSample,
-                b.m_wristTranslationSample,
-                TuningT::template getTuning<EgocentricWristTranslation<Handedness>>(tuning));
-            return handPoseDistance + wristRotationDistance + wristTranslationDistance;
-        }
-
-        static HandGesture Lerp(const HandGesture& a, const HandGesture& b, NumberT t)
-        {
-            auto handPose = HandPose<Handedness>::Lerp(a.m_handPoseSample, b.m_handPoseSample, t);
-            auto wristRotation = WristRotation<Handedness>::Lerp(a.m_wristRotationSample, b.m_wristRotationSample, t);
-            auto wristTranslation = EgocentricWristTranslation<Handedness>::Lerp(a.m_wristTranslationSample, b.m_wristTranslationSample, t);
-            return{ std::move(handPose), std::move(wristRotation), std::move(wristTranslation) };
-        }
-
-        template<typename ExamplesT>
-        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
-        {
-            auto handPoseTuning = HandPose<Handedness>::CalculateTuning(examples);
-            auto wristRotationTuning = WristRotation<Handedness>::CalculateTuning(examples);
-            auto wristTranslationTuning = EgocentricWristTranslation<Handedness>::CalculateTuning(examples);
-            return arrayConcat(handPoseTuning, wristRotationTuning, wristTranslationTuning);
-        }
-
-        HandGesture() = default;
-
-    private:
-        HandPose<Handedness> m_handPoseSample;
-        WristRotation<Handedness> m_wristRotationSample;
-        EgocentricWristTranslation<Handedness> m_wristTranslationSample;
-
-        HandGesture(
-            HandPose<Handedness> handPoseSample,
-            WristRotation<Handedness> wristRotationSample,
-            EgocentricWristTranslation<Handedness> wristTranslationSample)
-            : m_handPoseSample{ std::move(handPoseSample) }
-            , m_wristRotationSample{ std::move(wristRotationSample) }
-            , m_wristTranslationSample{ std::move(wristTranslationSample) }
-        {
-        }
-    };
-
     class EgocentricRelativeWristPosition
     {
     public:
@@ -1015,84 +915,119 @@ namespace carl::descriptor
         }
     };
 
-    class TwoHandGesture {
+    template<typename... Ts>
+    class CombinedDescriptor
+    {
     public:
-        using TuningT = Tuning<
-            HandGesture<Handedness::LeftHanded>,
-            HandGesture<Handedness::RightHanded>,
-            EgocentricRelativeWristPosition>;
+        using TuningT = Tuning<Ts...>;
         static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
-        static constexpr auto HANDEDNESS{ Handedness::TwoHanded };
 
-        static std::optional<TwoHandGesture> TryCreate(
+        static std::optional<CombinedDescriptor> TryCreate(
             const InputSample& sample,
             const InputSample& priorSample)
         {
-            auto leftGestureSample = HandGesture<Handedness::LeftHanded>::TryCreate(sample, priorSample);
-            auto rightGestureSample = HandGesture<Handedness::RightHanded>::TryCreate(sample, priorSample);
-            auto relativeSample = EgocentricRelativeWristPosition::TryCreate(sample, priorSample);
-            if (leftGestureSample.has_value() &&
-                rightGestureSample.has_value() &&
-                relativeSample.has_value())
+            CombinedDescriptor descriptor{};
+            if (descriptor.InternalTryCreate<0, Ts...>(sample, priorSample))
             {
-                return TwoHandGesture{
-                    std::move(leftGestureSample.value()),
-                    std::move(rightGestureSample.value()),
-                    std::move(relativeSample.value()) };
+                return descriptor;
             }
-            return{};
+            else
+            {
+                return{};
+            }
         }
 
-        static NumberT Distance(const TwoHandGesture& a, const TwoHandGesture& b, gsl::span<const NumberT> tuning)
+        static NumberT Distance(const CombinedDescriptor& a, const CombinedDescriptor& b, gsl::span<const NumberT> tuning)
         {
-            auto leftGestureDistance = HandGesture<Handedness::LeftHanded>::Distance(
-                a.m_leftGestureSample,
-                b.m_leftGestureSample,
-                TuningT::template getTuning<HandGesture<Handedness::LeftHanded>>(tuning));
-            auto rightGestureDistance = HandGesture<Handedness::RightHanded>::Distance(
-                a.m_rightGestureSample,
-                b.m_rightGestureSample,
-                TuningT::template getTuning<HandGesture<Handedness::RightHanded>>(tuning));
-            auto relativeWristPositionDistance = EgocentricRelativeWristPosition::Distance(
-                a.m_relativeSample,
-                b.m_relativeSample,
-                TuningT::template getTuning<EgocentricRelativeWristPosition>(tuning));
-            return leftGestureDistance + rightGestureDistance + relativeWristPositionDistance;
+            return InternalDistance<0, Ts...>(a, b, tuning);
         }
 
-        static TwoHandGesture Lerp(const TwoHandGesture& a, const TwoHandGesture& b, NumberT t)
+        static CombinedDescriptor Lerp(const CombinedDescriptor& a, const CombinedDescriptor& b, NumberT t)
         {
-            auto leftGesture = HandGesture<Handedness::LeftHanded>::Lerp(a.m_leftGestureSample, b.m_leftGestureSample, t);
-            auto rightGesture = HandGesture<Handedness::RightHanded>::Lerp(a.m_rightGestureSample, b.m_rightGestureSample, t);
-            auto relativeWristPosition = EgocentricRelativeWristPosition::Lerp(a.m_relativeSample, b.m_relativeSample, t);
-            return{ leftGesture, rightGesture, relativeWristPosition };
+            CombinedDescriptor lerped{};
+            lerped.InternalLerp<0, Ts...>(a, b, t);
+            return lerped;
         }
 
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(gsl::span<const action::Example> examples)
         {
-            auto leftTuning = HandGesture<Handedness::LeftHanded>::CalculateTuning(examples);
-            auto rightTuning = HandGesture<Handedness::RightHanded>::CalculateTuning(examples);
-            auto relativeTuning = EgocentricRelativeWristPosition::CalculateTuning(examples);
-            return arrayConcat(leftTuning, rightTuning, relativeTuning);
+            return InternalCalculateTuning<0, Ts...>(examples);
         }
 
-        TwoHandGesture() = default;
+        CombinedDescriptor() = default;
 
     private:
-        HandGesture<Handedness::LeftHanded> m_leftGestureSample;
-        HandGesture<Handedness::RightHanded> m_rightGestureSample;
-        EgocentricRelativeWristPosition m_relativeSample;
+        trivial::Tuple<Ts...> m_underlyingDescriptors;
 
-        TwoHandGesture(
-            HandGesture<Handedness::LeftHanded> leftGestureSample,
-            HandGesture<Handedness::RightHanded> rightGestureSample,
-            EgocentricRelativeWristPosition relativeSample)
-            : m_leftGestureSample{ std::move(leftGestureSample) }
-            , m_rightGestureSample{ std::move(rightGestureSample) }
-            , m_relativeSample{ std::move(relativeSample) }
+        template<size_t Idx, typename T, typename... RemainderT>
+        bool InternalTryCreate(const InputSample& sample, const InputSample& priorSample)
         {
+            auto descriptor = T::TryCreate(sample, priorSample);
+            if (descriptor.has_value())
+            {
+                m_underlyingDescriptors.get<Idx>() = descriptor.value();
+                if constexpr (sizeof...(RemainderT) == 0)
+                {
+                    return true;
+                }
+                else
+                {
+                    return InternalTryCreate<Idx + 1, RemainderT...>(sample, priorSample);
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        template<size_t Idx, typename T, typename... RemainderT>
+        static NumberT InternalDistance(const CombinedDescriptor& a, const CombinedDescriptor& b, gsl::span<const NumberT> tuning)
+        {
+            const T& aDesc = a.m_underlyingDescriptors.get<Idx>();
+            const T& bDesc = b.m_underlyingDescriptors.get<Idx>();
+            auto distance = T::Distance(aDesc, bDesc, TuningT::template getTuning<T>(tuning));
+            if constexpr (sizeof...(RemainderT) > 0)
+            {
+                distance += InternalDistance<Idx + 1, RemainderT...>(a, b, tuning);
+            }
+            return distance;
+        }
+
+        template<size_t Idx, typename T, typename... RemainderT>
+        void InternalLerp(const CombinedDescriptor& a, const CombinedDescriptor& b, NumberT t)
+        {
+            const T& aDesc = a.m_underlyingDescriptors.get<Idx>();
+            const T& bDesc = b.m_underlyingDescriptors.get<Idx>();
+            m_underlyingDescriptors.get<Idx>() = T::Lerp(aDesc, bDesc, t);
+            if constexpr (sizeof...(RemainderT) > 0)
+            {
+                InternalLerp<Idx + 1, RemainderT...>(a, b, t);
+            }
+        }
+
+        template<size_t Idx, typename T, typename... RemainderT>
+        static auto InternalCalculateTuning(gsl::span<const action::Example> examples)
+        {
+            auto tuning = T::CalculateTuning(examples);
+            if constexpr (sizeof...(RemainderT) > 0)
+            {
+                return arrayConcat(tuning, InternalCalculateTuning<Idx + 1, RemainderT...>(examples));
+            }
+            else
+            {
+                return tuning;
+            }
         }
     };
+
+    template<Handedness Handedness>
+    using HandPose = CombinedDescriptor<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
+
+    template<Handedness Handedness>
+    using HandGesture = CombinedDescriptor<HandPose<Handedness>, EgocentricWristTranslation<Handedness>>;
+
+    using TwoHandGesture = CombinedDescriptor<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 
     template<typename DescriptorT>
     class TimestampedDescriptor
@@ -1100,7 +1035,6 @@ namespace carl::descriptor
     public:
         using TuningT = typename DescriptorT::TuningT;
         static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
-        static constexpr auto HANDEDNESS{ DescriptorT::HANDEDNESS };
 
         static std::optional<TimestampedDescriptor> TryCreate(
             const InputSample& sample,
