@@ -418,6 +418,12 @@ namespace carl::action
                 return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             case action::Definition::ActionType::TwoHandGesture:
                 return std::make_unique<RecognizerImpl<descriptor::TwoHandGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::LeftControllerGesture:
+                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::RightControllerGesture:
+                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::TwoControllerGesture:
+                return std::make_unique<RecognizerImpl<descriptor::TwoControllerGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             default:
                 throw std::runtime_error{ "Unknown definition type" };
             }
