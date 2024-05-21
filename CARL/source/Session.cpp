@@ -76,12 +76,10 @@ namespace carl
                 }
             }
 
-            for (const InputSample& sample : m_processingSamples)
-            {
-                SignalHandlersT::apply_to_all([this, &sample](auto& callable) {
-                    callable(sample);
-                });
-            }
+            gsl::span<const InputSample> span{ m_processingSamples };
+            SignalHandlersT::apply_to_all([span](auto& callable) mutable {
+                callable(span);
+            });
         }).then(arcana::inline_scheduler, arcana::cancellation::none(), [this](arcana::expected<void, std::exception_ptr> expected) {
             if (expected.has_error())
             {

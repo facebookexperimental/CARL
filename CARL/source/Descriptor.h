@@ -259,17 +259,6 @@ namespace carl::descriptor
         return math::LookTransform(zAxis, yAxis, wristPose.translation());
     }
 
-    //#define DESCRIPTOR_ANALYSIS
-#ifdef DESCRIPTOR_ANALYSIS
-    constexpr NumberT NULL_TUNING{ 0 };
-    constexpr auto createDistanceFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
-    {
-        return [identicalityThreshold, irreconcilabilityThreshold](NumberT distance, NumberT tuning)
-            {
-                return tuning * distance;
-            };
-    }
-#else
     constexpr NumberT NULL_TUNING{ 1000000 };
     constexpr auto createDistanceNormalizationFunction(NumberT identicalityThreshold, NumberT irreconcilabilityThreshold)
     {
@@ -280,7 +269,11 @@ namespace carl::descriptor
                 return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
             };
     }
-#endif
+    
+    constexpr auto createDistanceNormalizationFunction(NumberT identicalityThreshold)
+    {
+        return createDistanceNormalizationFunction(identicalityThreshold, 2 * identicalityThreshold);
+    }
 
     // TODO: Find a better place for this (and everything above it) to live.
     template<typename DescriptorT>
@@ -424,7 +417,7 @@ namespace carl::descriptor
         {
             NumberT distance = 0;
             for (size_t idx = 0; idx < a.m_positions.size(); ++idx) {
-                distance = std::max(distance, normalizeDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]));
+                distance += normalizeDistance(a.m_positions[idx].distance(b.m_positions[idx]), tuning[idx]);
             }
             return distance;
         }
@@ -466,8 +459,7 @@ namespace carl::descriptor
                         maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                     }
                 }
-                NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-                tuning[idx] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[idx]);
+                tuning[idx] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[idx]);
             }
             return tuning;
         }
@@ -476,8 +468,7 @@ namespace carl::descriptor
 
     private:
         static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.01 };
-        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.03 };
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{ 0.1 };
         std::array<trivial::Point, JOINTS.size()> m_positions{};
 
@@ -576,17 +567,15 @@ namespace carl::descriptor
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
-            NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
         EgocentricWristOrientation() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.17453 };
-        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.5236 };
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.2 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Quaternion m_egocentricTemporalOrientation{};
 
         EgocentricWristOrientation(const InputSample& sample, const InputSample&)
@@ -633,7 +622,7 @@ namespace carl::descriptor
                 a.m_wristOrientationSample,
                 b.m_wristOrientationSample,
                 TuningT::template getTuning<EgocentricWristOrientation<Handedness>>(tuning));
-            return std::max(handShapeDistance, wristOrientationDistance);
+            return handShapeDistance + wristOrientationDistance;
         }
 
         static HandPose Lerp(const HandPose& a, const HandPose& b, NumberT t)
@@ -739,8 +728,6 @@ namespace carl::descriptor
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
-            // This descriptor is comparatively noisy and should mostly serve as a failsafe for other descriptors, so we tune 
-            // to its identicality threshold rather than its midpoint.
             tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
@@ -749,8 +736,7 @@ namespace carl::descriptor
 
     private:
         static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.1 };
-        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.2 };
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Quaternion m_deltaOrientation{};
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
@@ -843,8 +829,7 @@ namespace carl::descriptor
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
-            NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -852,8 +837,7 @@ namespace carl::descriptor
 
     private:
         static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.01 };
-        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.02 };
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_egocentricTemporalPosition{};
 
         EgocentricWristTranslation(const InputSample& sample, const InputSample& priorSample)
@@ -907,7 +891,7 @@ namespace carl::descriptor
                 a.m_wristTranslationSample,
                 b.m_wristTranslationSample,
                 TuningT::template getTuning<EgocentricWristTranslation<Handedness>>(tuning));
-            return std::max(handPoseDistance, std::max(wristRotationDistance, wristTranslationDistance));
+            return handPoseDistance + wristRotationDistance + wristTranslationDistance;
         }
 
         static HandGesture Lerp(const HandGesture& a, const HandGesture& b, NumberT t)
@@ -1009,17 +993,15 @@ namespace carl::descriptor
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
-            NumberT midpoint = (IDENTICALITY_THRESHOLD + IRRECONCILABILITY_THRESHOLD) / 2;
-            tuning[0] = std::max(maxConnectionCost / midpoint, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
         EgocentricRelativeWristPosition() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.04 };
-        static inline constexpr NumberT IRRECONCILABILITY_THRESHOLD{ 0.2 };
-        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD, IRRECONCILABILITY_THRESHOLD) };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.1 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_egocentricRelativeWristPosition{};
 
         EgocentricRelativeWristPosition(const InputSample& sample, const InputSample&)
@@ -1075,7 +1057,7 @@ namespace carl::descriptor
                 a.m_relativeSample,
                 b.m_relativeSample,
                 TuningT::template getTuning<EgocentricRelativeWristPosition>(tuning));
-            return std::max(leftGestureDistance, std::max(rightGestureDistance, relativeWristPositionDistance));
+            return leftGestureDistance + rightGestureDistance + relativeWristPositionDistance;
         }
 
         static TwoHandGesture Lerp(const TwoHandGesture& a, const TwoHandGesture& b, NumberT t)

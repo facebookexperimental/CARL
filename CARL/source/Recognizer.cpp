@@ -118,7 +118,7 @@ namespace carl::action
                 : Recognizer::Impl{ session, sensitivity }
                 , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
-            , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
+                , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
@@ -169,7 +169,7 @@ namespace carl::action
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
-                using SignalT = Signal<const InputSample&>;
+                using SignalT = Signal<gsl::span<const InputSample>>;
                 arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
                 SignalT inputSampleSignal{ inputSamplesHandlers };
                 typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal };
@@ -219,7 +219,8 @@ namespace carl::action
                 for (; idx < samples.size(); ++idx)
                 {
                     auto& sample = samples[idx];
-                    inputSamplesHandlers.apply_to_all([&sample](auto& callable) mutable { callable(sample); });
+                    gsl::span<const InputSample> span{ &sample, 1 };
+                    inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
                 }
 
                 maxScoreDescriptorHandlerTicket.reset();
@@ -262,9 +263,10 @@ namespace carl::action
             void createUnitScoringFunction()
             {
                 m_scoringFunction = [this](NumberT distance)
-                    {
-                        return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
-                    };
+                {
+                    distance /= DescriptorT::DEFAULT_TUNING.size();
+                    return std::max(1. - std::pow(distance / (3.16228 * m_sensitivity), 2.), 0.);
+                };
             }
 
             void createScoringFunction()
@@ -329,13 +331,26 @@ namespace carl::action
                 // Early-out if the provided sequence is too short.
                 if (sequence.size() <= m_trimmedSequenceLength)
                 {
-                    return 0.;
+                    return 0;
                 }
 
                 gsl::span<const DescriptorT> trimmedSequence{ &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
 
+                // Early-out if no template's end is scored as appearing in the sequence
+                NumberT score = std::numeric_limits<NumberT>::lowest();
+                for (const auto& t : m_templates)
+                {
+                    auto endSpan = gsl::make_span<const DescriptorT>(&t.back(), 1);
+                    auto distance = calculateMatchDistance(trimmedSequence, endSpan);
+                    score = std::max(m_scoringFunction(distance), score);
+                }
+                if (score < std::numeric_limits<NumberT>::epsilon())
+                {
+                    return 0;
+                }
+
                 // Calculate the base score based on proximity to templates
-                NumberT score{ 0 };
+                score = std::numeric_limits<NumberT>::lowest();
                 NumberT minDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_templates)
                 {
