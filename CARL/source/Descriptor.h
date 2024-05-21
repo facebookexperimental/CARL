@@ -282,7 +282,6 @@ namespace carl::descriptor
     {
         LeftHanded,
         RightHanded,
-        TwoHanded,
     };
 
     template<Handedness Handedness>
@@ -833,7 +832,6 @@ namespace carl::descriptor
     {
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
-        static constexpr auto HANDEDNESS{ Handedness::TwoHanded };
 
         static std::optional<EgocentricRelativeWristPosition> TryCreate(
             const InputSample& sample,
@@ -1025,9 +1023,14 @@ namespace carl::descriptor
     using HandPose = CombinedDescriptor<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
 
     template<Handedness Handedness>
-    using HandGesture = CombinedDescriptor<HandPose<Handedness>, EgocentricWristTranslation<Handedness>>;
+    using HandGesture = CombinedDescriptor<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
 
     using TwoHandGesture = CombinedDescriptor<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
+
+    template<Handedness Handedness>
+    using ControllerGesture = CombinedDescriptor<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
+
+    using TwoControllerGesture = CombinedDescriptor<ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 
     template<typename DescriptorT>
     class TimestampedDescriptor
