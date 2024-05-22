@@ -168,13 +168,13 @@ namespace carl::descriptor
             template<size_t Idx, typename = std::enable_if_t<Idx != 0 && Idx <= sizeof...(Ts)>>
             auto& get()
             {
-                return m_tail.get<Idx - 1>();
+                return m_tail.template get<Idx - 1>();
             }
 
             template<size_t Idx, typename = std::enable_if_t<Idx != 0 && Idx <= sizeof...(Ts)>>
             const auto& get() const
             {
-                return m_tail.get<Idx - 1>();
+                return m_tail.template get<Idx - 1>();
             }
 
             template<size_t Idx, typename = std::enable_if_t<Idx == 0>>
@@ -963,7 +963,7 @@ namespace carl::descriptor
             auto descriptor = T::TryCreate(sample, priorSample);
             if (descriptor.has_value())
             {
-                m_underlyingDescriptors.get<Idx>() = descriptor.value();
+                m_underlyingDescriptors.template get<Idx>() = descriptor.value();
                 if constexpr (sizeof...(RemainderT) == 0)
                 {
                     return true;
@@ -982,8 +982,8 @@ namespace carl::descriptor
         template<size_t Idx, typename T, typename... RemainderT>
         static NumberT InternalDistance(const CombinedDescriptor& a, const CombinedDescriptor& b, gsl::span<const NumberT> tuning)
         {
-            const T& aDesc = a.m_underlyingDescriptors.get<Idx>();
-            const T& bDesc = b.m_underlyingDescriptors.get<Idx>();
+            const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+            const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
             auto distance = T::Distance(aDesc, bDesc, TuningT::template getTuning<T>(tuning));
             if constexpr (sizeof...(RemainderT) > 0)
             {
@@ -995,9 +995,9 @@ namespace carl::descriptor
         template<size_t Idx, typename T, typename... RemainderT>
         void InternalLerp(const CombinedDescriptor& a, const CombinedDescriptor& b, NumberT t)
         {
-            const T& aDesc = a.m_underlyingDescriptors.get<Idx>();
-            const T& bDesc = b.m_underlyingDescriptors.get<Idx>();
-            m_underlyingDescriptors.get<Idx>() = T::Lerp(aDesc, bDesc, t);
+            const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+            const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
+            m_underlyingDescriptors.template get<Idx>() = T::Lerp(aDesc, bDesc, t);
             if constexpr (sizeof...(RemainderT) > 0)
             {
                 InternalLerp<Idx + 1, RemainderT...>(a, b, t);
