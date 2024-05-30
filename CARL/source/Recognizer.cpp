@@ -162,9 +162,10 @@ namespace carl::action
                 }
 
                 auto startT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
-                auto endT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize].getTimestamp();
+                auto endT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize - 1].getTimestamp();
+                constexpr auto epsilonT = std::numeric_limits<double>::epsilon();
 
-                return{ recording, startT, endT };
+                return{ recording, startT - epsilonT, endT + epsilonT};
             }
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
