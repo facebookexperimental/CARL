@@ -395,11 +395,11 @@ namespace carl::descriptor
         InputSample mostRecentSample{};
 
         size_t idx = 0;
-        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < startTimestamp)
+        while (idx < samples.size() - 1 && samples[idx].Timestamp < startTimestamp)
         {
             ++idx;
         }
-        while (idx < samples.size() - 1 && samples[idx + 1].Timestamp < endTimestamp)
+        while (idx < samples.size() - 1 && samples[idx].Timestamp < endTimestamp)
         {
             descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning);
             ++idx;

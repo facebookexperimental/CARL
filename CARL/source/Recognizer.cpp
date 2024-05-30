@@ -161,9 +161,24 @@ namespace carl::action
                     }
                 }
 
-                auto startT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
-                auto endT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize - 1].getTimestamp();
+                auto firstDescriptorT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
+                auto lastDescriptorT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize - 1].getTimestamp();
                 constexpr auto epsilonT = std::numeric_limits<double>::epsilon();
+
+                auto startT = std::numeric_limits<NumberT>::lowest() + 2 * epsilonT;
+                auto endT = std::numeric_limits<NumberT>::max() - 2 * epsilonT;
+                for (const auto& sample : samples)
+                {
+                    if (sample.Timestamp < firstDescriptorT && sample.Timestamp > startT)
+                    {
+                        startT = sample.Timestamp;
+                    }
+
+                    if (sample.Timestamp > lastDescriptorT && sample.Timestamp < endT)
+                    {
+                        endT = sample.Timestamp;
+                    }
+                }
 
                 return{ recording, startT - epsilonT, endT + epsilonT};
             }
