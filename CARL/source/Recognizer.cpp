@@ -161,10 +161,26 @@ namespace carl::action
                     }
                 }
 
-                auto startT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
-                auto endT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize].getTimestamp();
+                auto firstDescriptorT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
+                auto lastDescriptorT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize - 1].getTimestamp();
+                constexpr auto epsilonT = std::numeric_limits<double>::epsilon();
 
-                return{ recording, startT, endT };
+                auto startT = std::numeric_limits<NumberT>::lowest() + 2 * epsilonT;
+                auto endT = std::numeric_limits<NumberT>::max() - 2 * epsilonT;
+                for (const auto& sample : samples)
+                {
+                    if (sample.Timestamp < firstDescriptorT && sample.Timestamp > startT)
+                    {
+                        startT = sample.Timestamp;
+                    }
+
+                    if (sample.Timestamp > lastDescriptorT && sample.Timestamp < endT)
+                    {
+                        endT = sample.Timestamp;
+                    }
+                }
+
+                return{ recording, startT - epsilonT, endT + epsilonT};
             }
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
@@ -302,6 +318,7 @@ namespace carl::action
                     if (sample.Timestamp >= canonicalExample.getStartTimestamp() && sample.Timestamp <= canonicalExample.getEndTimestamp())
                     {
                         auto sampleCopy{ sample };
+                        /* TODO: Is this necessary?
                         if constexpr (DescriptorT::HANDEDNESS == descriptor::Handedness::LeftHanded)
                         {
                             sampleCopy.RightWristPose.reset();
@@ -312,6 +329,7 @@ namespace carl::action
                             sampleCopy.LeftHandJointPoses.reset();
                             sampleCopy.LeftHandJointPoses.reset();
                         }
+                        */
                         recording.addSample(std::move(sampleCopy));
                     }
                 }
@@ -416,6 +434,12 @@ namespace carl::action
                 return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             case action::Definition::ActionType::TwoHandGesture:
                 return std::make_unique<RecognizerImpl<descriptor::TwoHandGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::LeftControllerGesture:
+                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::RightControllerGesture:
+                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::TwoControllerGesture:
+                return std::make_unique<RecognizerImpl<descriptor::TwoControllerGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             default:
                 throw std::runtime_error{ "Unknown definition type" };
             }
