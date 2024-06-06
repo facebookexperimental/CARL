@@ -161,6 +161,10 @@ namespace carl::DynamicTimeWarping
         priorRow.resize(target.size() + 1);
         currentRow.resize(priorRow.size());
 
+        NumberT ulCost{};
+        NumberT uCost{};
+        NumberT lCost{};
+
         NumberT cost{};
 
         constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max() };
@@ -169,7 +173,7 @@ namespace carl::DynamicTimeWarping
 
         for (size_t i = 0; i < target.size(); ++i)
         {
-            cost = distance(target[i], query[0]);
+            cost = distance(target[i], target[i], query[0], query[0]);
             currentRow[i + 1] = { cost, 1, cost, i };
         }
 
@@ -179,18 +183,28 @@ namespace carl::DynamicTimeWarping
 
             for (size_t i = 0; i < target.size(); ++i)
             {
-                cost = distance(target[i], query[j]);
+                ulCost = priorRow[i].Cost;
+                ulCost += distance(target[i], target[priorRow[i].StartIdx],  query[j], query[0]);
+
+                uCost = priorRow[i + 1].Cost;
+                uCost += distance(target[i], target[priorRow[i + 1].StartIdx], query[j], query[0]);
+
+                lCost = currentRow[i].Cost;
+                lCost += distance(target[i], target[currentRow[i].StartIdx], query[j], query[0]);
 
                 auto ancestor = priorRow[i];
-                if (priorRow[i + 1].Cost < ancestor.Cost)
+                cost = ulCost;
+                if (uCost < cost)
                 {
                     ancestor = priorRow[i + 1];
+                    cost = uCost;
                 }
-                if (currentRow[i].Cost < ancestor.Cost)
+                if (lCost < cost)
                 {
                     ancestor = currentRow[i];
+                    cost = lCost;
                 }
-                currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx};
+                currentRow[i + 1] = { cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx };
             }
         }
 

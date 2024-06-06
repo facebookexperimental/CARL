@@ -149,6 +149,33 @@ namespace carl::descriptor
             }
         };
 
+        struct Transform
+        {
+            std::array<NumberT, 16> M{};
+
+            Transform() = default;
+
+            Transform(const TransformT& transform)
+            {
+                std::memcpy(M.data(), transform.matrix().data(), sizeof(M));
+            }
+
+            operator TransformT() const
+            {
+                auto m = M;
+                return TransformT{ Eigen::Map<Eigen::Matrix4<NumberT>>{m.data()} };
+            }
+
+            Point operator *(const Point& p) const
+            {
+                return Point{
+                    M[0] * p.X + M[4] * p.Y + M[8] * p.Z + M[12],
+                    M[1] * p.X + M[5] * p.Y + M[9] * p.Z + M[13],
+                    M[2] * p.X + M[6] * p.Y + M[10] * p.Z + M[14],
+                };
+            }
+        };
+
         template<typename...>
         class Tuple;
 
@@ -349,7 +376,7 @@ namespace carl::descriptor
                     break;
                 }
 
-                auto outerDistance = DescriptorT::Distance(*sampleDesc, sequence.back(), tuning);
+                auto outerDistance = DescriptorT::Distance(*sampleDesc, sequence.back(), sequence.back(), sequence.back(), tuning);
                 if (outerDistance < THRESHOLD)
                 {
                     break;
@@ -363,7 +390,7 @@ namespace carl::descriptor
                 {
                     mid = (upper + lower) / NumberT{ 2 };
                     auto intermediateDesc = DescriptorT::Lerp(sequence.back(), *sampleDesc, mid);
-                    auto distance = DescriptorT::Distance(intermediateDesc, sequence.back(), tuning);
+                    auto distance = DescriptorT::Distance(intermediateDesc, sequence.back(), sequence.back(), sequence.back(), tuning);
                     if (distance > THRESHOLD)
                     {
                         // intermediate sample is too distant, continue searching for a nearer sample
@@ -455,7 +482,12 @@ namespace carl::descriptor
             return {};
         }
 
-        static NumberT Distance(const HandShape& a, const HandShape& b, gsl::span<const NumberT> tuning)
+        static NumberT Distance(
+            const HandShape& a,
+            const HandShape&,
+            const HandShape& b,
+            const HandShape&,
+            gsl::span<const NumberT> tuning)
         {
             NumberT distance = 0;
             for (size_t idx = 0; idx < a.m_positions.size(); ++idx) {
@@ -494,7 +526,7 @@ namespace carl::descriptor
                 {
                     for (const auto& sequence : sequences)
                     {
-                        auto distanceFunction = [idx](const auto& a, const auto& b) {
+                        auto distanceFunction = [idx](const auto& a, const auto&, const auto& b, const auto&) {
                             return a.m_positions[idx].distance(b.m_positions[idx]);
                         };
                         auto result = DynamicTimeWarping::Match<const HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
@@ -565,7 +597,9 @@ namespace carl::descriptor
 
         static NumberT Distance(
             const EgocentricWristOrientation& a,
+            const EgocentricWristOrientation&,
             const EgocentricWristOrientation& b,
+            const EgocentricWristOrientation&,
             gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_egocentricTemporalOrientation.angularDistance(b.m_egocentricTemporalOrientation);
@@ -601,7 +635,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto& b) {
+                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return a.m_egocentricTemporalOrientation.angularDistance(b.m_egocentricTemporalOrientation);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
@@ -664,7 +698,12 @@ namespace carl::descriptor
             return{};
         }
 
-        static NumberT Distance(const WristRotation& a, const WristRotation& b, gsl::span<const NumberT> tuning)
+        static NumberT Distance(
+            const WristRotation& a,
+            const WristRotation&,
+            const WristRotation& b,
+            const WristRotation&,
+            gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_deltaOrientation.angularDistance(b.m_deltaOrientation);
             return normalizeDistance(distance, tuning[0]);
@@ -696,10 +735,10 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto& b) {
+                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return a.m_deltaOrientation.angularDistance(b.m_deltaOrientation);
                     };
-                    auto result = DynamicTimeWarping::Distance<const WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
+                    auto result = DynamicTimeWarping::Match<const WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
@@ -760,7 +799,9 @@ namespace carl::descriptor
 
         static NumberT Distance(
             const EgocentricWristTranslation& a,
+            const EgocentricWristTranslation&,
             const EgocentricWristTranslation& b,
+            const EgocentricWristTranslation&,
             gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
@@ -796,7 +837,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto& b) {
+                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
                         };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
@@ -828,6 +869,111 @@ namespace carl::descriptor
         }
     };
 
+    template<Handedness Handedness>
+    class EgocentricWristDisplacement
+    {
+    public:
+        static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
+
+        static std::optional<EgocentricWristDisplacement> TryCreate(
+            const InputSample& sample,
+            const InputSample& priorSample)
+        {
+            if (!sample.HmdPose.has_value())
+            {
+                return{};
+            }
+
+            if constexpr (Handedness == Handedness::LeftHanded)
+            {
+                if (sample.LeftWristPose.has_value())
+                {
+                    return EgocentricWristDisplacement{ sample, priorSample };
+                }
+            }
+            else if constexpr (Handedness == Handedness::RightHanded)
+            {
+                if (sample.RightWristPose.has_value())
+                {
+                    return EgocentricWristDisplacement{ sample, priorSample };
+                }
+            }
+            return{};
+        }
+
+        static NumberT Distance(
+            const EgocentricWristDisplacement& a,
+            const EgocentricWristDisplacement& a0,
+            const EgocentricWristDisplacement& b,
+            const EgocentricWristDisplacement& b0,
+            gsl::span<const NumberT> tuning)
+        {
+            auto aPos = a0.m_inverseEts * a.m_position;
+            auto bPos = b0.m_inverseEts * b.m_position;
+            auto distance = aPos.distance(bPos);
+            return normalizeDistance(distance, tuning[0]);
+        }
+
+        static EgocentricWristDisplacement Lerp(
+            const EgocentricWristDisplacement& a,
+            const EgocentricWristDisplacement& b,
+            NumberT t)
+        {
+            EgocentricWristDisplacement result{};
+            result.m_position = (1 - t) * VectorT{ a.m_position } + t * VectorT{ b.m_position };
+            result.m_inverseEts = math::Lerp(a.m_inverseEts, b.m_inverseEts, t);
+            return result;
+        }
+
+        template<typename ExamplesT>
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(const ExamplesT& examples)
+        {
+            if (examples.size() < 2)
+            {
+                return DEFAULT_TUNING;
+            }
+
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, 1.);
+
+            auto tuning = DEFAULT_TUNING;
+            NumberT maxConnectionCost = 0;
+            for (const auto& extendedSequence : extendedSequences)
+            {
+                for (const auto& sequence : sequences)
+                {
+                    auto distanceFunction = [](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                        auto aPos = a0.m_inverseEts * a.m_position;
+                        auto bPos = b0.m_inverseEts * b.m_position;
+                        return aPos.distance(bPos);
+                    };
+                    auto result = DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>>(extendedSequence, sequence, distanceFunction);
+                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                }
+            }
+            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            return tuning;
+        }
+
+        EgocentricWristDisplacement() = default;
+
+    private:
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.06 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
+        trivial::Point m_position{};
+        trivial::Transform m_inverseEts{};
+
+        EgocentricWristDisplacement(const InputSample& sample, const InputSample&)
+        {
+            constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
+            auto& wristPose = isLeftHanded ? sample.LeftWristPose.value() : sample.RightWristPose.value();
+
+            auto ets = EgocentricTemporalSpace::getPose(wristPose.translation(), sample.HmdPose.value());
+            m_position = ets.translation();
+            m_inverseEts = ets.inverse();
+        }
+    };
+
     class EgocentricRelativeWristPosition
     {
     public:
@@ -848,7 +994,9 @@ namespace carl::descriptor
 
         static NumberT Distance(
             const EgocentricRelativeWristPosition& a,
+            const EgocentricRelativeWristPosition&,
             const EgocentricRelativeWristPosition& b,
+            const EgocentricRelativeWristPosition&,
             gsl::span<const NumberT> tuning)
         {
             auto distance = a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
@@ -884,7 +1032,7 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto& b) {
+                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
                         };
                     auto result = DynamicTimeWarping::Match<const EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
@@ -935,9 +1083,14 @@ namespace carl::descriptor
             }
         }
 
-        static NumberT Distance(const CombinedDescriptor& a, const CombinedDescriptor& b, gsl::span<const NumberT> tuning)
+        static NumberT Distance(
+            const CombinedDescriptor& a, 
+            const CombinedDescriptor& a0,
+            const CombinedDescriptor& b, 
+            const CombinedDescriptor& b0,
+            gsl::span<const NumberT> tuning)
         {
-            return InternalDistance<0, Ts...>(a, b, tuning);
+            return InternalDistance<0, Ts...>(a, a0, b, b0, tuning);
         }
 
         static CombinedDescriptor Lerp(const CombinedDescriptor& a, const CombinedDescriptor& b, NumberT t)
@@ -980,14 +1133,21 @@ namespace carl::descriptor
         }
 
         template<size_t Idx, typename T, typename... RemainderT>
-        static NumberT InternalDistance(const CombinedDescriptor& a, const CombinedDescriptor& b, gsl::span<const NumberT> tuning)
+        static NumberT InternalDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& a0,
+            const CombinedDescriptor& b,
+            const CombinedDescriptor& b0,
+            gsl::span<const NumberT> tuning)
         {
             const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+            const T& a0Desc = a0.m_underlyingDescriptors.template get<Idx>();
             const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
-            auto distance = T::Distance(aDesc, bDesc, TuningT::template getTuning<T>(tuning));
+            const T& b0Desc = b0.m_underlyingDescriptors.template get<Idx>();
+            auto distance = T::Distance(aDesc, a0Desc, bDesc, b0Desc, TuningT::template getTuning<T>(tuning));
             if constexpr (sizeof...(RemainderT) > 0)
             {
-                distance += InternalDistance<Idx + 1, RemainderT...>(a, b, tuning);
+                distance += InternalDistance<Idx + 1, RemainderT...>(a, a0, b, b0, tuning);
             }
             return distance;
         }
@@ -1023,12 +1183,12 @@ namespace carl::descriptor
     using HandPose = CombinedDescriptor<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
 
     template<Handedness Handedness>
-    using HandGesture = CombinedDescriptor<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
+    using HandGesture = CombinedDescriptor<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
 
     using TwoHandGesture = CombinedDescriptor<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 
     template<Handedness Handedness>
-    using ControllerGesture = CombinedDescriptor<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
+    using ControllerGesture = CombinedDescriptor<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
 
     using TwoControllerGesture = CombinedDescriptor<ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 
@@ -1051,9 +1211,14 @@ namespace carl::descriptor
             return{};
         }
 
-        static NumberT Distance(const TimestampedDescriptor& a, const TimestampedDescriptor& b, gsl::span<const NumberT> tuning)
+        static NumberT Distance(
+            const TimestampedDescriptor& a,
+            const TimestampedDescriptor& a0,
+            const TimestampedDescriptor& b,
+            const TimestampedDescriptor& b0,
+            gsl::span<const NumberT> tuning)
         {
-            return DescriptorT::Distance(a.m_underlyingDescriptor, b.m_underlyingDescriptor, tuning);
+            return DescriptorT::Distance(a.m_underlyingDescriptor, a0.m_underlyingDescriptor, b.m_underlyingDescriptor, b0.m_underlyingDescriptor, tuning);
         }
 
         static TimestampedDescriptor Lerp(const TimestampedDescriptor& a, const TimestampedDescriptor& b, NumberT t)

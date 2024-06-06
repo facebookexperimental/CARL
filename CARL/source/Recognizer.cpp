@@ -118,7 +118,7 @@ namespace carl::action
                 : Recognizer::Impl{ session, sensitivity }
                 , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
-                , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
+                , m_distanceFunction{ [this](const auto& a, const auto& a0, const auto& b, const auto& b0) { return DescriptorT::Distance(a, a0, b, b0, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
@@ -148,13 +148,10 @@ namespace carl::action
                     sequence.push_back(desc.getUnderlyingDescriptor());
                 }
 
-                const auto distanceFunction = [this](const auto& a, const auto& b) {
-                    return DescriptorT::Distance(a, b, m_tuning);
-                    };
-                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], distanceFunction);
+                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], m_distanceFunction);
                 for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
-                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], distanceFunction);
+                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], m_distanceFunction);
                     if (matchResult.MatchCost < bestMatchResult.MatchCost)
                     {
                         bestMatchResult = matchResult;
@@ -220,7 +217,7 @@ namespace carl::action
                                 tuning[tuningIdx] = m_tuning[tuningIdx];
 
                                 auto distanceFunction = [&tuning](const DescriptorT& a, const DescriptorT& b) {
-                                    return DescriptorT::Distance(a, b, tuning);
+                                    return DescriptorT::Distance(a, a, b, b, tuning);
                                 };
                                 auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistanceAndImageSize(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
                                 output << distance << ",";
@@ -249,7 +246,7 @@ namespace carl::action
             size_t m_trimmedSequenceLength{};
             NumberT m_minimumImageRatio{ 0.8 }; // TODO: Parameterize?
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
-            std::function<NumberT(const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
+            std::function<NumberT(const DescriptorT&, const DescriptorT&, const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
             std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
 
