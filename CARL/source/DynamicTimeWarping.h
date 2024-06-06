@@ -183,28 +183,27 @@ namespace carl::DynamicTimeWarping
 
             for (size_t i = 0; i < target.size(); ++i)
             {
-                ulCost = priorRow[i].Cost;
-                ulCost += distance(target[i], target[priorRow[i].StartIdx],  query[j], query[0]);
+                const auto& ul = priorRow[i];
+                const auto& u = priorRow[i + 1];
+                const auto& l = currentRow[i];
 
-                uCost = priorRow[i + 1].Cost;
-                uCost += distance(target[i], target[priorRow[i + 1].StartIdx], query[j], query[0]);
+                ulCost = distance(target[i], target[ul.StartIdx],  query[j], query[0]);
+                uCost = distance(target[i], target[u.StartIdx], query[j], query[0]);
+                lCost = distance(target[i], target[l.StartIdx], query[j], query[0]);
 
-                lCost = currentRow[i].Cost;
-                lCost += distance(target[i], target[currentRow[i].StartIdx], query[j], query[0]);
-
-                auto ancestor = priorRow[i];
+                auto ancestor = ul;
                 cost = ulCost;
-                if (uCost < cost)
+                if (uCost + u.Cost < cost + ancestor.Cost)
                 {
-                    ancestor = priorRow[i + 1];
+                    ancestor = u;
                     cost = uCost;
                 }
-                if (lCost < cost)
+                if (lCost + l.Cost < cost + ancestor.Cost)
                 {
-                    ancestor = currentRow[i];
+                    ancestor = l;
                     cost = lCost;
                 }
-                currentRow[i + 1] = { cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx };
+                currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx };
             }
         }
 

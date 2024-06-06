@@ -1183,12 +1183,12 @@ namespace carl::descriptor
     using HandPose = CombinedDescriptor<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
 
     template<Handedness Handedness>
-    using HandGesture = CombinedDescriptor<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>/*, EgocentricWristDisplacement<Handedness>*/>;
+    using HandGesture = CombinedDescriptor<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
 
     using TwoHandGesture = CombinedDescriptor<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 
     template<Handedness Handedness>
-    using ControllerGesture = CombinedDescriptor<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>/*, EgocentricWristDisplacement<Handedness>*/>;
+    using ControllerGesture = CombinedDescriptor<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
 
     using TwoControllerGesture = CombinedDescriptor<ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 
