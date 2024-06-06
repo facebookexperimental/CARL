@@ -167,7 +167,7 @@ namespace carl::DynamicTimeWarping
 
         NumberT cost{};
 
-        constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max() };
+        constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
         priorRow[0] = sentinel;
         currentRow[0] = sentinel;
 
