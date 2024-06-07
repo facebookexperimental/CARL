@@ -15,6 +15,7 @@
 #include <gsl/span>
 
 #include <array>
+#include <utility>
 
 namespace carl::descriptor
 {
@@ -452,10 +453,17 @@ namespace carl::descriptor
     {
         static constexpr std::array<size_t, 5> JOINTS{
             static_cast<size_t>(InputSample::Joint::ThumbFingerTip),
-                static_cast<size_t>(InputSample::Joint::IndexFingerTip),
-                static_cast<size_t>(InputSample::Joint::MiddleFingerTip),
-                static_cast<size_t>(InputSample::Joint::RingFingerTip),
-                static_cast<size_t>(InputSample::Joint::LittleFingerTip),
+            static_cast<size_t>(InputSample::Joint::IndexFingerTip),
+            static_cast<size_t>(InputSample::Joint::MiddleFingerTip),
+            static_cast<size_t>(InputSample::Joint::RingFingerTip),
+            static_cast<size_t>(InputSample::Joint::LittleFingerTip),
+        };
+        static constexpr std::array<const char*, JOINTS.size()> ANALYSIS_DIMENSION_NAMES{
+            "Thumb",
+            "Index Finger",
+            "Middle Finger",
+            "Ring Finger",
+            "Little Finger",
         };
         static constexpr size_t NORMALIZATION_JOINT{
             static_cast<size_t>(InputSample::Joint::IndexFingerBase) };
@@ -538,6 +546,24 @@ namespace carl::descriptor
             return tuning;
         }
 
+        static auto Analyze(
+            gsl::span<const HandShape<Handedness>> target, 
+            gsl::span<const HandShape<Handedness>> query, 
+            gsl::span<const NumberT> tuning)
+        {
+            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
+            for (size_t idx = 0; idx < DEFAULT_TUNING.size(); ++idx)
+            {
+                results[idx] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAMES[idx], {});
+                auto& rows = results[idx].second;
+                auto distanceFunction = [idx](const auto& a, const auto&, const auto& b, const auto&) {
+                    return a.m_positions[idx].distance(b.m_positions[idx]);
+                };
+                DynamicTimeWarping::Match<const HandShape<Handedness>, decltype(distanceFunction), NumberT, true>(target, query, distanceFunction, [&rows](auto row) { rows.push_back(std::move(row)); });
+            }
+            return results;
+        }
+
         HandShape() = default;
 
     private:
@@ -566,6 +592,8 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class EgocentricWristOrientation
     {
+        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Orientation";
+
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
 
@@ -646,6 +674,21 @@ namespace carl::descriptor
             return tuning;
         }
 
+        static auto Analyze(
+            gsl::span<const EgocentricWristOrientation<Handedness>> target,
+            gsl::span<const EgocentricWristOrientation<Handedness>> query,
+            gsl::span<const NumberT> tuning)
+        {
+            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
+            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
+            auto& rows = results[0].second;
+            auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return a.m_egocentricTemporalOrientation.angularDistance(b.m_egocentricTemporalOrientation);
+            };
+            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true>(target, query, distanceFunction, [&rows](auto row) { rows.push_back(std::move(row)); });
+            return results;
+        }
+
         EgocentricWristOrientation() = default;
 
     private:
@@ -669,6 +712,8 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class WristRotation
     {
+        static constexpr char* ANALYSIS_DIMENSION_NAME = "Wrist Rotation";
+
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
 
@@ -746,6 +791,21 @@ namespace carl::descriptor
             return tuning;
         }
 
+        static auto Analyze(
+            gsl::span<const WristRotation<Handedness>> target,
+            gsl::span<const WristRotation<Handedness>> query,
+            gsl::span<const NumberT> tuning)
+        {
+            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
+            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
+            auto& rows = results[0].second;
+            auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return a.m_deltaOrientation.angularDistance(b.m_deltaOrientation);
+            };
+            DynamicTimeWarping::Match<const WristRotation<Handedness>, decltype(distanceFunction), NumberT, true>(target, query, distanceFunction, [&rows](auto row) { rows.push_back(std::move(row)); });
+            return results;
+        }
+
         WristRotation() = default;
 
     private:
@@ -768,6 +828,8 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class EgocentricWristTranslation
     {
+        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Translation";
+
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
 
@@ -839,13 +901,28 @@ namespace carl::descriptor
                 {
                     auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
-                        };
+                    };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
+        }
+
+        static auto Analyze(
+            gsl::span<const EgocentricWristTranslation<Handedness>> target,
+            gsl::span<const EgocentricWristTranslation<Handedness>> query,
+            gsl::span<const NumberT> tuning)
+        {
+            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
+            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
+            auto& rows = results[0].second;
+            auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return a.m_egocentricTemporalPosition.distance(b.m_egocentricTemporalPosition);
+            };
+            DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true>(target, query, distanceFunction, [&rows](auto row) { rows.push_back(std::move(row)); });
+            return results;
         }
 
         EgocentricWristTranslation() = default;
@@ -872,6 +949,8 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class EgocentricWristDisplacement
     {
+        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Displacement";
+
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
 
@@ -955,6 +1034,23 @@ namespace carl::descriptor
             return tuning;
         }
 
+        static auto Analyze(
+            gsl::span<const EgocentricWristDisplacement<Handedness>> target,
+            gsl::span<const EgocentricWristDisplacement<Handedness>> query,
+            gsl::span<const NumberT> tuning)
+        {
+            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
+            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
+            auto& rows = results[0].second;
+            auto distanceFunction = [](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                auto aPos = a0.m_inverseEts * a.m_position;
+                auto bPos = b0.m_inverseEts * b.m_position;
+                return aPos.distance(bPos);
+            };
+            DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true>(target, query, distanceFunction, [&rows](auto row) { rows.push_back(std::move(row)); });
+            return results;
+        }
+
         EgocentricWristDisplacement() = default;
 
     private:
@@ -976,6 +1072,8 @@ namespace carl::descriptor
 
     class EgocentricRelativeWristPosition
     {
+        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Relative Wrist Position";
+
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
 
@@ -1034,13 +1132,28 @@ namespace carl::descriptor
                 {
                     auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
-                        };
+                    };
                     auto result = DynamicTimeWarping::Match<const EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
                     maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
                 }
             }
             tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
+        }
+
+        static auto Analyze(
+            gsl::span<const EgocentricRelativeWristPosition> target,
+            gsl::span<const EgocentricRelativeWristPosition> query,
+            gsl::span<const NumberT> tuning)
+        {
+            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
+            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
+            auto& rows = results[0].second;
+            auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                return a.m_egocentricRelativeWristPosition.distance(b.m_egocentricRelativeWristPosition);
+            };
+            DynamicTimeWarping::Match<const EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true>(target, query, distanceFunction, [&rows](auto row) { rows.push_back(std::move(row)); });
+            return results;
         }
 
         EgocentricRelativeWristPosition() = default;
@@ -1103,6 +1216,14 @@ namespace carl::descriptor
         static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(gsl::span<const action::Example> examples)
         {
             return InternalCalculateTuning<0, Ts...>(examples);
+        }
+
+        static auto Analyze(
+            gsl::span<const CombinedDescriptor> target,
+            gsl::span<const CombinedDescriptor> query,
+            gsl::span<const NumberT> tuning)
+        {
+            return InternalAnalyze<0, Ts...>(target, query, tuning);
         }
 
         CombinedDescriptor() = default;
@@ -1175,6 +1296,39 @@ namespace carl::descriptor
             else
             {
                 return tuning;
+            }
+        }
+
+        template<size_t Idx, typename T, typename... RemainderT>
+        static auto InternalAnalyze(
+            gsl::span<const CombinedDescriptor> target, 
+            gsl::span<const CombinedDescriptor> query, 
+            gsl::span<const NumberT> tuning)
+        {
+            std::vector<T> targetDescriptors{};
+            targetDescriptors.reserve(target.size());
+            for (const auto& combined : target)
+            {
+                targetDescriptors.push_back(combined.m_underlyingDescriptors.template get<Idx>());
+            }
+
+            std::vector<T> queryDescriptors{};
+            queryDescriptors.reserve(query.size());
+            for (const auto& combined : query)
+            {
+                queryDescriptors.push_back(combined.m_underlyingDescriptors.template get<Idx>());
+            }
+
+            auto descriptorTuning = TuningT::template getTuning<T>(tuning);
+            
+            auto results = T::Analyze(targetDescriptors, queryDescriptors, descriptorTuning);
+            if constexpr (sizeof...(RemainderT) > 0)
+            {
+                return arrayConcat(results, InternalAnalyze<Idx + 1, RemainderT...>(target, query, tuning));
+            }
+            else
+            {
+                return results;
             }
         }
     };

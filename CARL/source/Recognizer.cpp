@@ -182,61 +182,30 @@ namespace carl::action
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
-                using SignalT = Signal<gsl::span<const InputSample>>;
-                arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
-                SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal };
-                descriptorSequenceProvider.supportSequenceOfLength(2 * m_trimmedSequenceLength);
-                Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
+                auto inspector = recording.getInspector();
+                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
+                for (size_t idx = 0; idx < m_templates.size(); ++idx)
+                {
+                    const auto& t = m_templates[idx];
+                    auto analysis = DescriptorT::Analyze(targetSequence, t, m_tuning);
+                    
+                    for (const auto& [name, rows] : analysis)
+                    {
+                        output << idx << ",\"" << name << "\"," << std::endl;
 
-                auto samples = recording.getSamples();
-                size_t idx = 0;
-
-                using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescriptorT>>::TicketT>;
-                OptionalTicketT maxScoreDescriptorHandlerTicket{ descriptorSignal.addHandler(
-                    [this, &idx, &samples, &output](gsl::span<const DescriptorT> sequence) {
-                        if (sequence.size() <= m_trimmedSequenceLength)
+                        for (const auto& row : rows)
                         {
-                            return;
-                        }
-
-                        gsl::span<const DescriptorT> trimmedSequence{
-                            &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength};
-
-                        for (size_t templateIdx = 0; templateIdx < m_templates.size(); ++templateIdx)
-                        {
-                            output << samples[idx].Timestamp << ",";
-                            output << templateIdx << ",";
-
-                            gsl::span<const DescriptorT> t{ m_templates[templateIdx] };
-
-                            decltype(m_tuning) tuning{};
-                            std::fill(tuning.begin(), tuning.end(), descriptor::NULL_TUNING);
-                            for (size_t tuningIdx = 0; tuningIdx < tuning.size(); ++tuningIdx)
+                            for (const auto& entry : row)
                             {
-                                tuning[tuningIdx] = m_tuning[tuningIdx];
-
-                                auto distanceFunction = [&tuning](const DescriptorT& a, const DescriptorT& b) {
-                                    return DescriptorT::Distance(a, a, b, b, tuning);
-                                };
-                                auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistanceAndImageSize(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
-                                output << distance << ",";
-
-                                tuning[tuningIdx] = descriptor::NULL_TUNING;
+                                output << entry.MatchCost << ",";
                             }
 
                             output << std::endl;
                         }
-                    }) };
 
-                for (; idx < samples.size(); ++idx)
-                {
-                    auto& sample = samples[idx];
-                    gsl::span<const InputSample> span{ &sample, 1 };
-                    inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
+                        output << std::endl;
+                    }
                 }
-
-                maxScoreDescriptorHandlerTicket.reset();
             }
 
         private:
