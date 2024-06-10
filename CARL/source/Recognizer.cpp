@@ -182,13 +182,7 @@ namespace carl::action
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
-                auto inspector = recording.getInspector();
-                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
-                for (size_t idx = 0; idx < m_templates.size(); ++idx)
-                {
-                    const auto& t = m_templates[idx];
-                    auto analysis = DescriptorT::Analyze(targetSequence, t, m_tuning);
-                    
+                const auto prettyPrintAnalysis = [&output](auto analysis, size_t idx) {
                     for (const auto& [name, rows] : analysis)
                     {
                         output << idx << ",\"" << name << "\"," << std::endl;
@@ -205,6 +199,15 @@ namespace carl::action
 
                         output << std::endl;
                     }
+                };
+
+                auto inspector = recording.getInspector();
+                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
+                for (size_t idx = 0; idx < m_templates.size(); ++idx)
+                {
+                    const auto& t = m_templates[idx];
+                    prettyPrintAnalysis(DescriptorT::Analyze<false>(targetSequence, t, m_tuning), idx);
+                    prettyPrintAnalysis(DescriptorT::Analyze<true>(targetSequence, t, m_tuning), idx);
                 }
             }
 
