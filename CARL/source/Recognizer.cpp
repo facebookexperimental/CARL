@@ -81,6 +81,25 @@ namespace carl::action
 
             return expandedExamples;
         }
+
+        template<typename T>
+        class has_get_timestamp
+        {
+            template<typename InternalT>
+            static constexpr auto test(uint8_t) -> decltype(std::declval<InternalT>().getTimestamp(), bool())
+            {
+                return true;
+            }
+
+            template<typename...>
+            static constexpr bool test(uint32_t)
+            {
+                return false;
+            }
+
+        public:
+            static constexpr inline bool value{ test<T>(uint8_t{}) };
+        };
     }
 
     class action::Recognizer::Impl
@@ -111,7 +130,7 @@ namespace carl::action
     namespace
     {
         template <typename DescriptorT>
-        class RecognizerImpl : public action::Recognizer::Impl
+        class RecognizerImpl final : public action::Recognizer::Impl
         {
         public:
             RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, NumberT sensitivity)
@@ -182,16 +201,35 @@ namespace carl::action
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
-                const auto prettyPrintAnalysis = [&output](auto analysis, size_t idx) {
+                auto inspector = recording.getInspector();
+                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
+
+                const auto outputAnalysis = [&output, &targetSequence](auto analysis, std::string label, const auto& querySequence, size_t idx) {
                     for (const auto& [name, rows] : analysis)
                     {
-                        output << idx << ",\"" << name << "\"," << std::endl;
+                        output << idx << ",\"" << label << "\",\"" << name << "\"," << std::endl;
 
-                        for (const auto& row : rows)
+                        if constexpr (has_get_timestamp<DescriptorT>::value)
                         {
+                            output << "\"TIMESTAMPS\",";
+                            for (const auto& descriptor : targetSequence)
+                            {
+                                output << descriptor.getTimestamp() << ",";
+                            }
+                            output << std::endl;
+                        }
+
+                        for (size_t idx = 0; idx < rows.size(); ++idx)
+                        {
+                            if constexpr (has_get_timestamp<DescriptorT>::value)
+                            {
+                                output << querySequence[idx].getTimestamp() << ",";
+                            }
+
+                            const auto& row = rows[idx];
                             for (const auto& entry : row)
                             {
-                                output << entry.MatchCost << ",";
+                                output << entry.MatchCost / entry.Connections << ",";
                             }
 
                             output << std::endl;
@@ -201,13 +239,11 @@ namespace carl::action
                     }
                 };
 
-                auto inspector = recording.getInspector();
-                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
                 for (size_t idx = 0; idx < m_templates.size(); ++idx)
                 {
                     const auto& t = m_templates[idx];
-                    prettyPrintAnalysis(DescriptorT::Analyze<false>(targetSequence, t, m_tuning), idx);
-                    prettyPrintAnalysis(DescriptorT::Analyze<true>(targetSequence, t, m_tuning), idx);
+                    outputAnalysis(DescriptorT::Analyze<false>(targetSequence, t, m_tuning), "Raw Distance", t, idx);
+                    outputAnalysis(DescriptorT::Analyze<true>(targetSequence, t, m_tuning), "Normalized Distance", t, idx);
                 }
             }
 
@@ -216,7 +252,6 @@ namespace carl::action
             std::vector<std::vector<DescriptorT>> m_templates{};
             std::vector<std::vector<DescriptorT>> m_countertemplates{};
             size_t m_trimmedSequenceLength{};
-            NumberT m_minimumImageRatio{ 0.8 }; // TODO: Parameterize?
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
             std::function<NumberT(const DescriptorT&, const DescriptorT&, const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
             std::function<NumberT(NumberT)> m_scoringFunction{};

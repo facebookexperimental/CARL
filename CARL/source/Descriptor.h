@@ -851,7 +851,7 @@ namespace carl::descriptor
         WristRotation() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.1 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.06 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Quaternion m_deltaOrientation{};
 
@@ -987,7 +987,7 @@ namespace carl::descriptor
         EgocentricWristTranslation() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.01 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.007 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_egocentricTemporalPosition{};
 
@@ -1257,7 +1257,7 @@ namespace carl::descriptor
         EgocentricRelativeWristPosition() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.1 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.06 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_egocentricRelativeWristPosition{};
 
@@ -1285,6 +1285,8 @@ namespace carl::descriptor
     template<typename... Ts>
     class CombinedDescriptor
     {
+        static constexpr char* ANALYSIS_DIMENSION_NAME = "Combined Descriptor";
+
     public:
         using TuningT = Tuning<Ts...>;
         static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
@@ -1332,7 +1334,23 @@ namespace carl::descriptor
             gsl::span<const CombinedDescriptor> query,
             gsl::span<const NumberT> tuning)
         {
-            return InternalAnalyze<0, NormalizeDistance, Ts...>(target, query, tuning);
+            auto underlyingAnalysis = InternalAnalyze<0, NormalizeDistance, Ts...>(target, query, tuning);
+
+            if constexpr (NormalizeDistance)
+            {
+                std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, 1> results{};
+                results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
+                auto& rows = results[0].second;
+                auto distanceFunction = [tuning](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                    return Distance(a, a0, b, b0, tuning);
+                };
+                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true>(target, query, distanceFunction, [&rows](auto row) { rows.push_back(std::move(row)); });
+                return arrayConcat(underlyingAnalysis, results);
+            }
+            else
+            {
+                return underlyingAnalysis;
+            }
         }
 
         CombinedDescriptor() = default;
@@ -1442,19 +1460,6 @@ namespace carl::descriptor
         }
     };
 
-    template<Handedness Handedness>
-    using HandPose = CombinedDescriptor<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
-
-    template<Handedness Handedness>
-    using HandGesture = CombinedDescriptor<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
-
-    using TwoHandGesture = CombinedDescriptor<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
-
-    template<Handedness Handedness>
-    using ControllerGesture = CombinedDescriptor<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
-
-    using TwoControllerGesture = CombinedDescriptor<ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
-
     template<typename DescriptorT>
     class TimestampedDescriptor
     {
@@ -1526,7 +1531,7 @@ namespace carl::descriptor
             return m_underlyingDescriptor;
         }
 
-        double getTimestamp()
+        double getTimestamp() const
         {
             return m_timestamp;
         }
@@ -1540,4 +1545,27 @@ namespace carl::descriptor
             , m_timestamp{ timestamp }
         {}
     };
+
+// TODO: Revise how this is done as part of the work to break up Descriptor.h
+// #define ENABLE_TIMESTAMPED_ANALYSIS
+#ifdef ENABLE_TIMESTAMPED_ANALYSIS
+    template<typename... Ts>
+    using CombinedDescriptorT = TimestampedDescriptor<CombinedDescriptor<Ts...>>;
+#else
+    template<typename... Ts>
+    using CombinedDescriptorT = CombinedDescriptor<Ts...>;
+#endif
+
+    template<Handedness Handedness>
+    using HandPose = CombinedDescriptorT<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
+
+    template<Handedness Handedness>
+    using HandGesture = CombinedDescriptorT<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
+
+    using TwoHandGesture = CombinedDescriptorT<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
+
+    template<Handedness Handedness>
+    using ControllerGesture = CombinedDescriptorT<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
+
+    using TwoControllerGesture = CombinedDescriptorT<ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 }
