@@ -205,9 +205,9 @@ namespace carl::action
                 auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
 
                 const auto outputAnalysis = [&output, &targetSequence](auto analysis, std::string label, const auto& querySequence, size_t idx) {
-                    for (const auto& [name, rows] : analysis)
+                    for (const auto& [name, identicality, tuning, rows] : analysis)
                     {
-                        output << idx << ",\"" << label << "\",\"" << name << "\"," << std::endl;
+                        output << idx << ",\"" << label << "\",\"" << name << "\"," << identicality << "," << tuning << "," << std::endl;
 
                         if constexpr (has_get_timestamp<DescriptorT>::value)
                         {

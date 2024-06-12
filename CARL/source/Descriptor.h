@@ -448,6 +448,8 @@ namespace carl::descriptor
         return sequences;
     }
 
+    using AnalysisT = std::tuple<std::string, NumberT, NumberT, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>;
+
     template<Handedness Handedness>
     class HandShape
     {
@@ -552,11 +554,11 @@ namespace carl::descriptor
             gsl::span<const HandShape<Handedness>> query, 
             gsl::span<const NumberT> tuning)
         {
-            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
+            std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
             for (size_t idx = 0; idx < DEFAULT_TUNING.size(); ++idx)
             {
-                results[idx] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAMES[idx], {});
-                auto& rows = results[idx].second;
+                results[idx] = { ANALYSIS_DIMENSION_NAMES[idx], IDENTICALITY_THRESHOLD, tuning[idx], {} };
+                auto& rows = std::get<3>(results[idx]);
                 auto distanceFunction = [idx, tuning](const auto& a, const auto&, const auto& b, const auto&) {
                     if constexpr (NormalizeDistance)
                     {
@@ -697,9 +699,9 @@ namespace carl::descriptor
             gsl::span<const EgocentricWristOrientation<Handedness>> query,
             gsl::span<const NumberT> tuning)
         {
-            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
-            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
-            auto& rows = results[0].second;
+            std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
+            results[0] = { ANALYSIS_DIMENSION_NAME, IDENTICALITY_THRESHOLD, tuning.front(), {} };
+            auto& rows = std::get<3>(results[0]);
             auto distanceFunction = [tuning](const auto& a, const auto&, const auto& b, const auto&) {
                 if constexpr (NormalizeDistance)
                 {
@@ -831,9 +833,9 @@ namespace carl::descriptor
             gsl::span<const WristRotation<Handedness>> query,
             gsl::span<const NumberT> tuning)
         {
-            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
-            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
-            auto& rows = results[0].second;
+            std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
+            results[0] = { ANALYSIS_DIMENSION_NAME, IDENTICALITY_THRESHOLD, tuning[0], {} };
+            auto& rows = std::get<3>(results[0]);
             auto distanceFunction = [tuning](const auto& a, const auto&, const auto& b, const auto&) {
                 if constexpr (NormalizeDistance)
                 {
@@ -967,9 +969,9 @@ namespace carl::descriptor
             gsl::span<const EgocentricWristTranslation<Handedness>> query,
             gsl::span<const NumberT> tuning)
         {
-            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
-            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
-            auto& rows = results[0].second;
+            std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
+            results[0] = { ANALYSIS_DIMENSION_NAME, IDENTICALITY_THRESHOLD, tuning.front(), {} };
+            auto& rows = std::get<3>(results[0]);
             auto distanceFunction = [tuning](const auto& a, const auto&, const auto& b, const auto&) {
                 if constexpr (NormalizeDistance)
                 {
@@ -1104,9 +1106,9 @@ namespace carl::descriptor
             gsl::span<const EgocentricWristDisplacement<Handedness>> query,
             gsl::span<const NumberT> tuning)
         {
-            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
-            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
-            auto& rows = results[0].second;
+            std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
+            results[0] = { ANALYSIS_DIMENSION_NAME, IDENTICALITY_THRESHOLD, tuning.front(), {} };
+            auto& rows = std::get<3>(results[0]);
             auto distanceFunction = [tuning](const auto& a, const auto& a0, const auto& b, const auto& b0) {
                 if constexpr (NormalizeDistance)
                 {
@@ -1237,9 +1239,9 @@ namespace carl::descriptor
             gsl::span<const EgocentricRelativeWristPosition> query,
             gsl::span<const NumberT> tuning)
         {
-            std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, DEFAULT_TUNING.size()> results{};
-            results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
-            auto& rows = results[0].second;
+            std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
+            results[0] = { ANALYSIS_DIMENSION_NAME, IDENTICALITY_THRESHOLD, tuning.front(), {} };
+            auto& rows = std::get<3>(results[0]);
             auto distanceFunction = [tuning](const auto& a, const auto&, const auto& b, const auto&) {
                 if constexpr (NormalizeDistance)
                 {
@@ -1338,9 +1340,9 @@ namespace carl::descriptor
 
             if constexpr (NormalizeDistance)
             {
-                std::array<std::pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>, 1> results{};
-                results[0] = std::make_pair<std::string, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>(ANALYSIS_DIMENSION_NAME, {});
-                auto& rows = results[0].second;
+                std::array<AnalysisT, 1> results{};
+                results[0] = { ANALYSIS_DIMENSION_NAME, -1, -1, {} };
+                auto& rows = std::get<3>(results[0]);
                 auto distanceFunction = [tuning](const auto& a, const auto& a0, const auto& b, const auto& b0) {
                     return Distance(a, a0, b, b0, tuning);
                 };
