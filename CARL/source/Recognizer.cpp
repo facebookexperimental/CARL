@@ -81,6 +81,25 @@ namespace carl::action
 
             return expandedExamples;
         }
+
+        template<typename T>
+        class has_get_timestamp
+        {
+            template<typename InternalT>
+            static constexpr auto test(uint8_t) -> decltype(std::declval<InternalT>().getTimestamp(), bool())
+            {
+                return true;
+            }
+
+            template<typename...>
+            static constexpr bool test(uint32_t)
+            {
+                return false;
+            }
+
+        public:
+            static constexpr inline bool value{ test<T>(uint8_t{}) };
+        };
     }
 
     class action::Recognizer::Impl
@@ -111,14 +130,14 @@ namespace carl::action
     namespace
     {
         template <typename DescriptorT>
-        class RecognizerImpl : public action::Recognizer::Impl
+        class RecognizerImpl final : public action::Recognizer::Impl
         {
         public:
             RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, NumberT sensitivity)
                 : Recognizer::Impl{ session, sensitivity }
                 , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
                     [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
-                , m_distanceFunction{ [this](const auto& a, const auto& b) { return DescriptorT::Distance(a, b, m_tuning); } }
+                , m_distanceFunction{ [this](const auto& a, const auto& a0, const auto& b, const auto& b0) { return DescriptorT::Distance(a, a0, b, b0, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
@@ -148,13 +167,10 @@ namespace carl::action
                     sequence.push_back(desc.getUnderlyingDescriptor());
                 }
 
-                const auto distanceFunction = [this](const auto& a, const auto& b) {
-                    return DescriptorT::Distance(a, b, m_tuning);
-                    };
-                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], distanceFunction);
+                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], m_distanceFunction);
                 for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
-                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], distanceFunction);
+                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], m_distanceFunction);
                     if (matchResult.MatchCost < bestMatchResult.MatchCost)
                     {
                         bestMatchResult = matchResult;
@@ -185,61 +201,50 @@ namespace carl::action
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
-                using SignalT = Signal<gsl::span<const InputSample>>;
-                arcana::weak_table<SignalT::HandlerT> inputSamplesHandlers{};
-                SignalT inputSampleSignal{ inputSamplesHandlers };
-                typename DescriptorSequence<DescriptorT>::Provider descriptorSequenceProvider{ inputSampleSignal };
-                descriptorSequenceProvider.supportSequenceOfLength(2 * m_trimmedSequenceLength);
-                Signal<gsl::span<const DescriptorT>>& descriptorSignal{ descriptorSequenceProvider };
+                auto inspector = recording.getInspector();
+                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
 
-                auto samples = recording.getSamples();
-                size_t idx = 0;
+                const auto outputAnalysis = [&output, &targetSequence](auto analysis, std::string label, const auto& querySequence, size_t idx) {
+                    for (const auto& [name, identicality, tuning, rows] : analysis)
+                    {
+                        output << idx << ",\"" << label << "\",\"" << name << "\"," << identicality << "," << tuning << "," << std::endl;
 
-                using OptionalTicketT = std::optional<typename Signal<gsl::span<const DescriptorT>>::TicketT>;
-                OptionalTicketT maxScoreDescriptorHandlerTicket{ descriptorSignal.addHandler(
-                    [this, &idx, &samples, &output](gsl::span<const DescriptorT> sequence) {
-                        if (sequence.size() <= m_trimmedSequenceLength)
+                        if constexpr (has_get_timestamp<DescriptorT>::value)
                         {
-                            return;
+                            output << "\"TIMESTAMPS\",";
+                            for (const auto& descriptor : targetSequence)
+                            {
+                                output << descriptor.getTimestamp() << ",";
+                            }
+                            output << std::endl;
                         }
 
-                        gsl::span<const DescriptorT> trimmedSequence{
-                            &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength};
-
-                        for (size_t templateIdx = 0; templateIdx < m_templates.size(); ++templateIdx)
+                        for (size_t idx = 0; idx < rows.size(); ++idx)
                         {
-                            output << samples[idx].Timestamp << ",";
-                            output << templateIdx << ",";
-
-                            gsl::span<const DescriptorT> t{ m_templates[templateIdx] };
-
-                            decltype(m_tuning) tuning{};
-                            std::fill(tuning.begin(), tuning.end(), descriptor::NULL_TUNING);
-                            for (size_t tuningIdx = 0; tuningIdx < tuning.size(); ++tuningIdx)
+                            if constexpr (has_get_timestamp<DescriptorT>::value)
                             {
-                                tuning[tuningIdx] = m_tuning[tuningIdx];
+                                output << querySequence[idx].getTimestamp() << ",";
+                            }
 
-                                auto distanceFunction = [&tuning](const DescriptorT& a, const DescriptorT& b) {
-                                    return DescriptorT::Distance(a, b, tuning);
-                                };
-                                auto [distance, imageSize] = DynamicTimeWarping::InjectiveDistanceAndImageSize(trimmedSequence, t, distanceFunction, m_minimumImageRatio);
-                                output << distance << ",";
-
-                                tuning[tuningIdx] = descriptor::NULL_TUNING;
+                            const auto& row = rows[idx];
+                            for (const auto& entry : row)
+                            {
+                                output << entry.MatchCost / entry.Connections << ",";
                             }
 
                             output << std::endl;
                         }
-                    }) };
 
-                for (; idx < samples.size(); ++idx)
+                        output << std::endl;
+                    }
+                };
+
+                for (size_t idx = 0; idx < m_templates.size(); ++idx)
                 {
-                    auto& sample = samples[idx];
-                    gsl::span<const InputSample> span{ &sample, 1 };
-                    inputSamplesHandlers.apply_to_all([span](auto& callable) mutable { callable(span); });
+                    const auto& t = m_templates[idx];
+                    outputAnalysis(DescriptorT::template Analyze<false>(targetSequence, t, m_tuning), "Raw Distance", t, idx);
+                    outputAnalysis(DescriptorT::template Analyze<true>(targetSequence, t, m_tuning), "Normalized Distance", t, idx);
                 }
-
-                maxScoreDescriptorHandlerTicket.reset();
             }
 
         private:
@@ -247,9 +252,8 @@ namespace carl::action
             std::vector<std::vector<DescriptorT>> m_templates{};
             std::vector<std::vector<DescriptorT>> m_countertemplates{};
             size_t m_trimmedSequenceLength{};
-            NumberT m_minimumImageRatio{ 0.8 }; // TODO: Parameterize?
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
-            std::function<NumberT(const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
+            std::function<NumberT(const DescriptorT&, const DescriptorT&, const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
             std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
 

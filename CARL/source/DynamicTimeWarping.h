@@ -9,11 +9,19 @@
 
 #include <gsl/span>
 
-#include <array>
 #include <vector>
 
 namespace carl::DynamicTimeWarping
 {
+    namespace internal
+    {
+        template<typename ArgT, typename CallbackT, typename... Ts>
+        void invokeVariadicCallback(ArgT&& arg, CallbackT& callback, ...)
+        {
+            callback(std::forward<ArgT>(arg));
+        }
+    }
+
     template <typename VectorT, typename CallableT, typename NumberT = double>
     auto Distance(gsl::span<VectorT> a, gsl::span<VectorT> b, CallableT& distance)
     {
@@ -142,11 +150,18 @@ namespace carl::DynamicTimeWarping
         return InjectiveDistanceAndImageSize(newLonger, shorter, distance, minimumImageRatio);
     }
 
-    template <typename VectorT, typename CallableT, typename NumberT = double>
-    auto Match(
-        gsl::span<VectorT> target,
-        gsl::span<VectorT> query,
-        CallableT& distance)
+    template<typename NumberT = double>
+    struct MatchResult
+    {
+        NumberT MatchCost{};
+        size_t Connections{};
+        NumberT MaxConnectionCost{};
+        size_t ImageStartIdx{};
+        size_t ImageSize{};
+    };
+
+    template <typename VectorT, typename CallableT, typename NumberT = double, bool ReturnAllResults = false, typename... Ts>
+    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, CallableT& distance, Ts&... ts)
     {
         struct Entry
         {
@@ -156,21 +171,48 @@ namespace carl::DynamicTimeWarping
             size_t StartIdx{};
         };
 
+        constexpr auto analyzeRow = [](gsl::span<const Entry> row) {
+            std::vector<MatchResult<NumberT>> analysis{};
+            analysis.reserve(row.size() - 1);
+            for (size_t idx = 1; idx < row.size(); ++idx)
+            {
+                const auto& match = row[idx];
+                MatchResult<NumberT> result{
+                    match.Cost,
+                    match.Connections,
+                    match.MaxConnectionCost,
+                    match.StartIdx,
+                    idx - match.StartIdx
+                };
+                analysis.push_back(result);
+            }
+            return analysis;
+        };
+
         thread_local std::vector<Entry> priorRow{};
         thread_local std::vector<Entry> currentRow{};
         priorRow.resize(target.size() + 1);
         currentRow.resize(priorRow.size());
 
+        NumberT ulCost{};
+        NumberT uCost{};
+        NumberT lCost{};
+
         NumberT cost{};
 
-        constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max() };
+        constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
         priorRow[0] = sentinel;
         currentRow[0] = sentinel;
 
         for (size_t i = 0; i < target.size(); ++i)
         {
-            cost = distance(target[i], query[0]);
+            cost = distance(target[i], target[i], query[0], query[0]);
             currentRow[i + 1] = { cost, 1, cost, i };
+        }
+
+        if constexpr (ReturnAllResults)
+        {
+            internal::invokeVariadicCallback(analyzeRow(currentRow), ts...);
         }
 
         for (size_t j = 1; j < query.size(); ++j)
@@ -179,18 +221,32 @@ namespace carl::DynamicTimeWarping
 
             for (size_t i = 0; i < target.size(); ++i)
             {
-                cost = distance(target[i], query[j]);
+                const auto& ul = priorRow[i];
+                const auto& u = priorRow[i + 1];
+                const auto& l = currentRow[i];
 
-                auto ancestor = priorRow[i];
-                if (priorRow[i + 1].Cost < ancestor.Cost)
+                ulCost = distance(target[i], target[ul.StartIdx],  query[j], query[0]);
+                uCost = distance(target[i], target[u.StartIdx], query[j], query[0]);
+                lCost = distance(target[i], target[l.StartIdx], query[j], query[0]);
+
+                auto ancestor = ul;
+                cost = ulCost;
+                if (uCost + u.Cost < cost + ancestor.Cost)
                 {
-                    ancestor = priorRow[i + 1];
+                    ancestor = u;
+                    cost = uCost;
                 }
-                if (currentRow[i].Cost < ancestor.Cost)
+                if (lCost + l.Cost < cost + ancestor.Cost)
                 {
-                    ancestor = currentRow[i];
+                    ancestor = l;
+                    cost = lCost;
                 }
-                currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx};
+                currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx };
+            }
+
+            if constexpr (ReturnAllResults)
+            {
+                internal::invokeVariadicCallback(analyzeRow(currentRow), ts...);
             }
         }
 
@@ -205,21 +261,13 @@ namespace carl::DynamicTimeWarping
             }
         }
 
-        auto& match = currentRow[matchIdx];
-        struct
-        {
-            NumberT MatchCost{};
-            size_t Connections{};
-            NumberT MaxConnectionCost{};
-            size_t ImageStartIdx{};
-            size_t ImageSize{};
-        } result{
+        const auto& match = currentRow[matchIdx];
+        return MatchResult<NumberT>{
             match.Cost,
             match.Connections,
             match.MaxConnectionCost,
             match.StartIdx,
             matchIdx - match.StartIdx,
         };
-        return result;
     }
 }
