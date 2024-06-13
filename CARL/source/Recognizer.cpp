@@ -242,8 +242,8 @@ namespace carl::action
                 for (size_t idx = 0; idx < m_templates.size(); ++idx)
                 {
                     const auto& t = m_templates[idx];
-                    outputAnalysis(DescriptorT::Analyze<false>(targetSequence, t, m_tuning), "Raw Distance", t, idx);
-                    outputAnalysis(DescriptorT::Analyze<true>(targetSequence, t, m_tuning), "Normalized Distance", t, idx);
+                    outputAnalysis(DescriptorT::template Analyze<false>(targetSequence, t, m_tuning), "Raw Distance", t, idx);
+                    outputAnalysis(DescriptorT::template Analyze<true>(targetSequence, t, m_tuning), "Normalized Distance", t, idx);
                 }
             }
 

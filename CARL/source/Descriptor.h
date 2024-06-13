@@ -612,7 +612,7 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class EgocentricWristOrientation
     {
-        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Orientation";
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Orientation";
 
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
@@ -749,7 +749,7 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class WristRotation
     {
-        static constexpr char* ANALYSIS_DIMENSION_NAME = "Wrist Rotation";
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Wrist Rotation";
 
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
@@ -882,7 +882,7 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class EgocentricWristTranslation
     {
-        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Translation";
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Translation";
 
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
@@ -1020,7 +1020,7 @@ namespace carl::descriptor
     template<Handedness Handedness>
     class EgocentricWristDisplacement
     {
-        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Displacement";
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Displacement";
 
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
@@ -1165,7 +1165,7 @@ namespace carl::descriptor
 
     class EgocentricRelativeWristPosition
     {
-        static constexpr char* ANALYSIS_DIMENSION_NAME = "Egocentric Relative Wrist Position";
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Egocentric Relative Wrist Position";
 
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
@@ -1287,7 +1287,7 @@ namespace carl::descriptor
     template<typename... Ts>
     class CombinedDescriptor
     {
-        static constexpr char* ANALYSIS_DIMENSION_NAME = "Combined Descriptor";
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Combined Descriptor";
 
     public:
         using TuningT = Tuning<Ts...>;
