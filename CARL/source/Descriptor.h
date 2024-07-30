@@ -1556,7 +1556,7 @@ namespace carl::descriptor
     };
 
 // TODO: Revise how this is done as part of the work to break up Descriptor.h
-#define ENABLE_TIMESTAMPED_ANALYSIS
+//#define ENABLE_TIMESTAMPED_ANALYSIS
 #ifdef ENABLE_TIMESTAMPED_ANALYSIS
     template<typename... Ts>
     using CombinedDescriptorT = TimestampedDescriptor<CombinedDescriptor<Ts...>>;
