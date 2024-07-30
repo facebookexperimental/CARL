@@ -397,7 +397,7 @@ namespace carl::descriptor
                         // intermediate sample is too distant, continue searching for a nearer sample
                         upper = mid;
                     }
-                    else if (distance < NumberT{ 0.9 } *THRESHOLD)
+                    else if (distance < NumberT{ 0.9 } * THRESHOLD)
                     {
                         // intermediate sample is too close, continue searching for a more distant sample
                         lower = mid;
