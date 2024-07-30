@@ -60,23 +60,28 @@ namespace carl::action
             return resample(original.getRecording().getSamples(), original.getStartTimestamp(), original.getEndTimestamp(), frameDuration);
         }
 
-        std::vector<action::Example> expandExamples(gsl::span<const action::Example> examples, NumberT durationT = 0.2)
+        std::vector<action::Example> expandExamples(gsl::span<const action::Example> examples)
         {
             std::vector<action::Example> expandedExamples{};
 
             for (const auto& example : examples)
             {
-                if (example.getEndTimestamp() - example.getStartTimestamp() < durationT)
+                const auto& samples = example.getRecording().getSamples();
+                const auto startTimestamp = example.getStartTimestamp();
+                const auto endTimestamp = example.getEndTimestamp();
+                
+                size_t idx = 0;
+                while (idx < samples.size() && samples[idx].Timestamp < startTimestamp)
                 {
-                    expandedExamples.emplace_back(example);
+                    ++idx;
                 }
-                else
+                do
                 {
-                    for (auto endT = example.getStartTimestamp() + durationT; endT < example.getEndTimestamp(); endT += durationT)
-                    {
-                        expandedExamples.emplace_back(example.getRecording(), endT - durationT, endT);
-                    }
-                }
+                    InProgressRecording inProgressRecording{};
+                    inProgressRecording.addSample(samples[idx]);
+                    expandedExamples.emplace_back(std::move(inProgressRecording), samples[idx].Timestamp, samples[idx].Timestamp);
+                    ++idx;
+                } while (idx < samples.size() && samples[idx].Timestamp < endTimestamp);
             }
 
             return expandedExamples;
