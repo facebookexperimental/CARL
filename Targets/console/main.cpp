@@ -13,9 +13,8 @@
 
 namespace
 {
-    carl::action::Definition loadDefinition(const char* rawPath)
+    carl::action::Definition loadDefinition(std::filesystem::path path)
     {
-        std::filesystem::path path{ rawPath };
         auto length = std::filesystem::file_size(path);
 
         std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
@@ -29,9 +28,8 @@ namespace
         return { carl::Deserialization{deserialization} };
     }
 
-    carl::action::Example loadExample(const char* rawPath)
+    carl::action::Example loadExample(std::filesystem::path path)
     {
-        std::filesystem::path path{ rawPath };
         auto length = std::filesystem::file_size(path);
 
         std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
@@ -49,124 +47,243 @@ namespace
         carl::action::Recording recording{ deserialization };
         return { recording, static_cast<double>(startTimestamp), static_cast<double>(endTimestamp) };
     }
-}
 
-void test()
-{
-    std::vector<carl::action::Example> pullRecordings{};
-    for (size_t idx = 0; idx < 10; ++idx)
+    void ensureDirectory(const std::filesystem::path& path)
     {
-        std::stringstream ss{};
-        ss << "C:\\scratch\\CARLFiles\\pull_recordings\\recording_" << idx << ".bin";
-        pullRecordings.emplace_back(loadExample(ss.str().c_str()));
-    }
-
-    carl::action::Definition pullDefinition{
-        carl::action::Definition::ActionType::RightHandGesture };
-    for (const auto& example : pullRecordings)
-    {
-        pullDefinition.addExample(example);
-    }
-
-    std::vector<carl::action::Example> nodRecordings{};
-    for (size_t idx = 0; idx < 10; ++idx)
-    {
-        std::stringstream ss{};
-        ss << "C:\\scratch\\CARLFiles\\nod_recordings\\recording_" << idx << ".bin";
-        nodRecordings.emplace_back(loadExample(ss.str().c_str()));
-    }
-
-    carl::action::Definition nodDefinition{
-        carl::action::Definition::ActionType::RightHandGesture };
-    for (const auto& example : nodRecordings)
-    {
-        nodDefinition.addExample(example);
-    }
-
-    carl::action::Definition sumDefinition{
-        carl::action::Definition::ActionType::RightHandGesture };
-    for (const auto& example : pullRecordings)
-    {
-        sumDefinition.addExample(example);
-    }
-    for (const auto& example : nodRecordings)
-    {
-        sumDefinition.addExample(example);
-    }
-
-    carl::Session session{};
-    //carl::action::Recognizer pullRecognizer{ session, pullDefinition };
-    //carl::action::Recognizer nodRecognizer{ session, nodDefinition };
-    carl::action::Recognizer summRecognizer{ session, sumDefinition };
-
-    //auto autoTrimmedExample = recognizer.createAutoTrimmedExample(example1.getRecording());
-
-    /*for (const auto& sample : pullRecordings[0].getRecording().getSamples())
-    {
-        session.addInput(sample);
-        std::cout << pullRecognizer.currentScore() << std::endl;
-    }*/
-}
-
-void test2()
-{
-    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
-    auto recording = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_2.bin").getRecording();
-
-    int idx = 0;
-    for (; recording.getSamples()[idx + 1].Timestamp < recording.getInspector().endTimestamp(); ++idx);
-    auto sample = recording.getSamples()[idx];
-
-    carl::Session session{ true };
-    carl::action::Recognizer recognizer{ session, definition };
-    for (const auto& sample : recording.getSamples())
-    {
-        session.addInput(sample);
-        std::cout << recognizer.currentScore() << std::endl;
-        if (recognizer.currentScore() > 0.01)
+        if (!std::filesystem::is_directory(path))
         {
-            std::cout << "Aha!" << std::endl;
+            auto parent = path.parent_path();
+            ensureDirectory(parent);
+            std::filesystem::create_directory(path);
         }
-        session.tickCallbacks(arcana::cancellation::none());
+    }
+
+    void runAnalysis(int argc, const char** argv, std::filesystem::path executionDirectory)
+    {
+        std::filesystem::path outputDirectory{ argv[0] };
+        if (!outputDirectory.is_absolute())
+        {
+            outputDirectory = executionDirectory / outputDirectory;
+        }
+
+        carl::action::Definition::ActionType definitionType{};
+        std::string definitionTypeArg{ argv[1] };
+        if (definitionTypeArg == "lhp")
+        {
+            definitionType = carl::action::Definition::ActionType::LeftHandPose;
+        }
+        else if (definitionTypeArg == "rhp")
+        {
+            definitionType = carl::action::Definition::ActionType::RightHandPose;
+        }
+        else if (definitionTypeArg == "lhg")
+        {
+            definitionType = carl::action::Definition::ActionType::LeftHandGesture;
+        }
+        else if (definitionTypeArg == "rhg")
+        {
+            definitionType = carl::action::Definition::ActionType::RightHandGesture;
+        }
+        else if (definitionTypeArg == "thg")
+        {
+            definitionType = carl::action::Definition::ActionType::TwoHandGesture;
+        }
+        else if (definitionTypeArg == "lcg")
+        {
+            definitionType = carl::action::Definition::ActionType::LeftControllerGesture;
+        }
+        else if (definitionTypeArg == "rcg")
+        {
+            definitionType = carl::action::Definition::ActionType::RightControllerGesture;
+        }
+        else if (definitionTypeArg == "tcg")
+        {
+            definitionType = carl::action::Definition::ActionType::TwoControllerGesture;
+        }
+
+        enum class State
+        {
+            Examples,
+            Sessions,
+            Ambient,
+        };
+        auto currentState = State::Examples;
+
+        std::vector<carl::action::Example> exampleExamples{};
+        std::vector<carl::action::Example> sessionExamples{};
+        std::vector<carl::action::Example> ambientExamples{};
+        for (size_t idx = 2; idx < static_cast<size_t>(argc); ++idx)
+        {
+            std::string arg{ argv[idx] };
+            if (arg == "examples")
+            {
+                currentState = State::Examples;
+            }
+            else if (arg == "sessions")
+            {
+                currentState = State::Sessions;
+            }
+            else if (arg == "ambient")
+            {
+                currentState = State::Ambient;
+            }
+            else
+            {
+                std::filesystem::path path{ arg };
+                if (path.is_relative())
+                {
+                    path = executionDirectory / path;
+                }
+
+                auto storeExample = [&](std::filesystem::path examplePath) {
+                    auto example = loadExample(examplePath);
+                    switch (currentState)
+                    {
+                    case State::Examples:
+                        exampleExamples.push_back(std::move(example));
+                        break;
+                    case State::Sessions:
+                        sessionExamples.push_back(std::move(example));
+                        break;
+                    case State::Ambient:
+                        ambientExamples.push_back(std::move(example));
+                        break;
+                    }
+                };
+
+                if (arg[arg.size() - 1] == '*')
+                {
+                    // Expand the wildcard
+                    auto prefix = path.filename().string();
+                    prefix = prefix.substr(0, prefix.size() - 1);
+                    for (const auto& entry : std::filesystem::directory_iterator{ path.parent_path() })
+                    {
+                        if (entry.path().has_filename() && entry.path().filename().string().find(prefix) == 0)
+                        {
+                            storeExample(entry.path());
+                        }
+                    }
+                }
+                else
+                {
+                    storeExample(path);
+                }
+            }
+        }
+
+        constexpr auto analyze = [](std::filesystem::path outputDirectory, carl::action::Recognizer& recognizer, std::vector<carl::action::Example>& examples) {
+            ensureDirectory(outputDirectory);
+            size_t preExistingFilesCount = 0;
+            for (const auto& _ : std::filesystem::directory_iterator(outputDirectory))
+            {
+                ++preExistingFilesCount;
+            }
+
+            for (size_t idx = 0; idx < examples.size(); ++idx)
+            {
+                const auto& recording = examples[idx].getRecording();
+                auto outputFilePath = outputDirectory / (std::to_string(preExistingFilesCount + idx) + ".csv");
+                std::ofstream outStream{ outputFilePath };
+                recognizer.analyzeRecording(recording, outStream);
+            }
+        };
+
+        carl::Session session{ true };
+
+        // Test each example against all the others
+        for (size_t i = 0; i < exampleExamples.size() - 2; ++i)
+        {
+            carl::action::Definition def{ definitionType };
+            def.addExample(exampleExamples[i]);
+            carl::action::Recognizer rec{ session, def };
+            analyze(outputDirectory / "examples", rec, exampleExamples);
+        }
+
+        // Build a definition from the examples
+        carl::action::Definition definition{ definitionType };
+        for (const auto& example : exampleExamples)
+        {
+            definition.addExample(example);
+        }
+        carl::action::Recognizer recognizer{ session, definition };
+
+        analyze(outputDirectory / "sessions", recognizer, sessionExamples);
+        analyze(outputDirectory / "ambient", recognizer, ambientExamples);
+    }
+
+    void runAnalysisFile(std::string analysisFilePath)
+    {
+        std::filesystem::path path{ analysisFilePath };
+        std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
+
+        for (std::string line{}; std::getline(fileStream, line);)
+        {
+            static const std::string disallowedChars{ "\r\n" };
+            static const auto isCharDisallowed = [](const char c) {
+                return disallowedChars.find(c) < disallowedChars.size();
+            };
+
+            std::vector<std::string> tokens{};
+            bool shouldAddToken = true;
+            for (const char c : line)
+            {
+                if (std::isspace(c))
+                {
+                    shouldAddToken = true;
+                }
+                else if (!isCharDisallowed(c))
+                {
+                    if (shouldAddToken)
+                    {
+                        tokens.emplace_back();
+                        shouldAddToken = false;
+                    }
+
+                    tokens.back().push_back(c);
+                }
+            }
+
+            std::vector<const char*> args{};
+            for (const auto& token : tokens)
+            {
+                args.push_back(token.data());
+            }
+            runAnalysis(static_cast<int>(args.size()), args.data(), path.parent_path());
+        }
     }
 }
 
-void test3()
+/*
+Tuning profile: Let the user provide a set of definitions (all of which contain examples) as
+well as independent examples. The definitions (obviously) represent their own action, and the
+independent examples represent no action. The system then analyzes every example against
+every other example, determining the expected distances across descriptor dimensions, trying
+to arrive at an optimal tuning.
+
+Instead of DTW, do a naive sequence match? Fail out if any single connection is too large?
+*/
+
+void main(int argc, const char** argv)
 {
-    auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\pullDefinition.bytes");
-    //auto definition = loadDefinition("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\definition_0.bin");
-    auto example0 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_0.bin");
-    auto example1 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_1.bin");
-    auto example2 = loadExample("C:\\scratch\\CARLFiles\\pull_recordings\\newRecordings\\recording_2.bin");
-
-    //carl::action::Definition definition{ carl::action::Definition::ActionType::RightHandGesture };
-    //definition.addExample(example0);
-
-    carl::Session session{};
-    
-    carl::action::Recognizer recognizer{ session, definition };
-
-    //recognizer.analyzeRecording(example0.getRecording(), std::cout);
-    //std::cout << std::endl;
-    //recognizer.analyzeRecording(example1.getRecording(), std::cout);
-    //std::cout << std::endl;
-    recognizer.analyzeRecording(example2.getRecording(), std::cout);
-    std::cout << std::endl;
-}
-
-void main()
-{
-    /*
-    Tuning profile: Let the user provide a set of definitions (all of which contain examples) as 
-    well as independent examples. The definitions (obviously) represent their own action, and the 
-    independent examples represent no action. The system then analyzes every example against 
-    every other example, determining the expected distances across descriptor dimensions, trying 
-    to arrive at an optimal tuning.
-    
-    Instead of DTW, do a naive sequence match? Fail out if any single connection is too large?
-    */
-
-    //test();
-    //test2();
-    test3();
+    try
+    {
+        switch (argc)
+        {
+        case 2:
+        {
+            runAnalysisFile(argv[1]);
+            break;
+        }
+        default:
+        {
+            std::filesystem::path exePath{ argv[0] };
+            runAnalysis(argc - 1, argv + 1, exePath.parent_path());
+            break;
+        }
+        }
+    }
+    catch (...)
+    {
+        std::cout << "TODO: Print usage message" << std::endl;
+    }
 }

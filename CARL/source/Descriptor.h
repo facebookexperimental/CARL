@@ -423,15 +423,15 @@ namespace carl::descriptor
         InputSample mostRecentSample{};
 
         size_t idx = 0;
-        while (idx < samples.size() - 1 && samples[idx].Timestamp < startTimestamp)
+        while (idx < samples.size() && samples[idx].Timestamp < startTimestamp)
         {
             ++idx;
         }
-        while (idx < samples.size() - 1 && samples[idx].Timestamp < endTimestamp)
+        do
         {
             descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning);
             ++idx;
-        }
+        } while (idx < samples.size() && samples[idx].Timestamp < endTimestamp);
 
         return sequence;
     }
@@ -1556,7 +1556,7 @@ namespace carl::descriptor
     };
 
 // TODO: Revise how this is done as part of the work to break up Descriptor.h
-// #define ENABLE_TIMESTAMPED_ANALYSIS
+//#define ENABLE_TIMESTAMPED_ANALYSIS
 #ifdef ENABLE_TIMESTAMPED_ANALYSIS
     template<typename... Ts>
     using CombinedDescriptorT = TimestampedDescriptor<CombinedDescriptor<Ts...>>;
