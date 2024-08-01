@@ -531,7 +531,7 @@ namespace carl::descriptor
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
             {
-                NumberT maxConnectionCost = 0;
+                NumberT maxAverageConnectionCost = 0;
                 for (const auto& extendedSequence : extendedSequences)
                 {
                     for (const auto& sequence : sequences)
@@ -540,10 +540,10 @@ namespace carl::descriptor
                             return InternalRawDistance(idx, a, b);
                         };
                         auto result = DynamicTimeWarping::Match<const HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
-                        maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                        maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                     }
                 }
-                tuning[idx] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[idx]);
+                tuning[idx] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[idx]);
             }
             return tuning;
         }
@@ -678,7 +678,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -687,10 +687,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -813,7 +813,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -822,10 +822,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -950,7 +950,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -959,10 +959,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -1088,7 +1088,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -1097,10 +1097,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, a0, b, b0);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -1222,7 +1222,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -1231,10 +1231,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
