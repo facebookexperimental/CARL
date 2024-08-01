@@ -161,7 +161,7 @@ namespace carl::DynamicTimeWarping
     };
 
     template <typename VectorT, typename CallableT, typename NumberT = double, bool ReturnAllResults = false, typename... Ts>
-    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, CallableT& distance, Ts&... ts)
+    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, CallableT& distance, size_t minimumImageIdx = 0, Ts&... ts)
     {
         struct Entry
         {
@@ -251,8 +251,8 @@ namespace carl::DynamicTimeWarping
         }
 
         NumberT matchCost = std::numeric_limits<NumberT>::max();
-        size_t matchIdx = 0;
-        for (size_t idx = 0; idx < currentRow.size(); ++idx)
+        size_t matchIdx = minimumImageIdx;
+        for (size_t idx = minimumImageIdx; idx < currentRow.size(); ++idx)
         {
             if (currentRow[idx].Cost < matchCost)
             {

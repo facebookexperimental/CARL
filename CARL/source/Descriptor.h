@@ -531,14 +531,14 @@ namespace carl::descriptor
                 }
                 };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const TimePoint, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const TimePoint, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
         TimePoint() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.2 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.1 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         NumberT m_timestamp{};
 
@@ -679,7 +679,7 @@ namespace carl::descriptor
                     }
                 };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const HandShape<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+                DynamicTimeWarping::Match<const HandShape<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             }
             return results;
         }
@@ -823,7 +823,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
@@ -958,7 +958,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const WristRotation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const WristRotation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
@@ -1095,7 +1095,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
@@ -1233,14 +1233,14 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
         EgocentricWristDisplacement() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.06 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.02 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_position{};
         trivial::Transform m_inverseEts{};
@@ -1367,7 +1367,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
@@ -1462,7 +1462,7 @@ namespace carl::descriptor
                     return Distance(a, a0, b, b0, tuning);
                 };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
                 return arrayConcat(underlyingAnalysis, results);
             }
             else
