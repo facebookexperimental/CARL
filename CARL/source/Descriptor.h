@@ -687,7 +687,7 @@ namespace carl::descriptor
         HandShape() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.01 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.005 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{ 0.1 };
         std::array<trivial::Point, JOINTS.size()> m_positions{};
@@ -1374,7 +1374,7 @@ namespace carl::descriptor
         EgocentricRelativeWristPosition() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.06 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.02 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_egocentricRelativeWristPosition{};
 
@@ -1678,12 +1678,15 @@ namespace carl::descriptor
     using HandPose = CombinedDescriptorT<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
 
     template<Handedness Handedness>
-    using HandGesture = CombinedDescriptorT<TimePoint, HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
-
-    using TwoHandGesture = CombinedDescriptorT<TimePoint, HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
+    using WristTrajectory = CombinedDescriptorT<TimePoint, EgocentricWristDisplacement<Handedness>>;
 
     template<Handedness Handedness>
-    using ControllerGesture = CombinedDescriptorT<TimePoint, EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
+    using HandGesture = CombinedDescriptorT<HandPose<Handedness>, WristTrajectory<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
 
-    using TwoControllerGesture = CombinedDescriptorT<TimePoint, ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
+    using TwoHandGesture = CombinedDescriptorT<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
+
+    template<Handedness Handedness>
+    using ControllerGesture = CombinedDescriptorT<WristTrajectory<Handedness>, EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
+
+    using TwoControllerGesture = CombinedDescriptorT<ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 }

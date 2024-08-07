@@ -115,7 +115,9 @@ namespace carl
         descriptor::TwoHandGesture,
         descriptor::ControllerGesture<descriptor::Handedness::LeftHanded>,
         descriptor::ControllerGesture<descriptor::Handedness::RightHanded>,
-        descriptor::TwoControllerGesture>
+        descriptor::TwoControllerGesture,
+        descriptor::WristTrajectory<descriptor::Handedness::LeftHanded>,
+        descriptor::WristTrajectory<descriptor::Handedness::RightHanded>>
     {
     public:
         Impl(bool singleThreaded);

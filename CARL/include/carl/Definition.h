@@ -31,6 +31,8 @@ namespace carl::action
             LeftControllerGesture = 5,
             RightControllerGesture = 6,
             TwoControllerGesture = 7,
+            LeftWristTrajectory = 8,
+            RightWristTrajectory = 9,
         };
 
         Definition(ActionType actionType);
