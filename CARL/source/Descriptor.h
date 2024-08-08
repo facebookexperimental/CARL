@@ -323,12 +323,23 @@ namespace carl::descriptor
         constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
         const auto& wristPose =
             isLeftHanded ? sample.LeftWristPose.value() : sample.RightWristPose.value();
-        const auto& jointPoses =
-            isLeftHanded ? sample.LeftHandJointPoses.value() : sample.RightHandJointPoses.value();
 
-        auto zAxis = (jointPoses[Z_AXIS_JOINT].translation() - wristPose.translation()).normalized();
-        auto yAxis = zAxis.cross((jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).cross(zAxis)).normalized();
-        return math::LookTransform(zAxis, yAxis, wristPose.translation());
+        const auto& jointPosesOptional =
+            isLeftHanded ? sample.LeftHandJointPoses : sample.RightHandJointPoses;
+        if (jointPosesOptional.has_value())
+        {
+            const auto& jointPoses = jointPosesOptional.value();
+            auto zAxis = (jointPoses[Z_AXIS_JOINT].translation() - wristPose.translation()).normalized();
+            auto yAxis = zAxis.cross((jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).cross(zAxis)).normalized();
+            return math::LookTransform(zAxis, yAxis, wristPose.translation());
+        }
+        else
+        {
+            // TODO: This implicit behavior change based on the presence or absence of joint data is a bug farm. 
+            // Reevaluate the benefit provided by getWristPose, and consider eliminating it altogether if it's
+            // not truly essential.
+            return wristPose;
+        }
     }
 
     constexpr NumberT NULL_TUNING{ 1000000 };

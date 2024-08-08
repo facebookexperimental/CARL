@@ -107,7 +107,7 @@ namespace carl
     {
     }
 
-    void Session::addInput(InputSample inputSample)
+    void Session::addInput(const InputSample& inputSample)
     {
         m_impl->addInputSample(inputSample);
     }

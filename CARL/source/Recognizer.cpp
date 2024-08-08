@@ -377,7 +377,7 @@ namespace carl::action
                     return 0;
                 }
 
-                const size_t firstNewDescriptorIdx = trimmedSequence.size() - newDescriptorsCount;
+                const size_t firstNewDescriptorIdx = newDescriptorsCount <= trimmedSequence.size() ? trimmedSequence.size() - newDescriptorsCount : 0;
 
                 // Calculate the base score based on proximity to templates
                 score = std::numeric_limits<NumberT>::lowest();
