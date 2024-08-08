@@ -331,7 +331,8 @@ void tickCallbacks(uint64_t sessionPtr)
 void addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size)
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    carl::InputSample sample{ carl::Deserialization{bytes} };
+    carl::Deserialization deserialization{ bytes };
+    carl::InputSample sample{ deserialization };
     session.addInput(sample);
 }
 

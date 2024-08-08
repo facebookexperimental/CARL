@@ -463,7 +463,7 @@ namespace carl::descriptor
 
     class TimePoint
     {
-        static constexpr char* ANALYSIS_DIMENSION_NAME = "TimePoint";
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "TimePoint";
 
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
