@@ -57,7 +57,7 @@ extern "C"
     C_API_EXPORT(double) getExampleStartTimestamp(uint64_t examplePtr);
     C_API_EXPORT(double) getExampleEndTimestamp(uint64_t examplePtr);
     C_API_EXPORT(void) disposeExample(uint64_t examplePtr);
-    C_API_EXPORT(uint64_t) createdDefinition(uint64_t descriptorType);
+    C_API_EXPORT(uint64_t) createDefinition(uint64_t descriptorType);
     C_API_EXPORT(void) addExample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
     C_API_EXPORT(void) addCounterexample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
     C_API_EXPORT(double) getDefaultSensitivity(uint64_t definitionPtr);
@@ -213,7 +213,7 @@ void disposeExample(uint64_t examplePtr)
     delete ptr;
 }
 
-uint64_t createdDefinition(uint64_t descriptorType)
+uint64_t createDefinition(uint64_t descriptorType)
 {
     auto* ptr = new carl::action::Definition(static_cast<carl::action::Definition::ActionType>(descriptorType));
     return reinterpret_cast<uint64_t>(ptr);
@@ -332,7 +332,8 @@ void addInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size)
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
     carl::Deserialization deserialization{ bytes };
-    session.addInput({ deserialization });
+    carl::InputSample sample{ deserialization };
+    session.addInput(sample);
 }
 
 void disposeSession(uint64_t sessionPtr)

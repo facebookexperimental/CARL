@@ -323,12 +323,23 @@ namespace carl::descriptor
         constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
         const auto& wristPose =
             isLeftHanded ? sample.LeftWristPose.value() : sample.RightWristPose.value();
-        const auto& jointPoses =
-            isLeftHanded ? sample.LeftHandJointPoses.value() : sample.RightHandJointPoses.value();
 
-        auto zAxis = (jointPoses[Z_AXIS_JOINT].translation() - wristPose.translation()).normalized();
-        auto yAxis = zAxis.cross((jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).cross(zAxis)).normalized();
-        return math::LookTransform(zAxis, yAxis, wristPose.translation());
+        const auto& jointPosesOptional =
+            isLeftHanded ? sample.LeftHandJointPoses : sample.RightHandJointPoses;
+        if (jointPosesOptional.has_value())
+        {
+            const auto& jointPoses = jointPosesOptional.value();
+            auto zAxis = (jointPoses[Z_AXIS_JOINT].translation() - wristPose.translation()).normalized();
+            auto yAxis = zAxis.cross((jointPoses[Y_AXIS_JOINT].translation() - wristPose.translation()).cross(zAxis)).normalized();
+            return math::LookTransform(zAxis, yAxis, wristPose.translation());
+        }
+        else
+        {
+            // TODO: This implicit behavior change based on the presence or absence of joint data is a bug farm. 
+            // Reevaluate the benefit provided by getWristPose, and consider eliminating it altogether if it's
+            // not truly essential.
+            return wristPose;
+        }
     }
 
     constexpr NumberT NULL_TUNING{ 1000000 };
@@ -450,6 +461,115 @@ namespace carl::descriptor
 
     using AnalysisT = std::tuple<std::string, NumberT, NumberT, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>;
 
+    class TimePoint
+    {
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "TimePoint";
+
+    public:
+        static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
+
+        static std::optional<TimePoint> TryCreate(
+            const InputSample& sample,
+            const InputSample&)
+        {
+            return TimePoint{ sample };
+        }
+
+        static NumberT Distance(
+            const TimePoint& a,
+            const TimePoint& a0,
+            const TimePoint& b,
+            const TimePoint& b0,
+            gsl::span<const NumberT> tuning)
+        {
+            return InternalNormalizedDistance(a, a0, b, b0, tuning);
+        }
+
+        static TimePoint Lerp(const TimePoint& a, const TimePoint& b, NumberT t)
+        {
+            TimePoint timepoint{};
+            timepoint.m_timestamp = (NumberT{ 1 } - t) * a.m_timestamp + t * b.m_timestamp;
+            return timepoint;
+        }
+
+        static std::array<NumberT, DEFAULT_TUNING.size()> CalculateTuning(gsl::span<const action::Example> examples)
+        {
+            if (examples.size() < 2)
+            {
+                return DEFAULT_TUNING;
+            }
+
+            auto sequences = createDescriptorSequencesFromExamples<TimePoint>(examples, DEFAULT_TUNING);
+            auto extendedSequences = createDescriptorSequencesFromExamples<TimePoint>(examples, DEFAULT_TUNING, 1.);
+
+            auto tuning = DEFAULT_TUNING;
+            for (size_t idx = 0; idx < tuning.size(); ++idx)
+            {
+                NumberT maxAverageConnectionCost = 0;
+                for (const auto& extendedSequence : extendedSequences)
+                {
+                    for (const auto& sequence : sequences)
+                    {
+                        auto distanceFunction = [idx](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                            return InternalRawDistance(a, a0, b, b0);
+                        };
+                        auto result = DynamicTimeWarping::Match<const TimePoint>(extendedSequence, sequence, distanceFunction);
+                        maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
+                    }
+                }
+                tuning[idx] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[idx]);
+            }
+            return tuning;
+        }
+
+        template<bool NormalizeDistance>
+        static auto Analyze(
+            gsl::span<const TimePoint> target,
+            gsl::span<const TimePoint> query,
+            gsl::span<const NumberT> tuning)
+        {
+            std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
+            results[0] = { ANALYSIS_DIMENSION_NAME, IDENTICALITY_THRESHOLD, tuning.front(), {} };
+            auto& rows = std::get<3>(results[0]);
+            auto distanceFunction = [tuning](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                if constexpr (NormalizeDistance)
+                {
+                    return InternalNormalizedDistance(a, a0, b, b0, tuning);
+                }
+                else
+                {
+                    return InternalRawDistance(a, a0, b, b0);
+                }
+                };
+            auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
+            DynamicTimeWarping::Match<const TimePoint, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
+            return results;
+        }
+
+        TimePoint() = default;
+
+    private:
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.1 };
+        static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
+        NumberT m_timestamp{};
+
+        TimePoint(const InputSample& sample)
+            : m_timestamp{ static_cast<NumberT>(sample.Timestamp) }
+        {}
+
+        static NumberT InternalRawDistance(const TimePoint& a, const TimePoint& a0, const TimePoint& b, const TimePoint& b0)
+        {
+            const auto deltaA = a.m_timestamp - a0.m_timestamp;
+            const auto deltaB = b.m_timestamp - b0.m_timestamp;
+            return std::abs(deltaA - deltaB);
+        }
+
+        static NumberT InternalNormalizedDistance(const TimePoint& a, const TimePoint& a0, const TimePoint& b, const TimePoint& b0, gsl::span<const NumberT> tuning)
+        {
+            return normalizeDistance(InternalRawDistance(a, a0, b, b0), tuning.front());
+        }
+    };
+
     template<Handedness Handedness>
     class HandShape
     {
@@ -531,7 +651,7 @@ namespace carl::descriptor
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
             {
-                NumberT maxConnectionCost = 0;
+                NumberT maxAverageConnectionCost = 0;
                 for (const auto& extendedSequence : extendedSequences)
                 {
                     for (const auto& sequence : sequences)
@@ -540,10 +660,10 @@ namespace carl::descriptor
                             return InternalRawDistance(idx, a, b);
                         };
                         auto result = DynamicTimeWarping::Match<const HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
-                        maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                        maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                     }
                 }
-                tuning[idx] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[idx]);
+                tuning[idx] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[idx]);
             }
             return tuning;
         }
@@ -570,7 +690,7 @@ namespace carl::descriptor
                     }
                 };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const HandShape<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+                DynamicTimeWarping::Match<const HandShape<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             }
             return results;
         }
@@ -578,7 +698,7 @@ namespace carl::descriptor
         HandShape() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.01 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.005 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         static inline constexpr NumberT CANONICAL_NORMALIZATION_LENGTH{ 0.1 };
         std::array<trivial::Point, JOINTS.size()> m_positions{};
@@ -678,7 +798,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -687,10 +807,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -714,7 +834,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
@@ -813,7 +933,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -822,10 +942,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -849,7 +969,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const WristRotation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const WristRotation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
@@ -950,7 +1070,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -959,10 +1079,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -986,7 +1106,7 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
@@ -1088,7 +1208,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -1097,10 +1217,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, a0, b, b0);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -1124,14 +1244,14 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
         EgocentricWristDisplacement() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.06 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.02 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_position{};
         trivial::Transform m_inverseEts{};
@@ -1222,7 +1342,7 @@ namespace carl::descriptor
             auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, 1.);
 
             auto tuning = DEFAULT_TUNING;
-            NumberT maxConnectionCost = 0;
+            NumberT maxAverageConnectionCost = 0;
             for (const auto& extendedSequence : extendedSequences)
             {
                 for (const auto& sequence : sequences)
@@ -1231,10 +1351,10 @@ namespace carl::descriptor
                         return InternalRawDistance(a, b);
                     };
                     auto result = DynamicTimeWarping::Match<const EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
-                    maxConnectionCost = std::max<NumberT>(result.MaxConnectionCost, maxConnectionCost);
+                    maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
-            tuning[0] = std::max(maxConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
+            tuning[0] = std::max(maxAverageConnectionCost / IDENTICALITY_THRESHOLD, DEFAULT_TUNING[0]);
             return tuning;
         }
 
@@ -1258,14 +1378,14 @@ namespace carl::descriptor
                 }
             };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
         }
 
         EgocentricRelativeWristPosition() = default;
 
     private:
-        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.06 };
+        static inline constexpr NumberT IDENTICALITY_THRESHOLD{ 0.02 };
         static inline constexpr auto normalizeDistance{ createDistanceNormalizationFunction(IDENTICALITY_THRESHOLD) };
         trivial::Point m_egocentricRelativeWristPosition{};
 
@@ -1353,7 +1473,7 @@ namespace carl::descriptor
                     return Distance(a, a0, b, b0, tuning);
                 };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, rowsCallback);
+                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
                 return arrayConcat(underlyingAnalysis, results);
             }
             else
@@ -1569,12 +1689,15 @@ namespace carl::descriptor
     using HandPose = CombinedDescriptorT<HandShape<Handedness>, EgocentricWristOrientation<Handedness>>;
 
     template<Handedness Handedness>
-    using HandGesture = CombinedDescriptorT<HandPose<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
+    using WristTrajectory = CombinedDescriptorT<TimePoint, EgocentricWristDisplacement<Handedness>>;
+
+    template<Handedness Handedness>
+    using HandGesture = CombinedDescriptorT<HandPose<Handedness>, WristTrajectory<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
 
     using TwoHandGesture = CombinedDescriptorT<HandGesture<Handedness::LeftHanded>, HandGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 
     template<Handedness Handedness>
-    using ControllerGesture = CombinedDescriptorT<EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>, EgocentricWristDisplacement<Handedness>>;
+    using ControllerGesture = CombinedDescriptorT<WristTrajectory<Handedness>, EgocentricWristOrientation<Handedness>, WristRotation<Handedness>, EgocentricWristTranslation<Handedness>>;
 
     using TwoControllerGesture = CombinedDescriptorT<ControllerGesture<Handedness::LeftHanded>, ControllerGesture<Handedness::RightHanded>, EgocentricRelativeWristPosition>;
 }

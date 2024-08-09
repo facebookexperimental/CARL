@@ -141,7 +141,7 @@ namespace carl::action
             RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, NumberT sensitivity)
                 : Recognizer::Impl{ session, sensitivity }
                 , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
-                    [this](gsl::span<const DescriptorT> sequence) { handleSequence(sequence); }) }
+                    [this](gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) { handleSequence(sequence, newDescriptorsCount); }) }
                 , m_distanceFunction{ [this](const auto& a, const auto& a0, const auto& b, const auto& b0) { return DescriptorT::Distance(a, a0, b, b0, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
@@ -253,7 +253,7 @@ namespace carl::action
             }
 
         private:
-            typename Signal<gsl::span<const DescriptorT>>::TicketT m_ticket;
+            typename Signal<gsl::span<const DescriptorT>, size_t>::TicketT m_ticket;
             std::vector<std::vector<DescriptorT>> m_templates{};
             std::vector<std::vector<DescriptorT>> m_countertemplates{};
             size_t m_trimmedSequenceLength{};
@@ -307,11 +307,11 @@ namespace carl::action
             {
                 // Select which recording is the "centroid"
                 // TODO: This does not currently take counterexamples into account very well since they won't apply AT the site of the score.
-                NumberT maxScore = calculateScore(m_templates[0]);
+                NumberT maxScore = calculateScore(m_templates[0], m_templates[0].size());
                 size_t maxIdx = 0;
                 for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
-                    NumberT score = calculateScore(m_templates[idx]);
+                    NumberT score = calculateScore(m_templates[idx], m_templates[idx].size());
                     if (score > maxScore)
                     {
                         maxScore = score;
@@ -347,13 +347,14 @@ namespace carl::action
 
             NumberT calculateMatchDistance(
                 gsl::span<const DescriptorT> target,
-                gsl::span<const DescriptorT> query) const
+                gsl::span<const DescriptorT> query,
+                size_t minimumImageEndIdx = 0) const
             {
-                auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction);
+                auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction, minimumImageEndIdx);
                 return result.MatchCost / result.Connections;
             }
 
-            NumberT calculateScore(gsl::span<const DescriptorT> sequence) const
+            NumberT calculateScore(gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) const
             {
                 // Early-out if the provided sequence is too short.
                 if (sequence.size() <= m_trimmedSequenceLength)
@@ -376,12 +377,14 @@ namespace carl::action
                     return 0;
                 }
 
+                const size_t firstNewDescriptorIdx = newDescriptorsCount <= trimmedSequence.size() ? trimmedSequence.size() - newDescriptorsCount : 0;
+
                 // Calculate the base score based on proximity to templates
                 score = std::numeric_limits<NumberT>::lowest();
                 NumberT minDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_templates)
                 {
-                    NumberT distance = calculateMatchDistance(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx);
                     score = std::max(m_scoringFunction(distance), score);
                     minDistance = std::min(distance, minDistance);
                 }
@@ -393,7 +396,7 @@ namespace carl::action
                 NumberT minCounterDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_countertemplates)
                 {
-                    NumberT distance = calculateMatchDistance(trimmedSequence, t);
+                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx);
                     minCounterDistance = std::min(distance, minCounterDistance);
                 }
                 if (minDistance >= minCounterDistance)
@@ -404,9 +407,9 @@ namespace carl::action
                 return score;
             }
 
-            void handleSequence(gsl::span<const DescriptorT> sequence)
+            void handleSequence(gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount)
             {
-                auto score = calculateScore(sequence);
+                auto score = calculateScore(sequence, newDescriptorsCount);
                 if (!m_recognition && score > 0.7)
                 {
                     m_recognition = true;
@@ -449,6 +452,10 @@ namespace carl::action
                 return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             case action::Definition::ActionType::TwoControllerGesture:
                 return std::make_unique<RecognizerImpl<descriptor::TwoControllerGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::LeftWristTrajectory:
+                return std::make_unique<RecognizerImpl<descriptor::WristTrajectory<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+            case action::Definition::ActionType::RightWristTrajectory:
+                return std::make_unique<RecognizerImpl<descriptor::WristTrajectory<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
             default:
                 throw std::runtime_error{ "Unknown definition type" };
             }

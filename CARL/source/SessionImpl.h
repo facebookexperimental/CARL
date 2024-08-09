@@ -23,10 +23,10 @@ namespace carl
     template<typename DescriptorT, typename = std::enable_if_t<std::is_trivially_copyable_v<DescriptorT>>>
     class DescriptorSequence
     {
-        using WeakTableT = arcana::weak_table<typename Signal<gsl::span<const DescriptorT>>::HandlerT>;
+        using WeakTableT = arcana::weak_table<typename Signal<gsl::span<const DescriptorT>, size_t>::HandlerT>;
 
     public:
-        using DescriptorSignalT = Signal<gsl::span<const DescriptorT>>;
+        using DescriptorSignalT = Signal<gsl::span<const DescriptorT>, size_t>;
 
         class Provider : private WeakTableT, public DescriptorSignalT
         {
@@ -40,27 +40,27 @@ namespace carl
 
             void handleInputSamples(gsl::span<const InputSample> samples)
             {
-                bool descriptorsAdded = false;
+                size_t descriptorsAddedCount = 0;
                 for (const auto& sample : samples)
                 {
-                    descriptorsAdded = descriptorsAdded || handleInputSample(sample);
+                    descriptorsAddedCount += handleInputSample(sample);
                 }
 
-                if (descriptorsAdded)
+                if (descriptorsAddedCount > 0)
                 {
                     auto& handlers = *static_cast<WeakTableT*>(this);
-                    handlers.apply_to_all([this](auto& callable) {
-                        gsl::span<const DescriptorT> span{ m_sequence };
-                        callable(span);
+                    gsl::span<const DescriptorT> span{ m_sequence };
+                    handlers.apply_to_all([this, span, descriptorsAddedCount](auto& callable) mutable {
+                        callable(span, descriptorsAddedCount);
                     });
                 }
             }
 
-            bool handleInputSample(const InputSample& sample)
+            size_t handleInputSample(const InputSample& sample)
             {
                 size_t priorSequenceSize = m_sequence.size();
                 descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
-                bool descriptorsAdded = m_sequence.size() > priorSequenceSize;
+                size_t descriptorsAddedCount = m_sequence.size() - priorSequenceSize;
 
                 if (m_sequence.size() > m_sequenceLength)
                 {
@@ -73,7 +73,7 @@ namespace carl
                     m_buffer.swap(m_sequence);
                 }
 
-                return descriptorsAdded;
+                return descriptorsAddedCount;
             }
 
             void supportSequenceOfLength(size_t length)
@@ -115,7 +115,9 @@ namespace carl
         descriptor::TwoHandGesture,
         descriptor::ControllerGesture<descriptor::Handedness::LeftHanded>,
         descriptor::ControllerGesture<descriptor::Handedness::RightHanded>,
-        descriptor::TwoControllerGesture>
+        descriptor::TwoControllerGesture,
+        descriptor::WristTrajectory<descriptor::Handedness::LeftHanded>,
+        descriptor::WristTrajectory<descriptor::Handedness::RightHanded>>
     {
     public:
         Impl(bool singleThreaded);
@@ -140,7 +142,7 @@ namespace carl
         }
 
         template <typename DescriptorT>
-        auto addHandler(std::function<void(gsl::span<const DescriptorT>)> handler)
+        auto addHandler(std::function<void(gsl::span<const DescriptorT>, size_t)> handler)
         {
             return DescriptorSequence<DescriptorT>::Provider::addHandler(std::move(handler));
         }

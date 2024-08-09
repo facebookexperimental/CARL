@@ -26,7 +26,7 @@ namespace carl
         Session(bool singleThreaded = false);
         ~Session();
 
-        void addInput(InputSample);
+        void addInput(const InputSample&);
 
         SchedulerT& callbackScheduler();
         SchedulerT& processingScheduler();
