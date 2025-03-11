@@ -1593,8 +1593,7 @@ namespace carl::descriptor
     class TimestampedDescriptor
     {
     public:
-        using TuningT = typename DescriptorT::TuningT;
-        static constexpr auto DEFAULT_TUNING{ TuningT::DEFAULT_TUNING };
+        static constexpr auto DEFAULT_TUNING{ DescriptorT::DEFAULT_TUNING };
 
         static std::optional<TimestampedDescriptor> TryCreate(
             const InputSample& sample,
