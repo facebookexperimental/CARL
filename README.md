@@ -44,9 +44,30 @@ discussed in this document.
 
 ### Building for Android on with the NDK
 
-These instructions are known to work on Linux. Note that this only works on 
-a full real Linux install; the NDK CMake integration does not currently seem
-to work well on Windows Subsystem for Linux, unfortunately.
+#### Building With Ninja on Windows
+
+By far the easiest way to build for Android on Windows is using [Ninja](https://ninja-build.org/); 
+simply have a Ninja binary in a directory accessible from your PATH, and CMake will be able to find
+it and configure a build from a command like the following:
+
+```
+cmake -G Ninja ../CARL -D CMAKE_SYSTEM_NAME=Android -D CMAKE_ANDROID_ARCH_ABI="arm64-v8a" -D CMAKE_ANDROID_NDK=C:/Microsoft/AndroidNDK/android-ndk-r23c -D CMAKE_ANDROID_STL_TYPE=c++_static
+```
+
+This command uses an NDK directory of `C:/Microsoft/AndroidNDK/android-ndk-r23c`, which is where 
+Visual Studio may put an NDK [if you ask it to install one for you](https://learn.microsoft.com/en-us/windows/android/native-android#use-c-or-c-for-android-game-development).
+If you have the NDK installed elsewhere, simply use that directory path in the command above instead.
+
+Once the build is configured, compiling is as simple as invoking
+
+```
+ninja
+```
+
+#### Building With Make on Linux
+
+Note that this only works on a full real Linux install; the NDK CMake integration does not 
+currently seem to work well on Windows Subsystem for Linux, unfortunately.
 
 1. Download and unzip the [NDK](https://developer.android.com/ndk/downloads).
 1. Set up a CARL repository as described [above](@standard-repo-set-up),
