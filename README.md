@@ -39,7 +39,7 @@ discussed in this document.
    Windows with VS2019 installed, default arguments will generate a Visual
    Studio Solution called `carl.sln`.
    ```
-   cmake ../CARL
+   cmake ..
    ```
 
 ### Building for Android on with the NDK
@@ -51,7 +51,7 @@ simply have a Ninja binary in a directory accessible from your PATH, and CMake w
 it and configure a build from a command like the following:
 
 ```
-cmake -G Ninja ../CARL -D CMAKE_SYSTEM_NAME=Android -D CMAKE_ANDROID_ARCH_ABI="arm64-v8a" -D CMAKE_ANDROID_NDK=C:/Microsoft/AndroidNDK/android-ndk-r23c -D CMAKE_ANDROID_STL_TYPE=c++_static
+cmake -G Ninja .. -D CMAKE_SYSTEM_NAME=Android -D CMAKE_ANDROID_ARCH_ABI="arm64-v8a" -D CMAKE_ANDROID_NDK=C:/Microsoft/AndroidNDK/android-ndk-r23c -D CMAKE_ANDROID_STL_TYPE=c++_static
 ```
 
 This command uses an NDK directory of `C:/Microsoft/AndroidNDK/android-ndk-r23c`, which is where 
@@ -77,7 +77,7 @@ currently seem to work well on Windows Subsystem for Linux, unfortunately.
    If you need to choose Android platform settings other than the 
    defaults, they should likely be specified in this step.
    ```
-   cmake ../CARL -D CMAKE_SYSTEM_NAME=Android -D CMAKE_BUILD_TYPE=Release -D CMAKE_ANDROID_ARCH_ABI="arm64-v8a" -D CMAKE_ANDROID_NDK=[NDK root directory]
+   cmake .. -D CMAKE_SYSTEM_NAME=Android -D CMAKE_BUILD_TYPE=Release -D CMAKE_ANDROID_ARCH_ABI="arm64-v8a" -D CMAKE_ANDROID_NDK=[NDK root directory]
    ```
    **Note:** use of the the `CMAKE_BUILD_TYPE` and `CMAKE_ANDROID_ARCH_ABI` 
    variables as shown above is recommended when building CARL for use as a 
@@ -104,7 +104,7 @@ currently seem to work well on Windows Subsystem for Linux, unfortunately.
 1. Invoke CMake using the Emscripten toolchain to generate a WebAssembly
    build system.
    ```
-   cmake ../CARL -D CMAKE_TOOLCHAIN_FILE=[TODO: Insert directory path here]/Emscripten.cmake
+   cmake .. -D CMAKE_TOOLCHAIN_FILE=[TODO: Insert directory path here]/Emscripten.cmake
    ```
 1. Build the `carl_static_library` target to produce the WebAssembly 
    artifacts. Depending on your Shell's permissions, you may need to 
