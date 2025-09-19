@@ -847,7 +847,6 @@ namespace carl::descriptor
 
         EgocentricWristOrientation(const InputSample& sample, const InputSample&)
         {
-            constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
             auto wristPose = getWristPose<Handedness>(sample);
             auto wristPosition = wristPose.translation();
             auto& hmdPose = sample.HmdPose.value();
@@ -982,7 +981,6 @@ namespace carl::descriptor
 
         WristRotation(const InputSample& sample, const InputSample& priorSample)
         {
-            constexpr bool isLeftHanded = Handedness == Handedness::LeftHanded;
             auto wristPose = getWristPose<Handedness>(sample);
             auto priorWristPose = getWristPose<Handedness>(priorSample);
 

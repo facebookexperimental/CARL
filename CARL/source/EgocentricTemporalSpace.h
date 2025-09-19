@@ -21,7 +21,7 @@ namespace carl
             const VectorT up{ col1.x(), col1.y(), col1.z() };
             const VectorT right{ col0.x(), col0.y(), col0.z() };
 
-            auto zAxis = (origin - ego.translation()).normalized();
+            auto zAxis = (ego.translation() - origin).normalized();
             if (zAxis.dot(zAxis) < 0.00001f)
             {
                 return TransformT::Identity(); // TODO DEBUG
