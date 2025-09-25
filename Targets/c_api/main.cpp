@@ -40,27 +40,27 @@ namespace
 
     static const std::map<carl_InputSample::HAND_JOINT, carl::InputSample::Joint> openXrToCarlJointMap
     {
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_METACARPAL_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandThumb0},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_PROXIMAL_EXT, carl::InputSample::Joint::ThumbFingerBase},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_DISTAL_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandThumb2},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_TIP_EXT, carl::InputSample::Joint::ThumbFingerTip},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_PROXIMAL_EXT, carl::InputSample::Joint::IndexFingerBase},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandIndex2},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_DISTAL_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandIndex3},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_TIP_EXT, carl::InputSample::Joint::IndexFingerTip},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT, carl::InputSample::Joint::MiddleFingerBase},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandMiddle2},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_DISTAL_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandMiddle3},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_TIP_EXT, carl::InputSample::Joint::MiddleFingerTip},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_PROXIMAL_EXT, carl::InputSample::Joint::RingFingerBase},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_INTERMEDIATE_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandRing2},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_DISTAL_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandRing3},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_TIP_EXT, carl::InputSample::Joint::RingFingerTip},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_METACARPAL_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandPinky0},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_PROXIMAL_EXT, carl::InputSample::Joint::LittleFingerBase},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandPinky2},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_DISTAL_EXT, carl::InputSample::Joint::UNUSED_HandJointId_HandPinky3},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_TIP_EXT, carl::InputSample::Joint::LittleFingerTip},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_METACARPAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_METACARPAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_PROXIMAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_DISTAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_TIP_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_PROXIMAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_DISTAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_TIP_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_DISTAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_TIP_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_PROXIMAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_INTERMEDIATE_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_DISTAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_TIP_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_METACARPAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_METACARPAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_PROXIMAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_DISTAL_EXT},
+        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_TIP_EXT},
     };
 
     carl::InputSample convert(const carl_InputSample& input)
@@ -152,6 +152,12 @@ uint64_t carl_startRecording(uint64_t maxSeconds)
 {
     auto* ptr = new carl::action::InProgressRecording(static_cast<size_t>(maxSeconds));
     return reinterpret_cast<uint64_t>(ptr);
+}
+
+void carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSample* sample)
+{
+    auto& inProgressRecording = *reinterpret_cast<carl::action::InProgressRecording*>(inProgressRecordingPtr);
+    inProgressRecording.addSample(convert(*sample));
 }
 
 void carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size)

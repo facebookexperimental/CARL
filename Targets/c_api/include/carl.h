@@ -71,6 +71,7 @@ extern "C"
 
     C_API_EXPORT(uint64_t) carl_getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size);
     C_API_EXPORT(uint64_t) carl_startRecording(uint64_t maxSeconds);
+    C_API_EXPORT(void) carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSample* sample);
     C_API_EXPORT(void) carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size);
     C_API_EXPORT(uint64_t) carl_finishRecording(uint64_t inProgressRecordingPtr);
     C_API_EXPORT(uint64_t) carl_serializeRecording(uint64_t recordingPtr);
