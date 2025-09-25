@@ -357,7 +357,7 @@ namespace carl::action
             NumberT calculateScore(gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) const
             {
                 // Early-out if the provided sequence is too short.
-                if (sequence.size() <= m_trimmedSequenceLength)
+                if (sequence.size() < m_trimmedSequenceLength)
                 {
                     return 0;
                 }
