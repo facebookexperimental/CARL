@@ -21,6 +21,11 @@ namespace carl
 
     namespace math
     {
+        inline float Lerp(const float a, const float b, NumberT t)
+        {
+            return a * (1.f - static_cast<float>(t)) + b * static_cast<float>(t);
+        }
+
         inline TransformT Lerp(const TransformT& a, const TransformT& b, NumberT t)
         {
             VectorT translation = a.translation() * (static_cast<NumberT>(1) - t) + b.translation() * t;
