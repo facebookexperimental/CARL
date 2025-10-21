@@ -78,8 +78,8 @@ namespace carl
         std::optional<TransformT> RightWristPose{};
         std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> LeftHandJointPoses{};
         std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> RightHandJointPoses{};
-        std::optional<std::array<float, static_cast<size_t>(ControllerInput::COUNT)>> LeftControllerInput{};
-        std::optional<std::array<float, static_cast<size_t>(ControllerInput::COUNT)>> RightControllerInput{};
+        std::optional<std::array<NumberT, static_cast<size_t>(ControllerInput::COUNT)>> LeftControllerInput{};
+        std::optional<std::array<NumberT, static_cast<size_t>(ControllerInput::COUNT)>> RightControllerInput{};
 
         static InputSample Lerp(const InputSample& a, const InputSample& b, double t);
     };
