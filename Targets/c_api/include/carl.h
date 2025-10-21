@@ -60,6 +60,19 @@ extern "C"
             } Orientation{};
         };
 
+        struct OptionalControllerState
+        {
+            bool Valid{};
+
+            double PrimaryClick{};
+            double SecondaryClick{};
+            double ThumbstickX{};
+            double ThumbstickY{};
+            double ThumbstickClick{};
+            double SqueezeValue{};
+            double TriggerValue{};
+        };
+
         double Timestamp{};
 
         OptionalTransform HmdPose{};
@@ -67,6 +80,8 @@ extern "C"
         OptionalTransform RightWristPose{};
         OptionalTransform LeftHandJointPoses[HAND_JOINT::COUNT];
         OptionalTransform RightHandJointPoses[HAND_JOINT::COUNT];
+        OptionalControllerState LeftControllerState{};
+        OptionalControllerState RightControllerState{};
     };
 
     C_API_EXPORT(uint64_t) carl_getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size);

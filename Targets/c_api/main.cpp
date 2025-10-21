@@ -128,6 +128,32 @@ namespace
                 }
             }
         }
+        if (input.LeftControllerState.Valid)
+        {
+            sample.LeftControllerInput = 
+                std::array<carl::NumberT, static_cast<size_t>(carl::InputSample::ControllerInput::COUNT)>{
+                static_cast<carl::NumberT>(input.LeftControllerState.PrimaryClick),
+                static_cast<carl::NumberT>(input.LeftControllerState.SecondaryClick),
+                static_cast<carl::NumberT>(input.LeftControllerState.ThumbstickX),
+                static_cast<carl::NumberT>(input.LeftControllerState.ThumbstickY),
+                static_cast<carl::NumberT>(input.LeftControllerState.ThumbstickClick),
+                static_cast<carl::NumberT>(input.LeftControllerState.SqueezeValue),
+                static_cast<carl::NumberT>(input.LeftControllerState.TriggerValue),
+            };
+        }
+        if (input.RightControllerState.Valid)
+        {
+            sample.RightControllerInput =
+                std::array<carl::NumberT, static_cast<size_t>(carl::InputSample::ControllerInput::COUNT)>{
+                static_cast<carl::NumberT>(input.RightControllerState.PrimaryClick),
+                static_cast<carl::NumberT>(input.RightControllerState.SecondaryClick),
+                static_cast<carl::NumberT>(input.RightControllerState.ThumbstickX),
+                static_cast<carl::NumberT>(input.RightControllerState.ThumbstickY),
+                static_cast<carl::NumberT>(input.RightControllerState.ThumbstickClick),
+                static_cast<carl::NumberT>(input.RightControllerState.SqueezeValue),
+                static_cast<carl::NumberT>(input.RightControllerState.TriggerValue),
+            };
+        }
         
         return sample;
     }
