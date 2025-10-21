@@ -13,6 +13,38 @@
 
 namespace carl
 {
+    namespace
+    {
+        template<typename T, size_t Count>
+        void lerpOptionalArray(
+            const std::optional<std::array<T, Count>>& l, 
+            const std::optional<std::array<T, Count>>& r, 
+            double t, 
+            std::optional<std::array<T, Count>>& target)
+        {
+            if (l.has_value() && r.has_value())
+            {
+                gsl::span<const T> lSamples{ l.value() };
+                gsl::span<const T> rSamples{ r.value() };
+                assert(lSamples.size() == rSamples.size());
+                std::array<T, Count> lerped{};
+                for (size_t idx = 0; idx < lSamples.size(); ++idx)
+                {
+                    lerped[idx] = math::Lerp(lSamples[idx], rSamples[idx], static_cast<NumberT>(t));
+                }
+                target = std::move(lerped);
+            }
+            else if (l.has_value())
+            {
+                target = l.value();
+            }
+            else if (r.has_value())
+            {
+                target = r.value();
+            }
+        }
+    }
+
     InputSample::InputSample(Deserialization& deserialization)
     {
         deserialization >> Timestamp;
@@ -21,6 +53,8 @@ namespace carl
         deserialization >> RightWristPose;
         deserialization >> LeftHandJointPoses;
         deserialization >> RightHandJointPoses;
+        deserialization >> LeftControllerInput;
+        deserialization >> RightControllerInput;
     }
 
     void InputSample::serialize(Serialization& serialization) const
@@ -31,6 +65,8 @@ namespace carl
         serialization << RightWristPose;
         serialization << LeftHandJointPoses;
         serialization << RightHandJointPoses;
+        serialization << LeftControllerInput;
+        serialization << RightControllerInput;
     }
 
     InputSample InputSample::Lerp(const InputSample& a, const InputSample& b, double t)
@@ -59,31 +95,11 @@ namespace carl
         result.LeftWristPose = lerpOptional(a.LeftWristPose, b.LeftWristPose, t);
         result.RightWristPose = lerpOptional(a.RightWristPose, b.RightWristPose, t);
 
-        constexpr auto lerpOptionalArray = [](const auto& l, const auto& r, double t, auto& target) {
-            if (l.has_value() && r.has_value())
-            {
-                gsl::span<const TransformT> lSamples{ l.value() };
-                gsl::span<const TransformT> rSamples{ r.value() };
-                assert(lSamples.size() == rSamples.size());
-                std::array<TransformT, static_cast<size_t>(Joint::COUNT)> lerped{};
-                for (size_t idx = 0; idx < lSamples.size(); ++idx)
-                {
-                    lerped[idx] = math::Lerp(lSamples[idx], rSamples[idx], static_cast<NumberT>(t));
-                }
-                target = std::move(lerped);
-            }
-            else if (l.has_value())
-            {
-                target = l.value();
-            }
-            else if (r.has_value())
-            {
-                target = r.value();
-            }
-        };
-
         lerpOptionalArray(a.LeftHandJointPoses, b.LeftHandJointPoses, t, result.LeftHandJointPoses);
         lerpOptionalArray(a.RightHandJointPoses, b.RightHandJointPoses, t, result.RightHandJointPoses);
+
+        lerpOptionalArray(a.LeftControllerInput, b.LeftControllerInput, t, result.LeftControllerInput);
+        lerpOptionalArray(a.RightControllerInput, b.RightControllerInput, t, result.RightControllerInput);
 
         return result;
     }

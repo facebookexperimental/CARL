@@ -51,6 +51,18 @@ namespace carl
             COUNT = 26,
         };
 
+        enum class ControllerInput : uint64_t
+        {
+            XR_KHR_generic_controller_PRIMARY_CLICK,
+            XR_KHR_generic_controller_SECONDARY_CLICK,
+            XR_KHR_generic_controller_THUMBSTICK_X,
+            XR_KHR_generic_controller_THUMBSTICK_Y,
+            XR_KHR_generic_controller_THUMBSTICK_CLICK,
+            XR_KHR_generic_controller_SQUEEZE_VALUE,
+            XR_KHR_generic_controller_TRIGGER_VALUE,
+            COUNT,
+        };
+
         InputSample() = default;
         InputSample(Deserialization& deserialization);
 
@@ -66,6 +78,8 @@ namespace carl
         std::optional<TransformT> RightWristPose{};
         std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> LeftHandJointPoses{};
         std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> RightHandJointPoses{};
+        std::optional<std::array<NumberT, static_cast<size_t>(ControllerInput::COUNT)>> LeftControllerInput{};
+        std::optional<std::array<NumberT, static_cast<size_t>(ControllerInput::COUNT)>> RightControllerInput{};
 
         static InputSample Lerp(const InputSample& a, const InputSample& b, double t);
     };
