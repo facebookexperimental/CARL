@@ -189,7 +189,7 @@ void carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSam
 void carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size)
 {
     auto& inProgressRecording = *reinterpret_cast<carl::action::InProgressRecording*>(inProgressRecordingPtr);
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     inProgressRecording.addSample({ deserialization });
 }
 
@@ -211,7 +211,7 @@ uint64_t carl_serializeRecording(uint64_t recordingPtr)
 
 uint64_t carl_deserializeRecording(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     auto* ptr = new carl::action::Recording(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
@@ -347,7 +347,7 @@ uint64_t carl_serializeDefinition(uint64_t definitionPtr)
 
 uint64_t carl_deserializeDefinition(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     auto* ptr = new carl::action::Definition(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
@@ -414,7 +414,7 @@ void carl_tickCallbacks(uint64_t sessionPtr)
 void carl_addSerializedInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size)
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     carl::InputSample sample{ deserialization };
     session.addInput(sample);
 }

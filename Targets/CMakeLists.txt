@@ -36,7 +36,7 @@ endif()
 
 if(WIN32)
     add_executable(carl_test_console "console/main.cpp")
-    target_link_libraries(carl_test_console PRIVATE carl_core)
+    target_link_libraries(carl_test_console PRIVATE carl_core carl_utilities)
     set_property(TARGET carl_test_console PROPERTY FOLDER "Targets")
     set_property(DIRECTORY ${CMAKE_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT carl_test_console)
 endif()
