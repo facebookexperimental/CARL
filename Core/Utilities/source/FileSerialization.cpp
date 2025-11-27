@@ -354,11 +354,10 @@ namespace carl::utilities
         deserialization >> header;
         if (!header.isValid(FileHeader::FileType::Example))
         {
-            // TODO: Handle non-current versions
-            return{};
+            return TryDeserializeLegacyFile<action::Example>(path);
         }
 
-        return { { Deserialization{deserialization} } };
+        return { { deserialization } };
     }
 
     template<>
@@ -436,11 +435,10 @@ namespace carl::utilities
         deserialization >> header;
         if (!header.isValid(FileHeader::FileType::Definition))
         {
-            // TODO: Handle non-current versions
-            return{};
+            return TryDeserializeLegacyFile<action::Definition>(path);
         }
 
-        return { { carl::Deserialization{deserialization} } };
+        return { { deserialization } };
     }
 
     template<>

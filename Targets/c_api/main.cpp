@@ -8,6 +8,7 @@
 #include "include/carl.h"
 
 #include <carl/Carl.h>
+#include <carl/utilities/FileSerialization.h>
 
 #include <arcana/threading/task.h>
 
@@ -351,6 +352,41 @@ uint64_t carl_deserializeDefinition(uint8_t* bytes, uint64_t size)
     auto* ptr = new carl::action::Definition(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
+
+uint64_t carl_loadExampleFromFile(const char* path)
+{
+    auto loaded = carl::utilities::TryDeserializeFromFile<carl::action::Example>(path);
+    if (!loaded.has_value())
+    {
+        return 0;
+    }
+    auto* ptr = new carl::action::Example(std::move(loaded.value()));
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+void carl_saveExampleToFile(uint64_t examplePtr, const char* path)
+{
+    const auto& example = *reinterpret_cast<carl::action::Example*>(examplePtr);
+    carl::utilities::SerializeToFile<carl::action::Example>(example, path);
+}
+
+uint64_t carl_loadDefinitionFromFile(const char* path)
+{
+    auto loaded = carl::utilities::TryDeserializeFromFile<carl::action::Definition>(path);
+    if (!loaded.has_value())
+    {
+        return 0;
+    }
+    auto* ptr = new carl::action::Definition(std::move(loaded.value()));
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+void carl_saveDefinitionToFile(uint64_t definitionPtr, const char* path)
+{
+    const auto& example = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
+    carl::utilities::SerializeToFile<carl::action::Definition>(example, path);
+}
+
 
 uint64_t carl_getExamplesCount(uint64_t definitionPtr)
 {
