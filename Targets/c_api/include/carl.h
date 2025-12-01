@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -110,6 +117,10 @@ extern "C"
     C_API_EXPORT(void) carl_setDefaultSensitivity(uint64_t definitionPtr, double defaultSensitivity);
     C_API_EXPORT(uint64_t) carl_serializeDefinition(uint64_t definitionPtr);
     C_API_EXPORT(uint64_t) carl_deserializeDefinition(uint8_t* bytes, uint64_t size);
+    C_API_EXPORT(uint64_t) carl_loadExampleFromFile(const char* path);
+    C_API_EXPORT(void) carl_saveExampleToFile(uint64_t examplePtr, const char* path);
+    C_API_EXPORT(uint64_t) carl_loadDefinitionFromFile(const char* path);
+    C_API_EXPORT(void) carl_saveDefinitionToFile(uint64_t definitionPtr, const char* path);
     C_API_EXPORT(uint64_t) carl_getExamplesCount(uint64_t definitionPtr);
     C_API_EXPORT(uint64_t) carl_getExampleAtIdx(uint64_t definitionPtr, uint64_t idx);
     C_API_EXPORT(uint64_t) carl_getCounterexamplesCount(uint64_t definitionPtr);

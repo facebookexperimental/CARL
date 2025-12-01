@@ -8,6 +8,7 @@
 #include "include/carl.h"
 
 #include <carl/Carl.h>
+#include <carl/utilities/FileSerialization.h>
 
 #include <arcana/threading/task.h>
 
@@ -189,7 +190,7 @@ void carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSam
 void carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size)
 {
     auto& inProgressRecording = *reinterpret_cast<carl::action::InProgressRecording*>(inProgressRecordingPtr);
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     inProgressRecording.addSample({ deserialization });
 }
 
@@ -211,7 +212,7 @@ uint64_t carl_serializeRecording(uint64_t recordingPtr)
 
 uint64_t carl_deserializeRecording(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     auto* ptr = new carl::action::Recording(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
@@ -347,10 +348,45 @@ uint64_t carl_serializeDefinition(uint64_t definitionPtr)
 
 uint64_t carl_deserializeDefinition(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     auto* ptr = new carl::action::Definition(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
+
+uint64_t carl_loadExampleFromFile(const char* path)
+{
+    auto loaded = carl::utilities::TryDeserializeFromFile<carl::action::Example>(path);
+    if (!loaded.has_value())
+    {
+        return 0;
+    }
+    auto* ptr = new carl::action::Example(std::move(loaded.value()));
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+void carl_saveExampleToFile(uint64_t examplePtr, const char* path)
+{
+    const auto& example = *reinterpret_cast<carl::action::Example*>(examplePtr);
+    carl::utilities::SerializeToFile<carl::action::Example>(example, path);
+}
+
+uint64_t carl_loadDefinitionFromFile(const char* path)
+{
+    auto loaded = carl::utilities::TryDeserializeFromFile<carl::action::Definition>(path);
+    if (!loaded.has_value())
+    {
+        return 0;
+    }
+    auto* ptr = new carl::action::Definition(std::move(loaded.value()));
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+void carl_saveDefinitionToFile(uint64_t definitionPtr, const char* path)
+{
+    const auto& example = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
+    carl::utilities::SerializeToFile<carl::action::Definition>(example, path);
+}
+
 
 uint64_t carl_getExamplesCount(uint64_t definitionPtr)
 {
@@ -414,7 +450,7 @@ void carl_tickCallbacks(uint64_t sessionPtr)
 void carl_addSerializedInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size)
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    carl::Deserialization deserialization{ bytes };
+    carl::Deserialization deserialization{ bytes, size };
     carl::InputSample sample{ deserialization };
     session.addInput(sample);
 }

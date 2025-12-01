@@ -11,6 +11,8 @@
 
 #include <Eigen/Geometry>
 
+#include <gsl/span>
+
 #include <array>
 #include <cstring>
 #include <optional>
@@ -26,7 +28,7 @@ namespace carl
     class Serialization
     {
     public:
-        Serialization(std::vector<uint8_t>& bytes) 
+        Serialization(std::vector<uint8_t>& bytes)
             : m_bytes{ bytes }
         {
             m_bytes.clear();
@@ -117,31 +119,47 @@ namespace carl
     /// <summary>
     /// Helper class used to deserialize data from byte buffers.
     /// </summary>
-    class Deserialization {
+    class Deserialization
+    {
     public:
-        Deserialization(const uint8_t* bytes)
+        Deserialization(const uint8_t* bytes, size_t length)
             : m_bytes{ bytes }
+            , m_length{ length }
+        {
+        }
+
+        Deserialization(gsl::span<const uint8_t> bytes)
+            : m_bytes{ bytes.data() }
+            , m_length{ bytes.size() }
         {
         }
 
         template<typename T>
         void operator>>(T& data)
         {
+            assertAdequateLength(sizeof(T));
+
             data = *reinterpret_cast<const T*>(m_bytes);
             m_bytes += sizeof(T);
+            m_length -= sizeof(T);
         }
 
         template<typename T>
         void operator>>(std::vector<T>& data)
         {
-            uint64_t vectorSize64;
+            uint64_t vectorSize64{};
             operator>>(vectorSize64);
-            size_t vectorSize = static_cast<size_t>(vectorSize64);
-            data.resize(vectorSize);
 
+            size_t vectorSize = static_cast<size_t>(vectorSize64);
             size_t vectorSizeBytes = vectorSize * sizeof(T);
+
+            assertAdequateLength(vectorSizeBytes);
+
+            data.resize(vectorSize);
             std::memcpy(data.data(), m_bytes, vectorSizeBytes);
+
             m_bytes += vectorSizeBytes;
+            m_length -= vectorSizeBytes;
         }
 
         template<typename T, size_t Count>
@@ -171,8 +189,22 @@ namespace carl
             return *reinterpret_cast<T*>(id);
         }
 
+        size_t remainingBytes() const
+        {
+            return m_length;
+        }
+
     private:
         const uint8_t* m_bytes{};
+        size_t m_length{};
+
+        void assertAdequateLength(size_t length)
+        {
+            if (length > m_length)
+            {
+                throw std::out_of_range{ "Deserialization failed: end of data reached" };
+            }
+        }
     };
 
     template<>
@@ -180,6 +212,7 @@ namespace carl
     {
         data = reinterpret_cast<const char*>(m_bytes);
         m_bytes += data.size() + 1;
+        m_length -= data.size() + 1;
     }
 
     template<>

@@ -23,7 +23,7 @@ namespace
         fileStream.seekg(std::ios::beg);
         fileStream.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
 
-        carl::Deserialization deserialization{ bytes.data() };
+        carl::Deserialization deserialization{ bytes.data(), bytes.size() };
         deserialization >> std::array<uint8_t, 4>{};
         return { carl::Deserialization{deserialization} };
     }
@@ -38,7 +38,7 @@ namespace
         fileStream.seekg(std::ios::beg);
         fileStream.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
 
-        carl::Deserialization deserialization{ bytes.data() };
+        carl::Deserialization deserialization{ bytes.data(), bytes.size() };
         float startTimestamp;
         deserialization >> startTimestamp;
         float endTimestamp;
