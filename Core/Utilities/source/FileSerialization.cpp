@@ -35,11 +35,11 @@ namespace carl::utilities
 
             bool isValid(FileType type) const
             {
-                return 
-                    Magic[0] == 'C' && 
-                    Magic[1] == 'A' && 
-                    Magic[2] == 'R' && 
-                    Magic[3] == 'L' && 
+                return
+                    Magic[0] == 'C' &&
+                    Magic[1] == 'A' &&
+                    Magic[2] == 'R' &&
+                    Magic[3] == 'L' &&
                     Version == VERSION &&
                     Type == type;
             }
@@ -131,7 +131,7 @@ namespace carl::utilities
                     TransformT rightHanded{};
                     rightHanded.fromPositionOrientationScale(translation, rotation, UNIT_SCALE);
                     return rightHanded;
-                };
+                    };
 
                 InputSample sample{};
                 sample.Timestamp = Timestamp;
@@ -187,7 +187,7 @@ namespace carl::utilities
             std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> LeftHandJointPoses{};
             std::optional<std::array<TransformT, static_cast<size_t>(Joint::COUNT)>> RightHandJointPoses{};
         };
-        
+
         /// <summary>
         /// When InputSample switched to OpenXR conventions in 1c47934.
         /// These input legacySamples are right-handed, using OpenXR conventions.
@@ -325,10 +325,23 @@ namespace carl::utilities
 
             return recording;
         }
+
+        std::vector<uint8_t> ReadFileBytes(std::filesystem::path path)
+        {
+            auto length = std::filesystem::file_size(path);
+
+            std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
+            std::vector<uint8_t> bytes{};
+            bytes.resize(static_cast<size_t>(length));
+            fileStream.seekg(std::ios::beg);
+            fileStream.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
+
+            return bytes;
+        }
     }
 
     template<>
-    void SerializeToFile(const carl::action::Example& example, std::filesystem::path path)
+    std::vector<uint8_t> Serialize(const carl::action::Example& example)
     {
         FileHeader header{};
         header.Type = FileHeader::FileType::Example;
@@ -339,45 +352,44 @@ namespace carl::utilities
         serialization << header;
         example.serialize(serialization);
 
+        return bytes;
+    }
+
+    template<>
+    void SerializeToFile(const carl::action::Example& example, std::filesystem::path path)
+    {
+        std::vector<uint8_t> bytes = Serialize(example);
+
         std::ofstream fileStream{ path, std::ios::out | std::ios::binary };
         fileStream.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
         fileStream.close();
     }
 
     template<>
-    std::optional<carl::action::Example> TryDeserializeFromFile(std::filesystem::path path)
+    std::optional<carl::action::Example> TryDeserialize(gsl::span<const uint8_t> bytes)
     {
-        auto length = std::filesystem::file_size(path);
-
-        std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
-        std::vector<uint8_t> bytes{};
-        bytes.resize(static_cast<size_t>(length));
-        fileStream.seekg(std::ios::beg);
-        fileStream.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
-
         carl::Deserialization deserialization{ bytes };
 
         FileHeader header{};
         deserialization >> header;
         if (!header.isValid(FileHeader::FileType::Example))
         {
-            return TryDeserializeLegacyFile<action::Example>(path);
+            return TryDeserializeLegacy<action::Example>(bytes);
         }
 
         return { { deserialization } };
     }
 
     template<>
-    std::optional<carl::action::Example> TryDeserializeLegacyFile(std::filesystem::path path)
+    std::optional<carl::action::Example> TryDeserializeFromFile(std::filesystem::path path)
     {
-        auto length = std::filesystem::file_size(path);
+        std::vector<uint8_t> bytes = ReadFileBytes(path);
+        return TryDeserialize<action::Example>(bytes);
+    }
 
-        std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
-        std::vector<uint8_t> bytes{};
-        bytes.resize(static_cast<size_t>(length));
-        fileStream.seekg(std::ios::beg);
-        fileStream.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
-
+    template<>
+    std::optional<carl::action::Example> TryDeserializeLegacy(gsl::span<const uint8_t> bytes)
+    {
         carl::Deserialization deserialization{ bytes };
         float startTimestamp{};
         deserialization >> startTimestamp;
@@ -393,7 +405,7 @@ namespace carl::utilities
             return {};
         }
 
-        if (recordingBytesLength != length - 12)
+        if (recordingBytesLength != static_cast<int>(bytes.size()) - 12)
         {
             // Early-out if recording bytes length is wrong, which indicates that this is not a supported legacy example file.
             return {};
@@ -409,7 +421,14 @@ namespace carl::utilities
     }
 
     template<>
-    void SerializeToFile(const carl::action::Definition& definition, std::filesystem::path path)
+    std::optional<carl::action::Example> TryDeserializeLegacyFile(std::filesystem::path path)
+    {
+        std::vector<uint8_t> bytes = ReadFileBytes(path);
+        return TryDeserializeLegacy<action::Example>(bytes);
+    }
+
+    template<>
+    std::vector<uint8_t> Serialize(const carl::action::Definition& definition)
     {
         FileHeader header{};
         header.Type = FileHeader::FileType::Definition;
@@ -420,51 +439,50 @@ namespace carl::utilities
         serialization << header;
         definition.serialize(serialization);
 
+        return bytes;
+    }
+
+    template<>
+    void SerializeToFile(const carl::action::Definition& definition, std::filesystem::path path)
+    {
+        std::vector<uint8_t> bytes = Serialize(definition);
+
         std::ofstream fileStream{ path, std::ios::out | std::ios::binary };
         fileStream.write(reinterpret_cast<const char*>(bytes.data()), bytes.size());
         fileStream.close();
     }
 
     template<>
-    std::optional<carl::action::Definition> TryDeserializeFromFile(std::filesystem::path path)
+    std::optional<carl::action::Definition> TryDeserialize(gsl::span<const uint8_t> bytes)
     {
-        auto length = std::filesystem::file_size(path);
-
-        std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
-        std::vector<uint8_t> bytes{};
-        bytes.resize(static_cast<size_t>(length));
-        fileStream.seekg(std::ios::beg);
-        fileStream.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
-
         carl::Deserialization deserialization{ bytes };
 
         FileHeader header{};
         deserialization >> header;
         if (!header.isValid(FileHeader::FileType::Definition))
         {
-            return TryDeserializeLegacyFile<action::Definition>(path);
+            return TryDeserializeLegacy<action::Definition>(bytes);
         }
 
         return { { deserialization } };
     }
 
     template<>
-    std::optional<carl::action::Definition> TryDeserializeLegacyFile(std::filesystem::path path)
+    std::optional<carl::action::Definition> TryDeserializeFromFile(std::filesystem::path path)
     {
-        auto length = std::filesystem::file_size(path);
+        std::vector<uint8_t> bytes = ReadFileBytes(path);
+        return TryDeserialize<action::Definition>(bytes);
+    }
 
-        std::ifstream fileStream{ path.c_str(), std::ios::in | std::ios::binary };
-        std::vector<uint8_t> bytes{};
-        bytes.resize(static_cast<size_t>(length));
-        fileStream.seekg(std::ios::beg);
-        fileStream.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
-
+    template<>
+    std::optional<carl::action::Definition> TryDeserializeLegacy(gsl::span<const uint8_t> bytes)
+    {
         carl::Deserialization deserialization{ bytes };
 
         int fileSize{};
         deserialization >> fileSize;
 
-        if (fileSize != length - 4)
+        if (fileSize != static_cast<int>(bytes.size()) - 4)
         {
             return {};
         }
@@ -511,5 +529,12 @@ namespace carl::utilities
             return{};
         }
         return definition;
+    }
+
+    template<>
+    std::optional<carl::action::Definition> TryDeserializeLegacyFile(std::filesystem::path path)
+    {
+        std::vector<uint8_t> bytes = ReadFileBytes(path);
+        return TryDeserializeLegacy<action::Definition>(bytes);
     }
 }
