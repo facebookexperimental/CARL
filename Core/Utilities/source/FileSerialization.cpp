@@ -131,7 +131,7 @@ namespace carl::utilities
                     TransformT rightHanded{};
                     rightHanded.fromPositionOrientationScale(translation, rotation, UNIT_SCALE);
                     return rightHanded;
-                    };
+                };
 
                 InputSample sample{};
                 sample.Timestamp = Timestamp;
