@@ -14,6 +14,7 @@ set(SOURCES
     "include/carl/Session.h"
     "include/carl/Signaling.h"
     "include/carl/Types.h"
+    "source/ContractId.h"
     "source/Definition.cpp"
     "source/Descriptor.h"
     "source/DynamicTimeWarping.h"

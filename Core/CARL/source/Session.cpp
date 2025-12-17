@@ -8,7 +8,6 @@
 #include <carl/Session.h>
 
 #include "SessionImpl.h"
-#include "Descriptor.h"
 
 #include <arcana/threading/task.h>
 
