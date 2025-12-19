@@ -11,6 +11,7 @@
 
 #include "carl/Example.h"
 #include "DynamicTimeWarping.h"
+#include "carl/Session.h"
 
 #include <gsl/span>
 
@@ -381,15 +382,15 @@ namespace carl::descriptor
     }
 
     // TODO: Find a better place for this (and everything above it) to live.
-    template<typename DescriptorT>
-    void extendSequence(const InputSample& newSample, std::vector<DescriptorT>& sequence, InputSample& mostRecentSample, gsl::span<const NumberT> tuning)
+    template<typename DescriptorT, typename CallableT>
+    void extendSequence(const InputSample& newSample, std::vector<DescriptorT>& sequence, InputSample& mostRecentSample, gsl::span<const NumberT> tuning, const CallableT& tryCreate)
     {
         constexpr NumberT THRESHOLD{ 0.5 };
 
         // Handle startup, in which case m_mostRecentSample will be a default value.
         if (sequence.empty())
         {
-            auto descriptor = DescriptorT::TryCreate(newSample, newSample);
+            auto descriptor = tryCreate(newSample, newSample);
             if (descriptor.has_value())
             {
                 sequence.emplace_back(std::move(*descriptor));
@@ -403,7 +404,7 @@ namespace carl::descriptor
             //       change them. Might be necessary to mute such descriptors with tuning.
             while (true)
             {
-                auto sampleDesc = DescriptorT::TryCreate(newSample, mostRecentSample);
+                auto sampleDesc = tryCreate(newSample, mostRecentSample);
 
                 // If we weren't able to create a descriptor, stop iterating.
                 if (!sampleDesc.has_value())
@@ -448,8 +449,8 @@ namespace carl::descriptor
         }
     }
 
-    template<typename DescriptorT>
-    std::vector<DescriptorT> createDescriptorSequenceFromRecording(const action::Recording& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning)
+    template<typename DescriptorT, typename CallableT>
+    std::vector<DescriptorT> createDescriptorSequenceFromRecording(const action::Recording& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning, const CallableT& tryCreate)
     {
         std::vector<DescriptorT> sequence{};
 
@@ -463,26 +464,75 @@ namespace carl::descriptor
         }
         do
         {
-            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning);
+            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning, tryCreate);
             ++idx;
         } while (idx < samples.size() && samples[idx].Timestamp < endTimestamp);
 
         return sequence;
     }
 
-    template<typename DescriptorT>
-    std::vector<std::vector<DescriptorT>> createDescriptorSequencesFromExamples(gsl::span<const action::Example> examples, gsl::span<const NumberT> tuning, double padding = 0.)
+    template<typename DescriptorT, typename CallableT>
+    std::vector<std::vector<DescriptorT>> createDescriptorSequencesFromExamples(gsl::span<const action::Example> examples, gsl::span<const NumberT> tuning, const CallableT& tryCreate, double padding = 0.)
     {
         std::vector<std::vector<DescriptorT>> sequences{};
         sequences.reserve(examples.size());
         for (const auto& example : examples)
         {
-            sequences.push_back(createDescriptorSequenceFromRecording<DescriptorT>(example.getRecording(), example.getStartTimestamp() - padding, example.getEndTimestamp() + padding, tuning));
+            sequences.push_back(createDescriptorSequenceFromRecording<DescriptorT>(example.getRecording(), example.getStartTimestamp() - padding, example.getEndTimestamp() + padding, tuning, tryCreate));
         }
         return sequences;
     }
 
     using AnalysisT = std::tuple<std::string, NumberT, NumberT, std::vector<std::vector<DynamicTimeWarping::MatchResult<NumberT>>>>;
+
+    class Custom
+    {
+        static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Custom";
+
+    public:
+        static constexpr std::array<NumberT, 32> DEFAULT_TUNING{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+
+        Custom(std::shared_ptr<void> descriptor, const InternalCustomActionTypeOperations& operations)
+            : m_descriptor{ std::move(descriptor) }
+            , m_operations{ operations }
+        {
+        }
+
+        Custom(const Custom& other)
+            : m_descriptor{ other.m_descriptor }
+            , m_operations{ other.m_operations }
+        {
+        }
+
+        Custom& operator=(const Custom& other)
+        {
+            m_descriptor = other.m_descriptor;
+            assert(&m_operations == &other.m_operations);
+            return *this;
+        }
+
+        static NumberT Distance(const Custom& a, const Custom& a0, const Custom& b, const Custom& b0, gsl::span<const NumberT> tuning)
+        {
+            return a.m_operations.Distance(a.m_descriptor, a0.m_descriptor, b.m_descriptor, b0.m_descriptor, tuning);
+        }
+
+        static Custom Lerp(const Custom& a, const Custom& b, NumberT t)
+        {
+            assert(&a.m_operations == &b.m_operations);
+            auto desc = a.m_operations.Lerp(a.m_descriptor, b.m_descriptor, t);
+            return{ std::move(desc), a.m_operations };
+        }
+
+        // CalculateTuning successfully externalized!
+
+        // Analyze successfully externalized!
+
+        // I'm super worried about TimestampedDescriptor, though. It's not clear to me why it's fine with having all this stuff missing from Custom, unless no Custom one is ever being made. :/
+
+    private:
+        std::shared_ptr<void> m_descriptor{};
+        const InternalCustomActionTypeOperations& m_operations;
+    };
 
     class TimePoint
     {
@@ -522,8 +572,9 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<TimePoint>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<TimePoint>(examples, DEFAULT_TUNING, 1.);
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<TimePoint>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<TimePoint>(examples, DEFAULT_TUNING, tryCreate, 1.);
 
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
@@ -671,8 +722,9 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<HandShape<Handedness>>(examples, DEFAULT_TUNING, tryCreate, 1.);
 
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
@@ -825,9 +877,10 @@ namespace carl::descriptor
             {
                 return DEFAULT_TUNING;
             }
-            
-            auto sequences = createDescriptorSequencesFromExamples<ControllerState<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<ControllerState<Handedness>>(examples, DEFAULT_TUNING, 1.);
+
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<ControllerState<Handedness>>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<ControllerState<Handedness>>(examples, DEFAULT_TUNING, tryCreate, 1.);
             
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
@@ -964,8 +1017,10 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristOrientation<Handedness>>(examples, DEFAULT_TUNING, tryCreate, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxAverageConnectionCost = 0;
@@ -1089,8 +1144,9 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<WristRotation<Handedness>>(examples, DEFAULT_TUNING, tryCreate, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxAverageConnectionCost = 0;
@@ -1222,8 +1278,9 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristTranslation<Handedness>>(examples, DEFAULT_TUNING, tryCreate, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxAverageConnectionCost = 0;
@@ -1360,8 +1417,9 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, 1.);
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricWristDisplacement<Handedness>>(examples, DEFAULT_TUNING, tryCreate, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxAverageConnectionCost = 0;
@@ -1494,8 +1552,9 @@ namespace carl::descriptor
                 return DEFAULT_TUNING;
             }
 
-            auto sequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING);
-            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, 1.);
+            constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
+            auto sequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, tryCreate);
+            auto extendedSequences = createDescriptorSequencesFromExamples<EgocentricRelativeWristPosition>(examples, DEFAULT_TUNING, tryCreate, 1.);
 
             auto tuning = DEFAULT_TUNING;
             NumberT maxAverageConnectionCost = 0;

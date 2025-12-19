@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <carl/ContractId.h>
 #include <carl/Definition.h>
 #include <carl/Session.h>
 #include <carl/Signaling.h>
@@ -24,6 +25,7 @@ namespace carl::action
         class Impl;
 
         Recognizer(Session&, const Definition&);
+        Recognizer(Session&, const Definition&, ContractId<>::IdT);
         ~Recognizer();
 
         double currentScore();

@@ -97,6 +97,13 @@ namespace carl
         });
     }
 
+    ContractId<>::IdT Session::Impl::enableCustomActionType(InternalCustomActionTypeOperations ops)
+    {
+        auto id = ContractId<>::reserveDynamicContractId();
+        m_customActionIdsToOperations.try_emplace(id, std::make_unique<InternalCustomActionTypeOperations>(std::move(ops)));
+        return id;
+    }
+
     Session::Session(bool singleThreaded) 
         : m_impl{ std::make_unique<Impl>(singleThreaded) }
     {
@@ -134,5 +141,10 @@ namespace carl
     void Session::tickCallbacks(arcana::cancellation& token)
     {
         m_impl->tickCallbacks(token);
+    }
+
+    ContractId<>::IdT Session::internalEnableCustomActionType(InternalCustomActionTypeOperations ops)
+    {
+        return m_impl->enableCustomActionType(std::move(ops));
     }
 }

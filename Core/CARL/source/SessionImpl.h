@@ -7,8 +7,9 @@
 
 #pragma once
 
-#include "ContractId.h"
+#include "Descriptor.h"
 
+#include <carl/ContractId.h>
 #include <carl/Example.h>
 #include <carl/InputSample.h>
 #include <carl/Recording.h>
@@ -24,9 +25,8 @@ namespace carl
     {
     public:
         template<typename T, typename... Ts>
-        T& getOrCreateInstance(Ts&&... args)
+        T& getOrCreateInstanceForContractId(ContractId<>::IdT id, Ts&&... args)
         {
-            auto id = ContractId<T>::value();
             auto found = m_contractIdToInstance.find(id);
             if (found == m_contractIdToInstance.end())
             {
@@ -40,6 +40,12 @@ namespace carl
             {
                 return *reinterpret_cast<T*>(found->second());
             }
+        }
+
+        template<typename T, typename... Ts>
+        T& getOrCreateInstance(Ts&&... args)
+        {
+            return getOrCreateInstanceForContractId<T>(ContractId<T>::value(), std::forward<Ts>(args)...);
         }
 
     private:
@@ -57,10 +63,11 @@ namespace carl
         class Provider : private WeakTableT, public DescriptorSignalT
         {
         public:
-            Provider(Signal<gsl::span<const InputSample>>& signal)
+            Provider(Signal<gsl::span<const InputSample>>& signal, InternalCustomActionTypeOperations* operations = nullptr)
                 : DescriptorSignalT{ *static_cast<WeakTableT*>(this) }
             , m_ticket{ signal.addHandler([this](auto samples) { handleInputSamples(samples); }) }
                 , m_sequenceLength{ 10 }
+                , m_operations{ operations }
             {
             }
 
@@ -85,17 +92,36 @@ namespace carl
             size_t handleInputSample(const InputSample& sample)
             {
                 size_t priorSequenceSize = m_sequence.size();
-                descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING);
+                if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                {
+                    auto tryCreate = [this](const InputSample& current, const InputSample& prior) -> std::optional<descriptor::Custom> {
+                        auto desc = m_operations->TryCreate(current, prior);
+                        if (desc.has_value())
+                        {
+                            return descriptor::Custom{ std::move(desc.value()), *m_operations };
+                        }
+                        else
+                        {
+                            return{};
+                        }
+                    };
+                    descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING, tryCreate);
+                }
+                else
+                {
+                    constexpr auto tryCreate = [](const InputSample& newSample, const InputSample& priorSample) { return DescriptorT::TryCreate(newSample, priorSample); };
+                    descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING, tryCreate);
+                }
                 size_t descriptorsAddedCount = m_sequence.size() - priorSequenceSize;
 
                 if (m_sequence.size() > m_sequenceLength)
                 {
-                    // Note: This does dangerous direct memory manipulation to avoid calling a bunch of
-                    // range calls. This is allowable because of the requirement that descriptors be
-                    // trivially copyable, but the behavior has the potential to be subtle and should
-                    // be treated with caution.
                     if constexpr (std::is_trivially_copyable_v<DescriptorT>)
                     {
+                        // Note: This does dangerous direct memory manipulation to avoid calling a bunch of
+                        // range calls. This is allowable because of the requirement that descriptors be
+                        // trivially copyable, but the behavior has the potential to be subtle and should
+                        // be treated with caution.
                         m_buffer.resize(m_sequenceLength);
                         std::memcpy(m_buffer.data(), m_sequence.data() + (m_sequence.size() - m_sequenceLength), sizeof(DescriptorT) * m_sequenceLength);
                         m_buffer.swap(m_sequence);
@@ -120,6 +146,7 @@ namespace carl
             std::vector<DescriptorT> m_sequence{};
             std::vector<DescriptorT> m_buffer{};
             size_t m_sequenceLength{};
+            const InternalCustomActionTypeOperations* m_operations{};
         };
     };
 
@@ -160,7 +187,14 @@ namespace carl
             m_callbackDispatcher.tick(token);
         }
 
-        template <typename DescriptorT>
+        ContractId<>::IdT enableCustomActionType(InternalCustomActionTypeOperations ops);
+
+        const InternalCustomActionTypeOperations& getCustomActionTypeOperations(ContractId<>::IdT id) const
+        {
+            return *m_customActionIdsToOperations.at(id);
+        }
+
+        template<typename DescriptorT, typename = std::enable_if_t<!std::is_same_v<DescriptorT, descriptor::Custom>>>
         auto addHandler(std::function<void(gsl::span<const DescriptorT>, size_t)> handler)
         {
             carl::Signal<gsl::span<const InputSample>>& signal{ *this };
@@ -168,11 +202,27 @@ namespace carl
             return provider.addHandler(std::move(handler));
         }
 
-        template<typename DescriptorT>
+        auto addHandler(std::function<void(gsl::span<const descriptor::Custom>, size_t)> handler, ContractId<>::IdT contractId)
+        {
+            carl::Signal<gsl::span<const InputSample>>& signal{ *this };
+            auto* operations = m_customActionIdsToOperations.at(contractId).get();
+            auto& provider = m_dynamicSequenceProviders.getOrCreateInstanceForContractId<DescriptorSequence<descriptor::Custom>::Provider>(contractId, signal, operations);
+            return provider.addHandler(std::move(handler));
+        }
+
+        template<typename DescriptorT, typename = std::enable_if_t<!std::is_same_v<DescriptorT, descriptor::Custom>>>
         void supportSequenceOfLength(size_t length)
         {
             carl::Signal<gsl::span<const InputSample>>& signal{ *this };
             auto& provider = m_dynamicSequenceProviders.getOrCreateInstance<DescriptorSequence<DescriptorT>::Provider>(signal);
+            return provider.supportSequenceOfLength(length);
+        }
+
+        void supportSequenceOfLength(size_t length, ContractId<>::IdT contractId)
+        {
+            carl::Signal<gsl::span<const InputSample>>& signal{ *this };
+            auto* operations = m_customActionIdsToOperations.at(contractId).get();
+            auto& provider = m_dynamicSequenceProviders.getOrCreateInstanceForContractId<DescriptorSequence<descriptor::Custom>::Provider>(contractId, signal, operations);
             return provider.supportSequenceOfLength(length);
         }
 
@@ -199,5 +249,6 @@ namespace carl
         TypedCollection m_dynamicSequenceProviders{};
         std::function<void(std::string)> m_logger{};
         std::mutex m_loggerMutex{};
+        std::unordered_map<ContractId<>::IdT, std::unique_ptr<InternalCustomActionTypeOperations>> m_customActionIdsToOperations{};
     };
 }

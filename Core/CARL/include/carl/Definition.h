@@ -35,6 +35,7 @@ namespace carl::action
             RightWristTrajectory = 9,
             LeftHandShape = 10,
             RightHandShape = 11,
+            Custom = ~0x0,
         };
 
         Definition(ActionType actionType);

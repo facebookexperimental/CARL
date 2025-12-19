@@ -37,6 +37,7 @@ namespace carl
     {
     public:
         using IdT = internal::ContractIdValue::IdT;
+        static inline constexpr IdT INVALID_ID{ 0 };
         static IdT reserveDynamicContractId()
         {
             return internal::ContractIdValue::next();
@@ -48,6 +49,7 @@ namespace carl
     {
     public:
         using IdT = internal::ContractIdValue::IdT;
+        static inline constexpr IdT INVALID_ID{ 0 };
         static IdT value()
         {
             static auto value{ internal::ContractIdValue::next() };
