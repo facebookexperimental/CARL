@@ -7,17 +7,17 @@
 
 #pragma once
 
-#include "descriptor/CombinedDescriptor.h"
-#include "descriptor/Custom.h"
-#include "descriptor/EgocentricWristDisplacement.h"
-#include "descriptor/ControllerState.h"
-#include "descriptor/EgocentricWristTranslation.h"
-#include "descriptor/EgocentricRelativeWristPosition.h"
-#include "descriptor/TimePoint.h"
-#include "descriptor/EgocentricWristOrientation.h"
-#include "descriptor/WristRotation.h"
-#include "descriptor/HandShape.h"
-#include "descriptor/TimestampedDescriptor.h"
+#include <carl/descriptor/CombinedDescriptor.h>
+#include <carl/descriptor/Custom.h>
+#include <carl/descriptor/EgocentricWristDisplacement.h>
+#include <carl/descriptor/ControllerState.h>
+#include <carl/descriptor/EgocentricWristTranslation.h>
+#include <carl/descriptor/EgocentricRelativeWristPosition.h>
+#include <carl/descriptor/TimePoint.h>
+#include <carl/descriptor/EgocentricWristOrientation.h>
+#include <carl/descriptor/WristRotation.h>
+#include <carl/descriptor/HandShape.h>
+#include <carl/descriptor/TimestampedDescriptor.h>
 
 namespace carl::descriptor
 {

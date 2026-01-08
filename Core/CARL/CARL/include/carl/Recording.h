@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "carl/InputSample.h"
+#include <carl/InputSample.h>
 
 #include <gsl/span>
 

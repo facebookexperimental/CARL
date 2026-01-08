@@ -7,9 +7,9 @@
 
 #pragma once
 
-#include "DescriptorUtils.h"
-#include "SequenceOperations.h"
-#include "Trivial.h"
+#include <carl/descriptor/DescriptorUtils.h>
+#include <carl/descriptor/SequenceOperations.h>
+#include <carl/descriptor/Trivial.h>
 
 namespace carl::descriptor
 {

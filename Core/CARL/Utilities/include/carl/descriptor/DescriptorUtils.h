@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "carl/Example.h"
-#include "DynamicTimeWarping.h"
+#include <carl/InputSample.h>
+#include <carl/DynamicTimeWarping.h>
 
 #include <gsl/span>
 

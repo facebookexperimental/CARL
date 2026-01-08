@@ -5,14 +5,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include <carl/ActionType.h>
 #include <carl/Recognizer.h>
 
-#include "ActionTypeDefinitions.h"
-#include "DynamicTimeWarping.h"
 #include "SessionImpl.h"
-#include "descriptor/SequenceOperations.h"
-#include "descriptor/TimestampedDescriptor.h"
+
+#include <carl/ActionTypeDefinitions.h>
+#include <carl/descriptor/SequenceOperations.h>
+#include <carl/descriptor/TimestampedDescriptor.h>
+#include <carl/DynamicTimeWarping.h>
 
 #include <atomic>
 

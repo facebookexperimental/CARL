@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "descriptor/Custom.h"
-#include "descriptor/SequenceOperations.h"
+#include <carl/descriptor/Custom.h>
+#include <carl/descriptor/SequenceOperations.h>
 
 #include <carl/ContractId.h>
 #include <carl/Example.h>
