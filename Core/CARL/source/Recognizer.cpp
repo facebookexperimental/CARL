@@ -10,6 +10,7 @@
 #include "Descriptor.h"
 #include "DynamicTimeWarping.h"
 #include "SessionImpl.h"
+#include "descriptor/SequenceOperations.h"
 
 #include <atomic>
 
