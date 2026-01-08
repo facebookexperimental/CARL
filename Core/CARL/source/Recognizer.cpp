@@ -5,12 +5,14 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+#include <carl/ActionType.h>
 #include <carl/Recognizer.h>
 
-#include "Descriptor.h"
+#include "ActionTypeDefinitions.h"
 #include "DynamicTimeWarping.h"
 #include "SessionImpl.h"
 #include "descriptor/SequenceOperations.h"
+#include "descriptor/TimestampedDescriptor.h"
 
 #include <atomic>
 
@@ -503,46 +505,7 @@ namespace carl::action
             Session& session,
             const action::Definition& definition)
         {
-            std::vector<action::Example> examples{};
-            std::vector<action::Example> counterexamples{};
-            switch (definition.getDescriptorType())
-            {
-            case action::Definition::ActionType::LeftHandPose:
-                // TODO: This should be done outside here, as part of definition creation. Once that's accomplished, this method can probably be templated.
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::LeftHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightHandPose:
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::RightHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::TwoHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::TwoHandGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftControllerGesture:
-                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightControllerGesture:
-                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::TwoControllerGesture:
-                return std::make_unique<RecognizerImpl<descriptor::TwoControllerGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftWristTrajectory:
-                return std::make_unique<RecognizerImpl<descriptor::WristTrajectory<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightWristTrajectory:
-                return std::make_unique<RecognizerImpl<descriptor::WristTrajectory<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftHandShape:
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandShape<descriptor::Handedness::LeftHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightHandShape:
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandShape<descriptor::Handedness::RightHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            default:
-                throw std::runtime_error{ "Unsupported definition type" };
-            }
+            return ActionTypes::createRecognizerForActionType(definition.getDescriptorType(), session, definition);
         }
 
         std::unique_ptr<action::Recognizer::Impl> createImpl(

@@ -299,7 +299,7 @@ void carl_disposeExample(uint64_t examplePtr)
 
 uint64_t carl_createDefinition(uint64_t descriptorType)
 {
-    auto* ptr = new carl::action::Definition(static_cast<carl::action::Definition::ActionType>(descriptorType));
+    auto* ptr = new carl::action::Definition(static_cast<carl::action::ActionType>(descriptorType));
     return reinterpret_cast<uint64_t>(ptr);
 }
 

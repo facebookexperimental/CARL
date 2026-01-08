@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 set(SOURCES
+    "include/carl/ActionType.h"
     "include/carl/Carl.h"
     "include/carl/ContractId.h"
     "include/carl/Definition.h"
@@ -31,6 +32,7 @@ set(SOURCES
     "source/descriptor/Trivial.h"
     "source/descriptor/Tuning.h"
     "source/descriptor/WristRotation.h"
+    "source/ActionTypeDefinitions.h"
     "source/Definition.cpp"
     "source/Descriptor.h"
     "source/DynamicTimeWarping.h"
