@@ -35,11 +35,11 @@ namespace carl
     }
 
     Session::Impl::Impl(bool singleThreaded)
-        : m_callbackScheduler{ [this](auto&& work) { m_callbackDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); }}
+        : m_callbackScheduler{ [this](auto&& work) { m_callbackDispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work)); } }
         , m_processingScheduler{ [this, singleThreaded]() -> SchedulerT {
             if (singleThreaded)
             {
-                return [](auto&& work) { 
+                return [](auto&& work) {
                     arcana::inline_scheduler(std::forward<std::remove_reference_t<decltype(work)>>(work));
                 };
             }
@@ -50,7 +50,7 @@ namespace carl
                     dispatcher(std::forward<std::remove_reference_t<decltype(work)>>(work));
                 };
             }
-        }()}
+        }() }
     {
     }
 
@@ -62,12 +62,12 @@ namespace carl
     void Session::Impl::addInputSample(const InputSample& inputSample)
     {
         {
-            std::scoped_lock lock{m_samplesMutex};
+            std::scoped_lock lock{ m_samplesMutex };
             m_samples.push_back(inputSample);
         }
         arcana::make_task(processingScheduler(), arcana::cancellation::none(), [this]() {
             {
-                std::scoped_lock lock{m_samplesMutex};
+                std::scoped_lock lock{ m_samplesMutex };
                 if (m_samples.size() > 1) {
                     m_processingSamples.swap(m_samples);
                     m_samples.resize(1);
@@ -78,33 +78,33 @@ namespace carl
             gsl::span<const InputSample> span{ m_processingSamples };
             SignalHandlersT::apply_to_all([span](auto& callable) mutable {
                 callable(span);
-            });
-        }).then(arcana::inline_scheduler, arcana::cancellation::none(), [this](arcana::expected<void, std::exception_ptr> expected) {
-            if (expected.has_error())
-            {
-                try
+                });
+            }).then(arcana::inline_scheduler, arcana::cancellation::none(), [this](arcana::expected<void, std::exception_ptr> expected) {
+                if (expected.has_error())
                 {
-                    std::rethrow_exception(expected.error());
+                    try
+                    {
+                        std::rethrow_exception(expected.error());
+                    }
+                    catch (std::exception& e)
+                    {
+                        arcana::make_task(m_callbackScheduler, arcana::cancellation::none(), [this, message = std::string{ e.what() }]() {
+                            std::scoped_lock lock{ m_loggerMutex };
+                            m_logger(message.c_str());
+                            });
+                    }
                 }
-                catch (std::exception& e)
-                {
-                    arcana::make_task(m_callbackScheduler, arcana::cancellation::none(), [this, message = std::string{ e.what() }]() {
-                        std::scoped_lock lock{ m_loggerMutex };
-                        m_logger(message.c_str());
-                    });
-                }
-            }
-        });
+                });
     }
 
-    ContractId<>::IdT Session::Impl::enableCustomActionType(InternalCustomActionTypeOperations ops)
+    ContractId<>::IdT Session::Impl::enableCustomActionType(internal::CustomActionTypeOperations ops)
     {
         auto id = ContractId<>::reserveDynamicContractId();
-        m_customActionIdsToOperations.try_emplace(id, std::make_unique<InternalCustomActionTypeOperations>(std::move(ops)));
+        m_customActionIdsToOperations.try_emplace(id, std::make_unique<internal::CustomActionTypeOperations>(std::move(ops)));
         return id;
     }
 
-    Session::Session(bool singleThreaded) 
+    Session::Session(bool singleThreaded)
         : m_impl{ std::make_unique<Impl>(singleThreaded) }
     {
     }
@@ -143,7 +143,7 @@ namespace carl
         m_impl->tickCallbacks(token);
     }
 
-    ContractId<>::IdT Session::internalEnableCustomActionType(InternalCustomActionTypeOperations ops)
+    ContractId<>::IdT Session::internalEnableCustomActionType(internal::CustomActionTypeOperations ops)
     {
         return m_impl->enableCustomActionType(std::move(ops));
     }

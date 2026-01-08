@@ -192,7 +192,8 @@ namespace carl::descriptor
 
             Tuple(T&& t, Ts&&... ts)
                 : m_t{ std::forward<T>(t) }, m_tail{ std::forward<Ts>(ts)... }
-            {}
+            {
+            }
 
             template<size_t Idx, typename = std::enable_if_t<Idx != 0 && Idx <= sizeof...(Ts)>>
             auto& get()
@@ -373,7 +374,7 @@ namespace carl::descriptor
             auto lowerBound = tuning * identicalityThreshold;
             auto upperBound = tuning * irreconcilabilityThreshold;
             return std::max<NumberT>(0, std::pow<NumberT>((distance - lowerBound) / (upperBound - lowerBound), 3));
-        };
+            };
     }
 
     constexpr auto createDistanceNormalizationFunction(NumberT identicalityThreshold)
@@ -432,7 +433,7 @@ namespace carl::descriptor
                         // intermediate sample is too distant, continue searching for a nearer sample
                         upper = mid;
                     }
-                    else if (distance < NumberT{ 0.9 } * THRESHOLD)
+                    else if (distance < NumberT{ 0.9 } *THRESHOLD)
                     {
                         // intermediate sample is too close, continue searching for a more distant sample
                         lower = mid;
@@ -492,7 +493,7 @@ namespace carl::descriptor
     public:
         static constexpr std::array<NumberT, 32> DEFAULT_TUNING{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 
-        Custom(std::shared_ptr<void> descriptor, const InternalCustomActionTypeOperations& operations)
+        Custom(std::shared_ptr<void> descriptor, const internal::CustomActionTypeOperations& operations)
             : m_descriptor{ std::move(descriptor) }
             , m_operations{ operations }
         {
@@ -523,15 +524,9 @@ namespace carl::descriptor
             return{ std::move(desc), a.m_operations };
         }
 
-        // CalculateTuning successfully externalized!
-
-        // Analyze successfully externalized!
-
-        // I'm super worried about TimestampedDescriptor, though. It's not clear to me why it's fine with having all this stuff missing from Custom, unless no Custom one is ever being made. :/
-
     private:
         std::shared_ptr<void> m_descriptor{};
-        const InternalCustomActionTypeOperations& m_operations;
+        const internal::CustomActionTypeOperations& m_operations;
     };
 
     class TimePoint
@@ -586,7 +581,7 @@ namespace carl::descriptor
                     {
                         auto distanceFunction = [idx](const auto& a, const auto& a0, const auto& b, const auto& b0) {
                             return InternalRawDistance(a, a0, b, b0);
-                        };
+                            };
                         auto result = DynamicTimeWarping::Match<const TimePoint>(extendedSequence, sequence, distanceFunction);
                         maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                     }
@@ -629,7 +624,8 @@ namespace carl::descriptor
 
         TimePoint(const InputSample& sample)
             : m_timestamp{ static_cast<NumberT>(sample.Timestamp) }
-        {}
+        {
+        }
 
         static NumberT InternalRawDistance(const TimePoint& a, const TimePoint& a0, const TimePoint& b, const TimePoint& b0)
         {
@@ -736,7 +732,7 @@ namespace carl::descriptor
                     {
                         auto distanceFunction = [idx](const auto& a, const auto&, const auto& b, const auto&) {
                             return InternalRawDistance(idx, a, b);
-                        };
+                            };
                         auto result = DynamicTimeWarping::Match<const HandShape<Handedness>>(extendedSequence, sequence, distanceFunction);
                         maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                     }
@@ -748,8 +744,8 @@ namespace carl::descriptor
 
         template<bool NormalizeDistance>
         static auto Analyze(
-            gsl::span<const HandShape<Handedness>> target, 
-            gsl::span<const HandShape<Handedness>> query, 
+            gsl::span<const HandShape<Handedness>> target,
+            gsl::span<const HandShape<Handedness>> query,
             gsl::span<const NumberT> tuning)
         {
             std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
@@ -766,7 +762,7 @@ namespace carl::descriptor
                     {
                         return InternalRawDistance(idx, a, b);
                     }
-                };
+                    };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
                 DynamicTimeWarping::Match<const HandShape<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             }
@@ -881,7 +877,7 @@ namespace carl::descriptor
             constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return TryCreate(current, prior); };
             auto sequences = createDescriptorSequencesFromExamples<ControllerState<Handedness>>(examples, DEFAULT_TUNING, tryCreate);
             auto extendedSequences = createDescriptorSequencesFromExamples<ControllerState<Handedness>>(examples, DEFAULT_TUNING, tryCreate, 1.);
-            
+
             auto tuning = DEFAULT_TUNING;
             for (size_t idx = 0; idx < tuning.size(); ++idx)
             {
@@ -1030,7 +1026,7 @@ namespace carl::descriptor
                 {
                     auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return InternalRawDistance(a, b);
-                    };
+                        };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
@@ -1057,7 +1053,7 @@ namespace carl::descriptor
                 {
                     return InternalRawDistance(a, b);
                 }
-            };
+                };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
             DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
@@ -1156,7 +1152,7 @@ namespace carl::descriptor
                 {
                     auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return InternalRawDistance(a, b);
-                    };
+                        };
                     auto result = DynamicTimeWarping::Match<const WristRotation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
@@ -1183,7 +1179,7 @@ namespace carl::descriptor
                 {
                     return InternalRawDistance(a, b);
                 }
-            };
+                };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
             DynamicTimeWarping::Match<const WristRotation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
@@ -1290,7 +1286,7 @@ namespace carl::descriptor
                 {
                     auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return InternalRawDistance(a, b);
-                    };
+                        };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
@@ -1317,7 +1313,7 @@ namespace carl::descriptor
                 {
                     return InternalRawDistance(a, b);
                 }
-            };
+                };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
             DynamicTimeWarping::Match<const EgocentricWristTranslation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
@@ -1429,7 +1425,7 @@ namespace carl::descriptor
                 {
                     auto distanceFunction = [](const auto& a, const auto& a0, const auto& b, const auto& b0) {
                         return InternalRawDistance(a, a0, b, b0);
-                    };
+                        };
                     auto result = DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>>(extendedSequence, sequence, distanceFunction);
                     maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
@@ -1456,7 +1452,7 @@ namespace carl::descriptor
                 {
                     return InternalRawDistance(a, a0, b, b0);
                 }
-            };
+                };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
             DynamicTimeWarping::Match<const EgocentricWristDisplacement<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
@@ -1490,7 +1486,7 @@ namespace carl::descriptor
             auto bPos = b0.m_inverseEts * b.m_position;
             return aPos.distance(bPos);
         }
-        
+
         static NumberT InternalNormalizedDistance(
             const EgocentricWristDisplacement& a,
             const EgocentricWristDisplacement& a0,
@@ -1564,7 +1560,7 @@ namespace carl::descriptor
                 {
                     auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
                         return InternalRawDistance(a, b);
-                    };
+                        };
                     auto result = DynamicTimeWarping::Match<const EgocentricRelativeWristPosition>(extendedSequence, sequence, distanceFunction);
                     maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
@@ -1591,7 +1587,7 @@ namespace carl::descriptor
                 {
                     return InternalRawDistance(a, b);
                 }
-            };
+                };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
             DynamicTimeWarping::Match<const EgocentricRelativeWristPosition, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
             return results;
@@ -1650,9 +1646,9 @@ namespace carl::descriptor
         }
 
         static NumberT Distance(
-            const CombinedDescriptor& a, 
+            const CombinedDescriptor& a,
             const CombinedDescriptor& a0,
-            const CombinedDescriptor& b, 
+            const CombinedDescriptor& b,
             const CombinedDescriptor& b0,
             gsl::span<const NumberT> tuning)
         {
@@ -1686,7 +1682,7 @@ namespace carl::descriptor
                 auto& rows = std::get<3>(results[0]);
                 auto distanceFunction = [tuning](const auto& a, const auto& a0, const auto& b, const auto& b0) {
                     return Distance(a, a0, b, b0, tuning);
-                };
+                    };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
                 DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
                 return arrayConcat(underlyingAnalysis, results);
@@ -1772,8 +1768,8 @@ namespace carl::descriptor
 
         template<size_t Idx, bool NormalizeDistance, typename T, typename... RemainderT>
         static auto InternalAnalyze(
-            gsl::span<const CombinedDescriptor> target, 
-            gsl::span<const CombinedDescriptor> query, 
+            gsl::span<const CombinedDescriptor> target,
+            gsl::span<const CombinedDescriptor> query,
             gsl::span<const NumberT> tuning)
         {
             std::vector<T> targetDescriptors{};
@@ -1791,7 +1787,7 @@ namespace carl::descriptor
             }
 
             auto descriptorTuning = TuningT::template getTuning<T>(tuning);
-            
+
             auto results = T::template Analyze<NormalizeDistance>(targetDescriptors, queryDescriptors, descriptorTuning);
             if constexpr (sizeof...(RemainderT) > 0)
             {
@@ -1846,8 +1842,8 @@ namespace carl::descriptor
 
         template<bool NormalizeDistance>
         static auto Analyze(
-            gsl::span<const TimestampedDescriptor> target, 
-            gsl::span<const TimestampedDescriptor> query, 
+            gsl::span<const TimestampedDescriptor> target,
+            gsl::span<const TimestampedDescriptor> query,
             gsl::span<const NumberT> tuning)
         {
             std::vector<DescriptorT> targetDescriptors{};
@@ -1886,11 +1882,12 @@ namespace carl::descriptor
         TimestampedDescriptor(DescriptorT underlyingDescriptor, double timestamp)
             : m_underlyingDescriptor{ std::move(underlyingDescriptor) }
             , m_timestamp{ timestamp }
-        {}
+        {
+        }
     };
 
-// TODO: Revise how this is done as part of the work to break up Descriptor.h
-//#define ENABLE_TIMESTAMPED_ANALYSIS
+    // TODO: Revise how this is done as part of the work to break up Descriptor.h
+    //#define ENABLE_TIMESTAMPED_ANALYSIS
 #ifdef ENABLE_TIMESTAMPED_ANALYSIS
     template<typename... Ts>
     using CombinedDescriptorT = TimestampedDescriptor<CombinedDescriptor<Ts...>>;

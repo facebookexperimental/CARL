@@ -33,7 +33,7 @@ namespace carl
                 auto outerPtr = std::make_unique<T>(std::forward<Ts>(args)...);
                 auto inserted = m_contractIdToInstance.try_emplace(id, [ptr{ std::move(outerPtr) }]() -> void* {
                     return ptr.get();
-                });
+                    });
                 return *reinterpret_cast<T*>(inserted.first->second());
             }
             else
@@ -63,7 +63,7 @@ namespace carl
         class Provider : private WeakTableT, public DescriptorSignalT
         {
         public:
-            Provider(Signal<gsl::span<const InputSample>>& signal, InternalCustomActionTypeOperations* operations = nullptr)
+            Provider(Signal<gsl::span<const InputSample>>& signal, internal::CustomActionTypeOperations* operations = nullptr)
                 : DescriptorSignalT{ *static_cast<WeakTableT*>(this) }
             , m_ticket{ signal.addHandler([this](auto samples) { handleInputSamples(samples); }) }
                 , m_sequenceLength{ 10 }
@@ -104,7 +104,7 @@ namespace carl
                         {
                             return{};
                         }
-                    };
+                        };
                     descriptor::extendSequence(sample, m_sequence, m_mostRecentSample, DescriptorT::DEFAULT_TUNING, tryCreate);
                 }
                 else
@@ -146,7 +146,7 @@ namespace carl
             std::vector<DescriptorT> m_sequence{};
             std::vector<DescriptorT> m_buffer{};
             size_t m_sequenceLength{};
-            const InternalCustomActionTypeOperations* m_operations{};
+            const internal::CustomActionTypeOperations* m_operations{};
         };
     };
 
@@ -187,9 +187,9 @@ namespace carl
             m_callbackDispatcher.tick(token);
         }
 
-        ContractId<>::IdT enableCustomActionType(InternalCustomActionTypeOperations ops);
+        ContractId<>::IdT enableCustomActionType(internal::CustomActionTypeOperations ops);
 
-        const InternalCustomActionTypeOperations& getCustomActionTypeOperations(ContractId<>::IdT id) const
+        const internal::CustomActionTypeOperations& getCustomActionTypeOperations(ContractId<>::IdT id) const
         {
             return *m_customActionIdsToOperations.at(id);
         }
@@ -249,6 +249,6 @@ namespace carl
         TypedCollection m_dynamicSequenceProviders{};
         std::function<void(std::string)> m_logger{};
         std::mutex m_loggerMutex{};
-        std::unordered_map<ContractId<>::IdT, std::unique_ptr<InternalCustomActionTypeOperations>> m_customActionIdsToOperations{};
+        std::unordered_map<ContractId<>::IdT, std::unique_ptr<internal::CustomActionTypeOperations>> m_customActionIdsToOperations{};
     };
 }
