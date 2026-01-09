@@ -368,9 +368,6 @@ namespace carl::utilities
     template<>
     std::optional<carl::action::Example> TryDeserialize(gsl::span<const uint8_t> bytes)
     {
-        // TODO: After version 1, Recognizer will no longer expandExamples implicitly, which was an
-        // assumption for [Left|Right]HandPose and [Left|Right]HandShape action types. Consequently,
-        // that expansion must be done here, as part of import, for versions 1 and legacy.
         carl::Deserialization deserialization{ bytes };
 
         FileHeader header{};
