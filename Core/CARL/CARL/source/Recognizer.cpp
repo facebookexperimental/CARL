@@ -10,6 +10,7 @@
 #include "SessionImpl.h"
 
 #include <carl/ActionTypeDefinitions.h>
+#include <carl/descriptor/Custom.h>
 #include <carl/descriptor/SequenceOperations.h>
 #include <carl/descriptor/TimestampedDescriptor.h>
 #include <carl/DynamicTimeWarping.h>

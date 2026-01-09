@@ -8,6 +8,7 @@
 #pragma once
 
 #include <carl/ContractId.h>
+
 #include <arcana/functional/inplace_function.h>
 
 #include <unordered_map>

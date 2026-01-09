@@ -7,9 +7,9 @@
 
 #pragma once
 
-#include "carl/ContractId.h"
-#include "carl/InputSample.h"
-#include "carl/Example.h"
+#include <carl/ContractId.h>
+#include <carl/InputSample.h>
+#include <carl/Example.h>
 
 #include <arcana/threading/dispatcher.h>
 

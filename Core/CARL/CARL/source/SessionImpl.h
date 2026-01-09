@@ -20,8 +20,6 @@
 #include <arcana/threading/dispatcher.h>
 #include <arcana/threading/task.h>
 
-#include <unordered_map>
-
 namespace carl
 {
     template<typename DescriptorT>
