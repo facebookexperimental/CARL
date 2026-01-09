@@ -20,6 +20,7 @@ add_library(carl_core ${SOURCES})
 target_include_directories(carl_core PUBLIC "include")
 target_link_libraries(carl_core 
     PRIVATE carl_core_utilities 
+    PRIVATE carl_action_type_definitions
     INTERFACE carl_core_foundation
     INTERFACE carl_action_type
     INTERFACE carl_input_sample)
