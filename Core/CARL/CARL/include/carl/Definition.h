@@ -7,11 +7,13 @@
 
 #pragma once
 
-#include "carl/Example.h"
-#include "carl/Serialization.h"
+#include <carl/Example.h>
+#include <carl/Serialization.h>
 
 namespace carl::action
 {
+    enum class ActionType : uint64_t;
+
     /// <summary>
     /// CARL's fundamental characterization of an action which can be recognized. An 
     /// action::Definition consists of a set of one or more Examples of the action
@@ -21,22 +23,6 @@ namespace carl::action
     class Definition
     {
     public:
-        enum class ActionType : uint64_t
-        {
-            LeftHandPose = 0,
-            LeftHandGesture = 1,
-            RightHandPose = 2,
-            RightHandGesture = 3,
-            TwoHandGesture = 4,
-            LeftControllerGesture = 5,
-            RightControllerGesture = 6,
-            TwoControllerGesture = 7,
-            LeftWristTrajectory = 8,
-            RightWristTrajectory = 9,
-            LeftHandShape = 10,
-            RightHandShape = 11,
-        };
-
         Definition(ActionType actionType);
         Definition(Deserialization&);
 

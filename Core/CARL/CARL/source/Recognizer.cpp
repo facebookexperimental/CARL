@@ -7,9 +7,13 @@
 
 #include <carl/Recognizer.h>
 
-#include "Descriptor.h"
-#include "DynamicTimeWarping.h"
 #include "SessionImpl.h"
+
+#include <carl/ActionTypeDefinitions.h>
+#include <carl/descriptor/Custom.h>
+#include <carl/descriptor/SequenceOperations.h>
+#include <carl/descriptor/TimestampedDescriptor.h>
+#include <carl/DynamicTimeWarping.h>
 
 #include <atomic>
 
@@ -112,9 +116,10 @@ namespace carl::action
         friend class action::Recognizer;
 
     public:
-        Impl(Session& session, NumberT sensitivity)
+        Impl(Session& session, NumberT sensitivity, ContractId<>::IdT customContractId)
             : m_sessionImpl{ Session::Impl::getFromSession(session) }
             , m_sensitivity{ sensitivity }
+            , m_customContractId{ customContractId }
         {
         }
 
@@ -130,18 +135,31 @@ namespace carl::action
         std::atomic<NumberT> m_currentScore{};
         std::unique_ptr<Recording> m_canonicalRecording{};
         NumberT m_sensitivity{};
+        ContractId<>::IdT m_customContractId{ ContractId<>::INVALID_ID };
     };
 
     namespace
     {
+        template<typename DescriptorT>
+        auto addHandlerToSession(Session& session, std::function<void(gsl::span<const DescriptorT>, size_t)> handler, ContractId<>::IdT customContractId)
+        {
+            if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+            {
+                return Session::Impl::getFromSession(session).addHandler(std::move(handler), customContractId);
+            }
+            else
+            {
+                return Session::Impl::getFromSession(session).addHandler<DescriptorT>(std::move(handler));
+            }
+        }
+
         template <typename DescriptorT>
         class RecognizerImpl final : public action::Recognizer::Impl
         {
         public:
-            RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, NumberT sensitivity)
-                : Recognizer::Impl{ session, sensitivity }
-                , m_ticket{ Session::Impl::getFromSession(session).addHandler<DescriptorT>(
-                    [this](gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) { handleSequence(sequence, newDescriptorsCount); }) }
+            RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, NumberT sensitivity, ContractId<>::IdT customContractId = ContractId<>::INVALID_ID)
+                : Recognizer::Impl{ session, sensitivity, customContractId }
+                , m_ticket{ addHandlerToSession<DescriptorT>(session, [this](gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) { handleSequence(sequence, newDescriptorsCount); }, customContractId) }
                 , m_distanceFunction{ [this](const auto& a, const auto& a0, const auto& b, const auto& b0) { return DescriptorT::Distance(a, a0, b, b0, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
@@ -162,7 +180,15 @@ namespace carl::action
                 auto mostRecentSample = samples.front();
                 for (const auto& sample : recording.getSamples())
                 {
-                    descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning);
+                    if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                    {
+                        throw std::runtime_error{ "TODO: Not implemented" };
+                    }
+                    else
+                    {
+                        constexpr auto tryCreate = [](const InputSample& newSample, const InputSample& priorSample) { return descriptor::TimestampedDescriptor<DescriptorT>::TryCreate(newSample, priorSample); };
+                        descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning, tryCreate);
+                    }
                 }
 
                 std::vector<DescriptorT> sequence{};
@@ -201,13 +227,22 @@ namespace carl::action
                     }
                 }
 
-                return{ recording, startT - epsilonT, endT + epsilonT};
+                return{ recording, startT - epsilonT, endT + epsilonT };
             }
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
             {
                 auto inspector = recording.getInspector();
-                auto targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING);
+                std::vector<DescriptorT> targetSequence{};
+                if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                {
+                    throw std::runtime_error{ "TODO: Not implemented" };
+                }
+                else
+                {
+                    constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return DescriptorT::TryCreate(current, prior); };
+                    targetSequence = descriptor::createDescriptorSequenceFromRecording<DescriptorT>(recording, inspector.startTimestamp(), inspector.endTimestamp(), DescriptorT::DEFAULT_TUNING, tryCreate);
+                }
 
                 const auto outputAnalysis = [&output, &targetSequence](auto analysis, std::string label, const auto& querySequence, size_t idx) {
                     for (const auto& [name, identicality, tuning, rows] : analysis)
@@ -247,8 +282,15 @@ namespace carl::action
                 for (size_t idx = 0; idx < m_templates.size(); ++idx)
                 {
                     const auto& t = m_templates[idx];
-                    outputAnalysis(DescriptorT::template Analyze<false>(targetSequence, t, m_tuning), "Raw Distance", t, idx);
-                    outputAnalysis(DescriptorT::template Analyze<true>(targetSequence, t, m_tuning), "Normalized Distance", t, idx);
+                    if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                    {
+                        throw std::runtime_error{ "TODO: Not implemented" };
+                    }
+                    else
+                    {
+                        outputAnalysis(DescriptorT::template Analyze<false>(targetSequence, t, m_tuning), "Raw Distance", t, idx);
+                        outputAnalysis(DescriptorT::template Analyze<true>(targetSequence, t, m_tuning), "Normalized Distance", t, idx);
+                    }
                 }
             }
 
@@ -264,8 +306,29 @@ namespace carl::action
 
             void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
-                m_templates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(examples, m_tuning);
-                m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning);
+                if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                {
+                    const auto& ops = m_sessionImpl.getCustomActionTypeOperations(m_customContractId);
+                    auto tryCreate = [this, &ops](const InputSample& current, const InputSample& prior) -> std::optional<descriptor::Custom> {
+                        auto desc = ops.TryCreate(current, prior);
+                        if (desc.has_value())
+                        {
+                            return{ { std::move(desc.value()), ops } };
+                        }
+                        else
+                        {
+                            return{};
+                        }
+                    };
+                    m_templates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(examples, m_tuning, tryCreate);
+                    m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning, tryCreate);
+                }
+                else
+                {
+                    constexpr auto tryCreate = [](const InputSample& current, const InputSample& prior) { return DescriptorT::TryCreate(current, prior); };
+                    m_templates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(examples, m_tuning, tryCreate);
+                    m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning, tryCreate);
+                }
 
                 // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
                 for (const auto& t : m_templates)
@@ -277,12 +340,27 @@ namespace carl::action
                     m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * ct.size()) / 4);
                 }
 
-                m_sessionImpl.supportSequenceOfLength<DescriptorT>(2 * m_trimmedSequenceLength);
+                if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                {
+                    m_sessionImpl.supportSequenceOfLength(2 * m_trimmedSequenceLength, m_customContractId);
+                }
+                else
+                {
+                    m_sessionImpl.supportSequenceOfLength<DescriptorT>(2 * m_trimmedSequenceLength);
+                }
             }
 
             void calculateTuning(gsl::span<const Example> examples)
             {
-                m_tuning = DescriptorT::CalculateTuning(examples);
+                if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                {
+                    const auto& ops = m_sessionImpl.getCustomActionTypeOperations(m_customContractId);
+                    m_tuning = ops.CalculateTuning(examples);
+                }
+                else
+                {
+                    m_tuning = DescriptorT::CalculateTuning(examples);
+                }
             }
 
             void createUnitScoringFunction()
@@ -424,54 +502,86 @@ namespace carl::action
             }
         };
 
+        // Anonymous namespace to contain recognizer factory block.
+        namespace
+        {
+            using RecognizerFactoryT = stdext::inplace_function<std::unique_ptr<Recognizer::Impl>(Session&, const Definition&)>;
+
+            template<typename...>
+            struct GetFactoriesForAllActionTypes;
+
+            template<typename T>
+            struct GetFactoriesForAllActionTypes<T>
+            {
+                static inline void addToMap(std::unordered_map<ContractId<>::IdT, RecognizerFactoryT>& map)
+                {
+                    auto id = ContractId<typename T::Descriptor>::value();
+                    auto factory = [](auto& session, const auto& definition) {
+                        if constexpr (T::ExpandExamples)
+                        {
+                            auto examples = expandExamples(definition.getExamples());
+                            auto counterexamples = expandExamples(definition.getCounterexamples());
+                            return std::make_unique<RecognizerImpl<typename T::Descriptor>>(session, examples, counterexamples, definition.DefaultSensitivity);
+                        }
+                        else
+                        {
+                            return std::make_unique<RecognizerImpl<typename T::Descriptor>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+                        }
+                        };
+                    map.try_emplace(id, factory);
+                }
+            };
+
+            template<typename T, typename T1, typename... Ts>
+            struct GetFactoriesForAllActionTypes<T, T1, Ts...>
+            {
+                static inline void addToMap(std::unordered_map<ContractId<>::IdT, RecognizerFactoryT>& map)
+                {
+                    GetFactoriesForAllActionTypes<T>::addToMap(map);
+                    GetFactoriesForAllActionTypes<T1, Ts...>::addToMap(map);
+                }
+            };
+
+            template<typename...>
+            struct GetFactoriesForActionTypeSet;
+
+            template<typename... Ts>
+            struct GetFactoriesForActionTypeSet<ActionTypeSet<Ts...>>
+            {
+                static inline std::unordered_map<ContractId<>::IdT, RecognizerFactoryT> getMap()
+                {
+                    std::unordered_map<ContractId<>::IdT, RecognizerFactoryT> map{};
+                    GetFactoriesForAllActionTypes<Ts...>::addToMap(map);
+                    return map;
+                }
+            };
+        }
+
         std::unique_ptr<action::Recognizer::Impl> createImpl(
             Session& session,
             const action::Definition& definition)
         {
-            std::vector<action::Example> examples{};
-            std::vector<action::Example> counterexamples{};
-            switch (definition.getDescriptorType())
-            {
-            case action::Definition::ActionType::LeftHandPose:
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::LeftHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightHandPose:
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandPose<descriptor::Handedness::RightHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::HandGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::TwoHandGesture:
-                return std::make_unique<RecognizerImpl<descriptor::TwoHandGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftControllerGesture:
-                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightControllerGesture:
-                return std::make_unique<RecognizerImpl<descriptor::ControllerGesture<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::TwoControllerGesture:
-                return std::make_unique<RecognizerImpl<descriptor::TwoControllerGesture>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftWristTrajectory:
-                return std::make_unique<RecognizerImpl<descriptor::WristTrajectory<descriptor::Handedness::LeftHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightWristTrajectory:
-                return std::make_unique<RecognizerImpl<descriptor::WristTrajectory<descriptor::Handedness::RightHanded>>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            case action::Definition::ActionType::LeftHandShape:
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandShape<descriptor::Handedness::LeftHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            case action::Definition::ActionType::RightHandShape:
-                examples = expandExamples(definition.getExamples());
-                counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<descriptor::HandShape<descriptor::Handedness::RightHanded>>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            default:
-                throw std::runtime_error{ "Unknown definition type" };
-            }
+            thread_local std::unordered_map<ContractId<>::IdT, RecognizerFactoryT> factories{ GetFactoriesForActionTypeSet<ActionTypes>::getMap() };
+            return ActionTypes::createRecognizerForActionType(definition.getDescriptorType(), session, definition, factories);
+        }
+
+        std::unique_ptr<action::Recognizer::Impl> createImpl(
+            Session& session,
+            const action::Definition& definition,
+            ContractId<>::IdT customContractId)
+        {
+            return std::make_unique<RecognizerImpl<descriptor::Custom>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity, customContractId);
         }
     }
 
     action::Recognizer::Recognizer(Session& session, const action::Definition& definition)
         : m_impl{ createImpl(session, definition) }
+        , whenRecognitionChangedSignal{ m_impl->m_whenRecognitionChangedHandlers }
+    {
+    }
+
+    action::Recognizer::Recognizer(Session& session, const action::Definition& definition, ContractId<>::IdT customActionTypeId)
+        : m_impl{ createImpl(session, definition, customActionTypeId) }
         , whenRecognitionChangedSignal{ m_impl->m_whenRecognitionChangedHandlers }
     {
     }

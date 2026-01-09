@@ -66,39 +66,39 @@ namespace
             outputDirectory = executionDirectory / outputDirectory;
         }
 
-        carl::action::Definition::ActionType definitionType{};
+        carl::action::ActionType definitionType{};
         std::string definitionTypeArg{ argv[1] };
         if (definitionTypeArg == "lhp")
         {
-            definitionType = carl::action::Definition::ActionType::LeftHandPose;
+            definitionType = carl::action::ActionType::LeftHandPose;
         }
         else if (definitionTypeArg == "rhp")
         {
-            definitionType = carl::action::Definition::ActionType::RightHandPose;
+            definitionType = carl::action::ActionType::RightHandPose;
         }
         else if (definitionTypeArg == "lhg")
         {
-            definitionType = carl::action::Definition::ActionType::LeftHandGesture;
+            definitionType = carl::action::ActionType::LeftHandGesture;
         }
         else if (definitionTypeArg == "rhg")
         {
-            definitionType = carl::action::Definition::ActionType::RightHandGesture;
+            definitionType = carl::action::ActionType::RightHandGesture;
         }
         else if (definitionTypeArg == "thg")
         {
-            definitionType = carl::action::Definition::ActionType::TwoHandGesture;
+            definitionType = carl::action::ActionType::TwoHandGesture;
         }
         else if (definitionTypeArg == "lcg")
         {
-            definitionType = carl::action::Definition::ActionType::LeftControllerGesture;
+            definitionType = carl::action::ActionType::LeftControllerGesture;
         }
         else if (definitionTypeArg == "rcg")
         {
-            definitionType = carl::action::Definition::ActionType::RightControllerGesture;
+            definitionType = carl::action::ActionType::RightControllerGesture;
         }
         else if (definitionTypeArg == "tcg")
         {
-            definitionType = carl::action::Definition::ActionType::TwoControllerGesture;
+            definitionType = carl::action::ActionType::TwoControllerGesture;
         }
 
         enum class State

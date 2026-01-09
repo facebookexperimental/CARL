@@ -487,7 +487,7 @@ namespace carl::utilities
             return {};
         }
 
-        action::Definition::ActionType actionType{};
+        action::ActionType actionType{};
         deserialization >> actionType;
         action::Definition definition{ actionType };
 

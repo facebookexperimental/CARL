@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <carl/ActionType.h>
 #include <carl/Definition.h>
 #include <carl/Example.h>
 #include <carl/InputSample.h>
