@@ -8,6 +8,8 @@
 #pragma once
 
 #include <carl/ActionType.h>
+#include <carl/ContractId.h>
+#include <carl/descriptor/SequenceOperations.h>
 
 namespace carl::action
 {
@@ -22,33 +24,26 @@ namespace carl::action
     template<typename... AssociationsT>
     struct ActionTypeSet
     {
-        static inline std::unique_ptr<action::Recognizer::Impl> createRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition)
+        template<typename RecognizerFactoriesT>
+        static inline std::unique_ptr<action::Recognizer::Impl> createRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
         {
-            return internalCreateRecognizerForActionType<AssociationsT...>(actionType, session, definition);
+            return internalCreateRecognizerForActionType<RecognizerFactoriesT, AssociationsT...>(actionType, session, definition, factories);
         }
 
     private:
-        template<typename AssociationT>
-        static inline std::unique_ptr<action::Recognizer::Impl> createRecognizer(Session& session, const Definition& definition)
+        template<typename RecognizerFactoriesT, typename AssociationT>
+        static inline std::unique_ptr<action::Recognizer::Impl> createRecognizer(Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
         {
-            if constexpr (AssociationT::ExpandExamples)
-            {
-                auto examples = expandExamples(definition.getExamples());
-                auto counterexamples = expandExamples(definition.getCounterexamples());
-                return std::make_unique<RecognizerImpl<AssociationT::Descriptor>>(session, examples, counterexamples, definition.DefaultSensitivity);
-            }
-            else
-            {
-                return std::make_unique<RecognizerImpl<AssociationT::Descriptor>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
-            }
+            auto& factory = factories.at(ContractId<typename AssociationT::Descriptor>::value());
+            return factory(session, definition);
         }
 
-        template<typename T>
-        static inline std::unique_ptr<action::Recognizer::Impl> internalCreateRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition)
+        template<typename RecognizerFactoriesT, typename T>
+        static inline std::unique_ptr<action::Recognizer::Impl> internalCreateRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
         {
             if (actionType == T::Action)
             {
-                return createRecognizer<T>(session, definition);
+                return createRecognizer<RecognizerFactoriesT, T>(session, definition, factories);
             }
             else
             {
@@ -56,16 +51,16 @@ namespace carl::action
             }
         }
 
-        template<typename T, typename T1, typename... Ts>
-        static inline std::unique_ptr<action::Recognizer::Impl> internalCreateRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition)
+        template<typename RecognizerFactoriesT, typename T, typename T1, typename... Ts>
+        static inline std::unique_ptr<action::Recognizer::Impl> internalCreateRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
         {
             if (actionType == T::Action)
             {
-                return createRecognizer<T>(session, definition);
+                return createRecognizer<RecognizerFactoriesT, T>(session, definition, factories);
             }
             else
             {
-                return internalCreateRecognizerForActionType<T1, Ts...>(actionType, session, definition);
+                return internalCreateRecognizerForActionType<RecognizerFactoriesT, T1, Ts...>(actionType, session, definition, factories);
             }
         }
     };

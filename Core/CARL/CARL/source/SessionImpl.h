@@ -10,49 +10,20 @@
 #include <carl/descriptor/Custom.h>
 #include <carl/descriptor/SequenceOperations.h>
 
-#include <carl/ContractId.h>
 #include <carl/Example.h>
 #include <carl/InputSample.h>
 #include <carl/Recording.h>
 #include <carl/Session.h>
 #include <carl/Signaling.h>
+#include <carl/TypedCollection.h>
 
 #include <arcana/threading/dispatcher.h>
 #include <arcana/threading/task.h>
 
+#include <unordered_map>
+
 namespace carl
 {
-    class TypedCollection
-    {
-    public:
-        template<typename T, typename... Ts>
-        T& getOrCreateInstanceForContractId(ContractId<>::IdT id, Ts&&... args)
-        {
-            auto found = m_contractIdToInstance.find(id);
-            if (found == m_contractIdToInstance.end())
-            {
-                auto outerPtr = std::make_unique<T>(std::forward<Ts>(args)...);
-                auto inserted = m_contractIdToInstance.try_emplace(id, [ptr{ std::move(outerPtr) }]() -> void* {
-                    return ptr.get();
-                    });
-                return *reinterpret_cast<T*>(inserted.first->second());
-            }
-            else
-            {
-                return *reinterpret_cast<T*>(found->second());
-            }
-        }
-
-        template<typename T, typename... Ts>
-        T& getOrCreateInstance(Ts&&... args)
-        {
-            return getOrCreateInstanceForContractId<T>(ContractId<T>::value(), std::forward<Ts>(args)...);
-        }
-
-    private:
-        std::unordered_map<size_t, stdext::inplace_function<void* (), stdext::InplaceFunctionDefaultCapacity, alignof(std::max_align_t), false>> m_contractIdToInstance{};
-    };
-
     template<typename DescriptorT>
     class DescriptorSequence
     {
@@ -199,7 +170,7 @@ namespace carl
         auto addHandler(std::function<void(gsl::span<const DescriptorT>, size_t)> handler)
         {
             carl::Signal<gsl::span<const InputSample>>& signal{ *this };
-            auto& provider = m_dynamicSequenceProviders.getOrCreateInstance<DescriptorSequence<DescriptorT>::Provider>(signal);
+            auto& provider = m_dynamicSequenceProviders.getOrCreateInstance<typename DescriptorSequence<DescriptorT>::Provider>(signal);
             return provider.addHandler(std::move(handler));
         }
 
@@ -207,7 +178,7 @@ namespace carl
         {
             carl::Signal<gsl::span<const InputSample>>& signal{ *this };
             auto* operations = m_customActionIdsToOperations.at(contractId).get();
-            auto& provider = m_dynamicSequenceProviders.getOrCreateInstanceForContractId<DescriptorSequence<descriptor::Custom>::Provider>(contractId, signal, operations);
+            auto& provider = m_dynamicSequenceProviders.getOrCreateInstanceForContractId<typename DescriptorSequence<descriptor::Custom>::Provider>(contractId, signal, operations);
             return provider.addHandler(std::move(handler));
         }
 
@@ -215,7 +186,7 @@ namespace carl
         void supportSequenceOfLength(size_t length)
         {
             carl::Signal<gsl::span<const InputSample>>& signal{ *this };
-            auto& provider = m_dynamicSequenceProviders.getOrCreateInstance<DescriptorSequence<DescriptorT>::Provider>(signal);
+            auto& provider = m_dynamicSequenceProviders.getOrCreateInstance<typename DescriptorSequence<DescriptorT>::Provider>(signal);
             return provider.supportSequenceOfLength(length);
         }
 
@@ -223,7 +194,7 @@ namespace carl
         {
             carl::Signal<gsl::span<const InputSample>>& signal{ *this };
             auto* operations = m_customActionIdsToOperations.at(contractId).get();
-            auto& provider = m_dynamicSequenceProviders.getOrCreateInstanceForContractId<DescriptorSequence<descriptor::Custom>::Provider>(contractId, signal, operations);
+            auto& provider = m_dynamicSequenceProviders.getOrCreateInstanceForContractId<typename DescriptorSequence<descriptor::Custom>::Provider>(contractId, signal, operations);
             return provider.supportSequenceOfLength(length);
         }
 

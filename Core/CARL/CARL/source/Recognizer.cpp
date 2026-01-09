@@ -501,11 +501,67 @@ namespace carl::action
             }
         };
 
+        // Anonymous namespace to contain recognizer factory block.
+        namespace
+        {
+            using RecognizerFactoryT = stdext::inplace_function<std::unique_ptr<Recognizer::Impl>(Session&, const Definition&)>;
+
+            template<typename...>
+            struct GetFactoriesForAllActionTypes;
+
+            template<typename T>
+            struct GetFactoriesForAllActionTypes<T>
+            {
+                static inline void addToMap(std::unordered_map<ContractId<>::IdT, RecognizerFactoryT>& map)
+                {
+                    auto id = ContractId<typename T::Descriptor>::value();
+                    auto factory = [](auto& session, const auto& definition) {
+                        if constexpr (T::ExpandExamples)
+                        {
+                            auto examples = expandExamples(definition.getExamples());
+                            auto counterexamples = expandExamples(definition.getCounterexamples());
+                            return std::make_unique<RecognizerImpl<typename T::Descriptor>>(session, examples, counterexamples, definition.DefaultSensitivity);
+                        }
+                        else
+                        {
+                            return std::make_unique<RecognizerImpl<typename T::Descriptor>>(session, definition.getExamples(), definition.getCounterexamples(), definition.DefaultSensitivity);
+                        }
+                        };
+                    map.try_emplace(id, factory);
+                }
+            };
+
+            template<typename T, typename T1, typename... Ts>
+            struct GetFactoriesForAllActionTypes<T, T1, Ts...>
+            {
+                static inline void addToMap(std::unordered_map<ContractId<>::IdT, RecognizerFactoryT>& map)
+                {
+                    GetFactoriesForAllActionTypes<T>::addToMap(map);
+                    GetFactoriesForAllActionTypes<T1, Ts...>::addToMap(map);
+                }
+            };
+
+            template<typename...>
+            struct GetFactoriesForActionTypeSet;
+
+            template<typename... Ts>
+            struct GetFactoriesForActionTypeSet<ActionTypeSet<Ts...>>
+            {
+                static inline std::unordered_map<ContractId<>::IdT, RecognizerFactoryT> getMap()
+                {
+                    std::unordered_map<ContractId<>::IdT, RecognizerFactoryT> map{};
+                    GetFactoriesForAllActionTypes<Ts...>::addToMap(map);
+                    return map;
+                }
+            };
+        }
+
         std::unique_ptr<action::Recognizer::Impl> createImpl(
             Session& session,
             const action::Definition& definition)
         {
-            return ActionTypes::createRecognizerForActionType(definition.getDescriptorType(), session, definition);
+            thread_local std::unordered_map<ContractId<>::IdT, RecognizerFactoryT> factories{ GetFactoriesForActionTypeSet<ActionTypes>::getMap() };
+            return ActionTypes::createRecognizerForActionType(definition.getDescriptorType(), session, definition, factories);
         }
 
         std::unique_ptr<action::Recognizer::Impl> createImpl(
