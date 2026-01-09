@@ -8,7 +8,6 @@
 #pragma once
 
 #include <carl/ActionType.h>
-#include <carl/Descriptor.h>
 
 namespace carl::action
 {

@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include "carl/Example.h"
-
 #include <gsl/span>
 
 namespace carl::descriptor
@@ -80,8 +78,8 @@ namespace carl::descriptor
         }
     }
 
-    template<typename DescriptorT, typename CallableT>
-    std::vector<DescriptorT> createDescriptorSequenceFromRecording(const action::Recording& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning, const CallableT& tryCreate)
+    template<typename DescriptorT, typename RecordingT, typename CallableT>
+    std::vector<DescriptorT> createDescriptorSequenceFromRecording(const RecordingT& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning, const CallableT& tryCreate)
     {
         std::vector<DescriptorT> sequence{};
 
@@ -102,8 +100,8 @@ namespace carl::descriptor
         return sequence;
     }
 
-    template<typename DescriptorT, typename CallableT>
-    std::vector<std::vector<DescriptorT>> createDescriptorSequencesFromExamples(gsl::span<const action::Example> examples, gsl::span<const NumberT> tuning, const CallableT& tryCreate, double padding = 0.)
+    template<typename DescriptorT, typename ExampleT, typename CallableT>
+    std::vector<std::vector<DescriptorT>> createDescriptorSequencesFromExamples(gsl::span<const ExampleT> examples, gsl::span<const NumberT> tuning, const CallableT& tryCreate, double padding = 0.)
     {
         std::vector<std::vector<DescriptorT>> sequences{};
         sequences.reserve(examples.size());

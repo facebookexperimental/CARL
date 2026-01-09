@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "carl/Types.h"
+#include <carl/Types.h>
 
 #include <array>
 

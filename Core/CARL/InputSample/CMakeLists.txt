@@ -9,7 +9,7 @@ set(SOURCES
 
 add_library(carl_input_sample ${SOURCES})
 target_include_directories(carl_input_sample PUBLIC "include")
-target_link_libraries(carl_input_sample PUBLIC carl_core_utilities)
+target_link_libraries(carl_input_sample PUBLIC carl_core_foundation)
 set_property(TARGET carl_input_sample PROPERTY FOLDER "CARL")
 if (MSVC)
     target_compile_options(carl_input_sample PRIVATE /bigobj)

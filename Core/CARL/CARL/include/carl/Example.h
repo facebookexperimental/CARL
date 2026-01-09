@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "carl/Recording.h"
-#include "carl/Serialization.h"
+#include <carl/Recording.h>
+#include <carl/Serialization.h>
 
 namespace carl::action
 {

@@ -5,7 +5,7 @@
 
 add_library(carl_core_foundation INTERFACE)
 target_include_directories(carl_core_foundation INTERFACE "include")
-target_link_libraries(carl_core_foundation INTERFACE eigen)
+target_link_libraries(carl_core_foundation INTERFACE arcana eigen)
 set_property(TARGET carl_core_foundation PROPERTY FOLDER "CARL")
 if (MSVC)
     target_compile_options(carl_core_foundation INTERFACE /bigobj)

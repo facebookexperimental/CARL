@@ -5,7 +5,7 @@
 
 add_library(carl_core_utilities INTERFACE)
 target_include_directories(carl_core_utilities INTERFACE "include")
-target_link_libraries(carl_core_utilities INTERFACE arcana carl_core_foundation carl_input_sample)
+target_link_libraries(carl_core_utilities INTERFACE carl_action_type carl_input_sample)
 set_property(TARGET carl_core_utilities PROPERTY FOLDER "CARL")
 if (MSVC)
     target_compile_options(carl_core_utilities INTERFACE /bigobj)

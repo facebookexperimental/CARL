@@ -7,7 +7,10 @@
 
 #pragma once
 
-#include "DescriptorUtils.h"
+#include <carl/descriptor/DescriptorUtils.h>
+
+#include <array>
+#include <memory>
 
 namespace carl::descriptor
 {

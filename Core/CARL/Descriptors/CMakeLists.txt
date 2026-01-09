@@ -5,7 +5,7 @@
 
 add_library(carl_descriptors INTERFACE)
 target_include_directories(carl_descriptors INTERFACE "include")
-target_link_libraries(carl_descriptors INTERFACE carl_core_utilities carl_input_sample)
+target_link_libraries(carl_descriptors INTERFACE carl_core_utilities)
 set_property(TARGET carl_descriptors PROPERTY FOLDER "CARL")
 if (MSVC)
     target_compile_options(carl_descriptors INTERFACE /bigobj)
