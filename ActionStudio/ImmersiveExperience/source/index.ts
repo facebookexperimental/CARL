@@ -1,4 +1,5 @@
-import { Engine, FreeCamera, HemisphericLight, MeshBuilder, Scene, Vector3 } from "@babylonjs/core";
+import { Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, PhysicsAggregate, PhysicsShapeType, Scene, Vector3 } from "@babylonjs/core";
+import HavokPhysics from "@babylonjs/havok";
 
 export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
     const engine = new Engine(canvas, true);
@@ -14,26 +15,22 @@ export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
     const scene = new Scene(engine);
     var camera = new FreeCamera("camera1", new Vector3(0, 5, -10), scene);
 
-    // This targets the camera to scene origin
     camera.setTarget(Vector3.Zero());
-
-    // This attaches the camera to the canvas
     camera.attachControl(canvas, true);
 
-    // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
     var light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
-
-    // Default intensity is 1. Let's dim the light a small amount
     light.intensity = 0.7;
 
-    // Our built-in 'sphere' shape.
     var sphere = MeshBuilder.CreateSphere("sphere", {diameter: 2, segments: 32}, scene);
+    sphere.position.y = 4;
+    var ground = MeshBuilder.CreateGround("ground", {width: 10, height: 10}, scene);
 
-    // Move the sphere upward 1/2 its height
-    sphere.position.y = 1;
-
-    // Our built-in 'ground' shape.
-    var ground = MeshBuilder.CreateGround("ground", {width: 6, height: 6}, scene);
+    HavokPhysics().then((havok) => {
+        var hk = new HavokPlugin(true, havok);
+        scene.enablePhysics(new Vector3(0, -9.8, 0), hk);
+        var sphereAggregate = new PhysicsAggregate(sphere, PhysicsShapeType.SPHERE, { mass: 1, restitution:0.75}, scene);
+        var groundAggregate = new PhysicsAggregate(ground, PhysicsShapeType.BOX, { mass: 0 }, scene);
+    });
 
     engine.runRenderLoop(() => {
         scene.render();
