@@ -1,0 +1,22 @@
+{
+  "name": "carl-actionstudio-ghpages",
+  "version": "1.0.0",
+  "description": "GitHub Pages site for CARL Action Studio",
+  "scripts": {
+    "build": "esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs",
+    "start": "esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs --watch",
+    "deploy": "gh-pages -d docs"
+  },
+  "author": "syntheticmagus",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
+  },
+  "devDependencies": {
+    "carl-actionstudio-nativeintegration": "file:../NativeIntegration",
+    "carl-actionstudio-immersiveexperience": "file:../ImmersiveExperience",
+    "esbuild": "^0.27.2",
+    "gh-pages": "^3.2.3"
+  }
+}

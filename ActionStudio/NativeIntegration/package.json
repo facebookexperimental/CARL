@@ -1,0 +1,11 @@
+{
+  "name": "carl-actionstudio-nativeintegration",
+  "version": "1.0.0",
+  "description": "Integration with CARL C++ library.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "syntheticmagus",
+  "license": "MIT"
+}
