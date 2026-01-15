@@ -1,0 +1,16 @@
+{
+  "name": "carl-actionstudio",
+  "version": "1.0.0",
+  "description": "Parent package for easy Action Studio development.",
+  "scripts": {
+    "install": "concurrently \"npm run install --prefix NativeIntegration\" \"npm run install --prefix ImmersiveExperience\" \"npm run install --prefix GithubPagesSite\"",
+    "start": "concurrently \"npm run start --prefix NativeIntegration\" \"npm run start --prefix ImmersiveExperience\" \"npm run start --prefix GithubPagesSite\"",
+    "build": "npm run build --prefix NativeIntegration && npm run build --prefix ImmersiveExperience && npm run build --prefix GithubPagesSite"
+  },
+  "author": "syntheticmagus",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "recursive-install": "^1.4.0"
+  }
+}
