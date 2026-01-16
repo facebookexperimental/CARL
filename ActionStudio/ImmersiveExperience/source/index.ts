@@ -1,11 +1,13 @@
-import { Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, Nullable, Observable, Observer, PhysicsAggregate, PhysicsMotionType, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRSessionManager } from "@babylonjs/core";
+import { Clamp, Engine, FreeCamera, HavokPlugin, HemisphericLight, Matrix, MeshBuilder, Nullable, Observable, Observer, PhysicsAggregate, PhysicsMotionType, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRSessionManager } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 
 class HandPinchGrabber extends TransformNode {
     public onGrabChanged: Observable<boolean> = new Observable<boolean>();
 
     private _isGrabbing: boolean = false;
-    private _pinchThreshold: number = 0.01;
+    private _grabFrameCount: number = 0;
+    private static readonly GRAB_FRAMES_TO_CONFIRM: number = 4;
+    private _pinchThreshold: number = 0.03;
     private _frameObserver: Observer<XRFrame>;
     private _sessionManager: WebXRSessionManager;
 
@@ -18,17 +20,27 @@ class HandPinchGrabber extends TransformNode {
         const indexPosition = new Vector3();
         const thumbPosition = new Vector3();
         this._frameObserver = this._sessionManager.onXRFrameObservable.add(() => {
-            indexPosition.copyFrom(hand.getJointMesh(WebXRHandJoint.INDEX_FINGER_TIP)!.absolutePosition);
-            thumbPosition.copyFrom(hand.getJointMesh(WebXRHandJoint.THUMB_TIP)!.absolutePosition);
+            let index = hand.getJointMesh(WebXRHandJoint.INDEX_FINGER_TIP)!;
+            let thumb = hand.getJointMesh(WebXRHandJoint.THUMB_TIP)!;
+            indexPosition.copyFrom(index.absolutePosition);
+            thumbPosition.copyFrom(thumb.absolutePosition);
 
             this.position.copyFrom(indexPosition);
             this.position.addInPlace(thumbPosition);
             this.position.scaleInPlace(0.5);
 
-            if (this._isGrabbing && Vector3.Distance(indexPosition, thumbPosition) > this._pinchThreshold * 1.2) {
+            Quaternion.SlerpToRef(index.rotationQuaternion!, thumb.rotationQuaternion!, 0.5, this.rotationQuaternion!);
+
+            if (Vector3.Distance(indexPosition, thumbPosition) > this._pinchThreshold * 1.2) {
+                this._grabFrameCount = Math.max(-HandPinchGrabber.GRAB_FRAMES_TO_CONFIRM, Math.min(this._grabFrameCount - 1, -1));
+            } else if (!this._isGrabbing && Vector3.Distance(indexPosition, thumbPosition) <= this._pinchThreshold) {
+                this._grabFrameCount = Math.max(1, Math.min(this._grabFrameCount + 1, HandPinchGrabber.GRAB_FRAMES_TO_CONFIRM));
+            }
+
+            if (this._isGrabbing && this._grabFrameCount == -HandPinchGrabber.GRAB_FRAMES_TO_CONFIRM) {
                 this._isGrabbing = false;
                 this.onGrabChanged.notifyObservers(this._isGrabbing);
-            } else if (!this._isGrabbing && Vector3.Distance(indexPosition, thumbPosition) <= this._pinchThreshold) {
+            } else if (!this._isGrabbing && this._grabFrameCount == HandPinchGrabber.GRAB_FRAMES_TO_CONFIRM) {
                 this._isGrabbing = true;
                 this.onGrabChanged.notifyObservers(this._isGrabbing);
             }
@@ -93,12 +105,16 @@ export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
         handTracking.onHandAddedObservable.add((hand) => {
             const grabber = new HandPinchGrabber("handGrabber", hand, xr.input.xrSessionManager, scene);
             let observer: Nullable<Observer<XRFrame>> = null;
+            const offsetMatrix = new Matrix();
+            const worldMatrix = new Matrix();
             grabber.onGrabChanged.add((isGrabbing) => {
-                if (isGrabbing) {
+                if (isGrabbing && Vector3.Distance(grabber.position, recording.position) < 0.04) {
                     recording.physicsBody!.setMotionType(PhysicsMotionType.ANIMATED);
                     recording.physicsBody!.disablePreStep = false;
+                    recording.getWorldMatrix().multiplyToRef(grabber.getWorldMatrix().invert(), offsetMatrix);
                     observer = xr.input.xrSessionManager.onXRFrameObservable.add(() => {
-                        recording.physicsBody!.transformNode.position.copyFrom(grabber.position);
+                        offsetMatrix.multiplyToRef(grabber.getWorldMatrix(), worldMatrix);
+                        worldMatrix.decompose(undefined, recording.physicsBody!.transformNode.rotationQuaternion!, recording.physicsBody!.transformNode.position);
                     });
                 } else if (!isGrabbing) {
                     recording.physicsBody!.disablePreStep = true;
