@@ -1,13 +1,26 @@
-import { Clamp, Engine, FreeCamera, HavokPlugin, HemisphericLight, Matrix, MeshBuilder, Nullable, Observable, Observer, PhysicsAggregate, PhysicsMotionType, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRSessionManager } from "@babylonjs/core";
+import { _InstancesBatch, Engine, FreeCamera, HavokPlugin, HemisphericLight, IDisposable, Matrix, MeshBuilder, Nullable, Observable, Observer, PhysicsAggregate, PhysicsMotionType, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRInput, WebXRSessionManager, WebXRState } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 
-class HandPinchGrabber extends TransformNode {
+interface IGrabber extends TransformNode {
+    onGrabChanged: Observable<boolean>;
+    get isGrabbing(): boolean;
+}
+
+interface IProposal {
+    score: number;
+    accept: () => void;
+}
+
+class HandPinchGrabber extends TransformNode implements IGrabber {
     public onGrabChanged: Observable<boolean> = new Observable<boolean>();
 
     private _isGrabbing: boolean = false;
+    public get isGrabbing(): boolean {
+      return this._isGrabbing;  
+    }
     private _grabFrameCount: number = 0;
     private static readonly GRAB_FRAMES_TO_CONFIRM: number = 4;
-    private _pinchThreshold: number = 0.03;
+    private _pinchThreshold: number = 0.02;
     private _frameObserver: Observer<XRFrame>;
     private _sessionManager: WebXRSessionManager;
 
@@ -26,8 +39,8 @@ class HandPinchGrabber extends TransformNode {
             thumbPosition.copyFrom(thumb.absolutePosition);
 
             this.position.copyFrom(indexPosition);
-            this.position.addInPlace(thumbPosition);
-            this.position.scaleInPlace(0.5);
+            thumbPosition.scaleAndAddToRef(3, this.position);
+            this.position.scaleInPlace(0.25);
 
             Quaternion.SlerpToRef(index.rotationQuaternion!, thumb.rotationQuaternion!, 0.5, this.rotationQuaternion!);
 
@@ -53,6 +66,86 @@ class HandPinchGrabber extends TransformNode {
     }
 }
 
+class PhysicsGrabBehavior implements IDisposable {
+    private readonly _node: TransformNode;
+    private readonly _offsetMatrix = Matrix.Identity();
+    private readonly _worldMatrix = Matrix.Identity();
+    private _observer: Observer<Scene> | null = null;
+    private _currentGrabber: IGrabber | null = null;
+
+    private constructor(node: TransformNode) {
+        this._node = node;
+        node.onDisposeObservable.addOnce(() => this.dispose());
+    }
+
+    private static _behaviors = new Map<number, PhysicsGrabBehavior>();
+
+    public static attach(node: TransformNode): PhysicsGrabBehavior {
+        if (!PhysicsGrabBehavior._behaviors.has(node.uniqueId)) {
+            PhysicsGrabBehavior._behaviors.set(node.uniqueId, new PhysicsGrabBehavior(node));
+        }
+        return PhysicsGrabBehavior._behaviors.get(node.uniqueId)!;
+    }
+
+    public static handleGrab(grabber: IGrabber, scene: Scene) {
+        let bestProposal: IProposal | null = null;
+        PhysicsGrabBehavior._behaviors.forEach((grabbable) => {
+            const p = grabbable.proposeGrab(grabber, scene);
+            if (bestProposal === null || p.score > bestProposal.score) {
+                bestProposal = p;
+            }
+        });
+        if (bestProposal && (bestProposal as IProposal).score > 0) {
+            (bestProposal as IProposal).accept();
+        }
+    }
+
+    public proposeGrab(grabber: IGrabber, scene: Scene): IProposal {
+        if (grabber.isGrabbing) {
+            const DISTANCE = 0.04;
+            const score = Math.min(Math.max((DISTANCE - Vector3.Distance(grabber.position, this._node.position)) / DISTANCE, 0), 1);
+            return {
+                score: score,
+                accept: () => {
+                    if (this._currentGrabber !== null) {
+                        // If we're already being grabbed, we need to stop observing that grab, but we're already set up for animated physics.
+                        this._observer?.remove();
+                    } else {
+                        // Otherwise, we need to change our physics mode from to permit animation.
+                        this._node.physicsBody!.setMotionType(PhysicsMotionType.ANIMATED);
+                        this._node.physicsBody!.disablePreStep = false;
+                    }
+                    this._currentGrabber = grabber;
+                    this._node.getWorldMatrix().multiplyToRef(grabber.getWorldMatrix().invert(), this._offsetMatrix);
+                    this._observer = scene.onBeforePhysicsObservable.add(() => {
+                        // TODO: Figure out why there's a 1-frame blink artifact.
+                        this._offsetMatrix.multiplyToRef(grabber.getWorldMatrix(), this._worldMatrix);
+                        this._worldMatrix.decompose(undefined, this._node.physicsBody!.transformNode.rotationQuaternion!, this._node.physicsBody!.transformNode.position);
+                    });
+                    // TODO: Handle what happens if the grabber is disposed.
+                }
+            }
+        } else if (this._currentGrabber === grabber && !grabber.isGrabbing) {
+            return {
+                score: 1,
+                accept: () => {
+                    this._currentGrabber = null;
+                    this._node.physicsBody!.disablePreStep = true;
+                    this._node.physicsBody!.setMotionType(PhysicsMotionType.DYNAMIC);
+                    this._observer?.remove();
+                    this._observer = null;
+                }
+            }
+        } else {
+            return {score: 0, accept: () => {}};
+        }
+    }
+
+    public dispose(): void {
+        PhysicsGrabBehavior._behaviors.delete(this._node.uniqueId);
+    }
+}
+
 export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
     const engine = new Engine(canvas, true);
 
@@ -65,6 +158,7 @@ export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
     });
 
     const scene = new Scene(engine);
+    scene.useRightHandedSystem = true;
     const camera = new FreeCamera("camera1", new Vector3(0, 1, 0), scene);
     camera.attachControl(canvas, true);
 
@@ -76,6 +170,8 @@ export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
     table.position.set(0, 1, 1);
     const recording = MeshBuilder.CreateBox("recording", {width: 0.04, depth: 0.04, height: 0.04}, scene);
     recording.position.set(0, 1.1, 1);
+    const grabbables: PhysicsGrabBehavior[] = [];
+    const grabbers = new Map<string, HandPinchGrabber>();
 
     const recording2 = MeshBuilder.CreateBox("recording2", {width: 0.04, depth: 0.04, height: 0.04}, scene);
     recording2.position.set(0.5, 1.1, 1);
@@ -89,9 +185,19 @@ export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
         const recordingAggregate = new PhysicsAggregate(recording, PhysicsShapeType.BOX, { mass: 1 }, scene);
         recordingAggregate.transformNode.rotationQuaternion = Quaternion.Identity();
         const recording2Aggregate = new PhysicsAggregate(recording2, PhysicsShapeType.BOX, { mass: 1 }, scene);
+        grabbables.push(PhysicsGrabBehavior.attach(recording));
+        grabbables.push(PhysicsGrabBehavior.attach(recording2));
     });
     
     scene.createDefaultXRExperienceAsync().then((xr) => {
+        xr.baseExperience.onStateChangedObservable.add((state) => {
+            if (state === WebXRState.IN_XR) {
+                canvas.style.display = "none";
+            } else {
+                canvas.style.display = "block";
+            }
+        });
+
         xr.baseExperience.featuresManager.disableFeature(WebXRControllerPointerSelection.Name);
 
         const handTracking = xr.baseExperience.featuresManager.enableFeature(WebXRFeatureName.HAND_TRACKING, "latest", {
@@ -104,31 +210,17 @@ export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
 
         handTracking.onHandAddedObservable.add((hand) => {
             const grabber = new HandPinchGrabber("handGrabber", hand, xr.input.xrSessionManager, scene);
-            let observer: Nullable<Observer<XRFrame>> = null;
-            const offsetMatrix = new Matrix();
-            const worldMatrix = new Matrix();
-            grabber.onGrabChanged.add((isGrabbing) => {
-                if (isGrabbing && Vector3.Distance(grabber.position, recording.position) < 0.04) {
-                    recording.physicsBody!.setMotionType(PhysicsMotionType.ANIMATED);
-                    recording.physicsBody!.disablePreStep = false;
-                    recording.getWorldMatrix().multiplyToRef(grabber.getWorldMatrix().invert(), offsetMatrix);
-                    observer = xr.input.xrSessionManager.onXRFrameObservable.add(() => {
-                        offsetMatrix.multiplyToRef(grabber.getWorldMatrix(), worldMatrix);
-                        worldMatrix.decompose(undefined, recording.physicsBody!.transformNode.rotationQuaternion!, recording.physicsBody!.transformNode.position);
-                    });
-                } else if (!isGrabbing) {
-                    recording.physicsBody!.disablePreStep = true;
-                    recording.physicsBody!.setMotionType(PhysicsMotionType.DYNAMIC);
-                    if (observer) {
-                        xr.input.xrSessionManager.onXRFrameObservable.remove(observer);
-                        observer = null;
-                    }
-                }
+            grabber.onGrabChanged.add(() => {
+                PhysicsGrabBehavior.handleGrab(grabber, scene);
             });
+            grabbers.set(hand.xrController.uniqueId, grabber);
         });
 
         handTracking.onHandRemovedObservable.add((hand) => {
-            console.log("Hand removed:", hand);
+            if (grabbers.has(hand.xrController.uniqueId)) {
+                grabbers.get(hand.xrController.uniqueId)?.dispose();
+                grabbers.delete(hand.xrController.uniqueId);
+            }
         });
     });
 
