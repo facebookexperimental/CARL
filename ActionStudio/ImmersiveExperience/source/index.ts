@@ -1,4 +1,4 @@
-import { _InstancesBatch, Engine, FreeCamera, HavokPlugin, HemisphericLight, IDisposable, Matrix, MeshBuilder, Nullable, Observable, Observer, PhysicsAggregate, PhysicsMotionType, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRInput, WebXRSessionManager, WebXRState } from "@babylonjs/core";
+import { _InstancesBatch, Engine, FreeCamera, HavokPlugin, HemisphericLight, IDisposable, Matrix, MeshBuilder, Observable, Observer, PhysicsAggregate, PhysicsMotionType, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRSessionManager, WebXRState } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 
 interface IGrabber extends TransformNode {
@@ -41,6 +41,7 @@ class HandPinchGrabber extends TransformNode implements IGrabber {
             this.position.copyFrom(indexPosition);
             thumbPosition.scaleAndAddToRef(3, this.position);
             this.position.scaleInPlace(0.25);
+            this.computeWorldMatrix();
 
             Quaternion.SlerpToRef(index.rotationQuaternion!, thumb.rotationQuaternion!, 0.5, this.rotationQuaternion!);
 
@@ -70,7 +71,7 @@ class PhysicsGrabBehavior implements IDisposable {
     private readonly _node: TransformNode;
     private readonly _offsetMatrix = Matrix.Identity();
     private readonly _worldMatrix = Matrix.Identity();
-    private _observer: Observer<Scene> | null = null;
+    private _observer: Observer<TransformNode> | null = null;
     private _currentGrabber: IGrabber | null = null;
 
     private constructor(node: TransformNode) {
@@ -87,10 +88,10 @@ class PhysicsGrabBehavior implements IDisposable {
         return PhysicsGrabBehavior._behaviors.get(node.uniqueId)!;
     }
 
-    public static handleGrab(grabber: IGrabber, scene: Scene) {
+    public static handleGrab(grabber: IGrabber) {
         let bestProposal: IProposal | null = null;
         PhysicsGrabBehavior._behaviors.forEach((grabbable) => {
-            const p = grabbable.proposeGrab(grabber, scene);
+            const p = grabbable.proposeGrab(grabber);
             if (bestProposal === null || p.score > bestProposal.score) {
                 bestProposal = p;
             }
@@ -100,7 +101,7 @@ class PhysicsGrabBehavior implements IDisposable {
         }
     }
 
-    public proposeGrab(grabber: IGrabber, scene: Scene): IProposal {
+    public proposeGrab(grabber: IGrabber): IProposal {
         if (grabber.isGrabbing) {
             const DISTANCE = 0.04;
             const score = Math.min(Math.max((DISTANCE - Vector3.Distance(grabber.position, this._node.position)) / DISTANCE, 0), 1);
@@ -117,8 +118,7 @@ class PhysicsGrabBehavior implements IDisposable {
                     }
                     this._currentGrabber = grabber;
                     this._node.getWorldMatrix().multiplyToRef(grabber.getWorldMatrix().invert(), this._offsetMatrix);
-                    this._observer = scene.onBeforePhysicsObservable.add(() => {
-                        // TODO: Figure out why there's a 1-frame blink artifact.
+                    this._observer = this._currentGrabber.onAfterWorldMatrixUpdateObservable.add(() => {
                         this._offsetMatrix.multiplyToRef(grabber.getWorldMatrix(), this._worldMatrix);
                         this._worldMatrix.decompose(undefined, this._node.physicsBody!.transformNode.rotationQuaternion!, this._node.physicsBody!.transformNode.position);
                     });
@@ -211,7 +211,7 @@ export function initializeImmersiveExperience(canvas: HTMLCanvasElement): void {
         handTracking.onHandAddedObservable.add((hand) => {
             const grabber = new HandPinchGrabber("handGrabber", hand, xr.input.xrSessionManager, scene);
             grabber.onGrabChanged.add(() => {
-                PhysicsGrabBehavior.handleGrab(grabber, scene);
+                PhysicsGrabBehavior.handleGrab(grabber);
             });
             grabbers.set(hand.xrController.uniqueId, grabber);
         });
