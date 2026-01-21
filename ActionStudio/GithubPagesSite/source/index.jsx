@@ -1,13 +1,14 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
-import { initializeImmersiveExperience } from 'carl-actionstudio-immersiveexperience';
+import { initializeImmersiveExperienceAsync } from 'carl-actionstudio-immersiveexperience';
 import { testNativeIntegration } from 'carl-actionstudio-nativeintegration';
 
 const Greet = () => {
     const canvasRef = React.useRef(null);
     React.useEffect(() => {
-        initializeImmersiveExperience(canvasRef.current);
-        testNativeIntegration();
+        initializeImmersiveExperienceAsync(canvasRef.current).then(() => {
+            testNativeIntegration();
+        });
     }, []);
 
     return <>

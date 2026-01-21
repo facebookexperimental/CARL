@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "GitHub Pages site for CARL Action Studio",
   "scripts": {
-    "build": "cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs",
-    "start": "cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs --watch",
+    "build": "cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs",
+    "start": "cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs --watch",
     "deploy": "gh-pages -d docs"
   },
   "author": "syntheticmagus",
