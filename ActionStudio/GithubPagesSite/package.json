@@ -4,7 +4,8 @@
   "description": "GitHub Pages site for CARL Action Studio",
   "scripts": {
     "build": "cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs",
-    "start": "cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.jsx --bundle --minify --sourcemap --outdir=docs --watch",
+    "start": "npm run server & npm run build -- --watch",
+    "server": "servor docs index.html --reload --secure",
     "deploy": "gh-pages -d docs"
   },
   "author": "syntheticmagus",
@@ -18,6 +19,7 @@
     "carl-actionstudio-nativeintegration": "file:../NativeIntegration",
     "cpx2": "^8.0.0",
     "esbuild": "^0.27.2",
-    "gh-pages": "^3.2.3"
+    "gh-pages": "^3.2.3",
+    "servor": "^4.0.2"
   }
 }

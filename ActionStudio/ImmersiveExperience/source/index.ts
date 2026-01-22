@@ -193,6 +193,9 @@ class PhysicsEnabledScene extends Scene {
                 case "physics_sphere":
                     shape = PhysicsShapeType.SPHERE;
                     break;
+                case "physics_mesh":
+                    shape = PhysicsShapeType.MESH;
+                    break;
                 default:
                     shape = PhysicsShapeType.BOX;
                     break;
