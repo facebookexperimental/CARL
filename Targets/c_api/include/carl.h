@@ -7,7 +7,15 @@
 
 #pragma once
 
+#ifdef CARL_PLATFORM_EMSCRIPTEN
+#include <emscripten.h>
+#endif
+
 #include <cstdint>
+
+#ifndef EMSCRIPTEN_KEEPALIVE
+#define EMSCRIPTEN_KEEPALIVE
+#endif
 
 #ifdef CARL_PLATFORM_WINDOWS
 #define C_API_EXPORT(ReturnT) __declspec(dllexport) ReturnT __cdecl
@@ -91,51 +99,51 @@ extern "C"
         OptionalControllerState RightControllerState{};
     };
 
-    C_API_EXPORT(uint64_t) carl_getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size);
-    C_API_EXPORT(uint64_t) carl_startRecording(uint64_t maxSeconds);
-    C_API_EXPORT(void) carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSample* sample);
-    C_API_EXPORT(void) carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size);
-    C_API_EXPORT(uint64_t) carl_finishRecording(uint64_t inProgressRecordingPtr);
-    C_API_EXPORT(uint64_t) carl_serializeRecording(uint64_t recordingPtr);
-    C_API_EXPORT(uint64_t) carl_deserializeRecording(uint8_t* bytes, uint64_t size);
-    C_API_EXPORT(void) carl_disposeRecording(uint64_t recordingPtr);
-    C_API_EXPORT(uint64_t) carl_getRecordingInspector(uint64_t recordingPtr);
-    C_API_EXPORT(uint64_t) carl_inspect(uint64_t recordingInspectorPtr, double timestamp);
-    C_API_EXPORT(double) carl_getStartTimestamp(uint64_t recordingInspectorPtr);
-    C_API_EXPORT(double) carl_getEndTimestamp(uint64_t recordingInspectorPtr);
-    C_API_EXPORT(void) carl_disposeRecordingInspector(uint64_t recordingInspectorPtr);
-    C_API_EXPORT(uint64_t) carl_createExample(uint64_t recordingPtr, double startTimestamp, double endTimestamp);
-    C_API_EXPORT(uint64_t) carl_createAutoTrimmedExample(uint64_t recognizerPtr, uint64_t recordingPtr);
-    C_API_EXPORT(uint64_t) carl_getRecording(uint64_t examplePtr);
-    C_API_EXPORT(double) carl_getExampleStartTimestamp(uint64_t examplePtr);
-    C_API_EXPORT(double) carl_getExampleEndTimestamp(uint64_t examplePtr);
-    C_API_EXPORT(void) carl_disposeExample(uint64_t examplePtr);
-    C_API_EXPORT(uint64_t) carl_createDefinition(uint64_t descriptorType);
-    C_API_EXPORT(void) carl_addExample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
-    C_API_EXPORT(void) carl_addCounterexample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
-    C_API_EXPORT(double) carl_getDefaultSensitivity(uint64_t definitionPtr);
-    C_API_EXPORT(void) carl_setDefaultSensitivity(uint64_t definitionPtr, double defaultSensitivity);
-    C_API_EXPORT(uint64_t) carl_serializeDefinition(uint64_t definitionPtr);
-    C_API_EXPORT(uint64_t) carl_deserializeDefinition(uint8_t* bytes, uint64_t size);
-    C_API_EXPORT(uint64_t) carl_loadExampleFromFile(const char* path);
-    C_API_EXPORT(void) carl_saveExampleToFile(uint64_t examplePtr, const char* path);
-    C_API_EXPORT(uint64_t) carl_loadDefinitionFromFile(const char* path);
-    C_API_EXPORT(void) carl_saveDefinitionToFile(uint64_t definitionPtr, const char* path);
-    C_API_EXPORT(uint64_t) carl_getExamplesCount(uint64_t definitionPtr);
-    C_API_EXPORT(uint64_t) carl_getExampleAtIdx(uint64_t definitionPtr, uint64_t idx);
-    C_API_EXPORT(uint64_t) carl_getCounterexamplesCount(uint64_t definitionPtr);
-    C_API_EXPORT(uint64_t) carl_getCounterexampleAtIdx(uint64_t definitionPtr, uint64_t idx);
-    C_API_EXPORT(void) carl_disposeDefinition(uint64_t definitionPtr);
-    C_API_EXPORT(uint64_t) carl_createSession();
-    C_API_EXPORT(uint64_t) carl_createSingleThreadedSession();
-    C_API_EXPORT(void) carl_setSessionLogger(uint64_t sessionPtr, C_API_CALLBACK(void) callback(const char*));
-    C_API_EXPORT(void) carl_tickCallbacks(uint64_t sessionPtr);
-    C_API_EXPORT(void) carl_addSerializedInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size);
-    C_API_EXPORT(void) carl_addInputSample(uint64_t sessionPtr, carl_InputSample* sample);
-    C_API_EXPORT(void) carl_disposeSession(uint64_t sessionPtr);
-    C_API_EXPORT(void) carl_createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, uint64_t requestId, C_API_CALLBACK(void) callback(uint64_t, uint64_t));
-    C_API_EXPORT(double) carl_getCurrentScore(uint64_t recognizerPtr);
-    C_API_EXPORT(void) carl_setSensitivity(uint64_t recognizerPtr, double sensitivity);
-    C_API_EXPORT(uint64_t) carl_getCanonicalRecordingInspector(uint64_t recognizerPtr);
-    C_API_EXPORT(void) carl_disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_startRecording(uint64_t maxSeconds);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSample* sample);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_finishRecording(uint64_t inProgressRecordingPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_serializeRecording(uint64_t recordingPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_deserializeRecording(uint8_t* bytes, uint64_t size);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_disposeRecording(uint64_t recordingPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getRecordingInspector(uint64_t recordingPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_inspect(uint64_t recordingInspectorPtr, double timestamp);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(double) carl_getStartTimestamp(uint64_t recordingInspectorPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(double) carl_getEndTimestamp(uint64_t recordingInspectorPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_disposeRecordingInspector(uint64_t recordingInspectorPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_createExample(uint64_t recordingPtr, double startTimestamp, double endTimestamp);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_createAutoTrimmedExample(uint64_t recognizerPtr, uint64_t recordingPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getRecording(uint64_t examplePtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(double) carl_getExampleStartTimestamp(uint64_t examplePtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(double) carl_getExampleEndTimestamp(uint64_t examplePtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_disposeExample(uint64_t examplePtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_createDefinition(uint64_t descriptorType);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_addExample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_addCounterexample(uint64_t definitionPtr, uint64_t recordingPtr, double startTimestamp, double endTimestamp);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(double) carl_getDefaultSensitivity(uint64_t definitionPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_setDefaultSensitivity(uint64_t definitionPtr, double defaultSensitivity);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_serializeDefinition(uint64_t definitionPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_deserializeDefinition(uint8_t* bytes, uint64_t size);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_loadExampleFromFile(const char* path);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_saveExampleToFile(uint64_t examplePtr, const char* path);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_loadDefinitionFromFile(const char* path);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_saveDefinitionToFile(uint64_t definitionPtr, const char* path);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getExamplesCount(uint64_t definitionPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getExampleAtIdx(uint64_t definitionPtr, uint64_t idx);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getCounterexamplesCount(uint64_t definitionPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getCounterexampleAtIdx(uint64_t definitionPtr, uint64_t idx);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_disposeDefinition(uint64_t definitionPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_createSession();
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_createSingleThreadedSession();
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_setSessionLogger(uint64_t sessionPtr, C_API_CALLBACK(void) callback(const char*));
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_tickCallbacks(uint64_t sessionPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_addSerializedInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_addInputSample(uint64_t sessionPtr, carl_InputSample* sample);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_disposeSession(uint64_t sessionPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_createRecognizerAsync(uint64_t sessionPtr, uint64_t definitionPtr, uint64_t requestId, C_API_CALLBACK(void) callback(uint64_t, uint64_t));
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(double) carl_getCurrentScore(uint64_t recognizerPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_setSensitivity(uint64_t recognizerPtr, double sensitivity);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(uint64_t) carl_getCanonicalRecordingInspector(uint64_t recognizerPtr);
+    EMSCRIPTEN_KEEPALIVE C_API_EXPORT(void) carl_disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr);
 }

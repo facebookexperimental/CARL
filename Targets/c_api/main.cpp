@@ -16,12 +16,85 @@
 #include <android/log.h>
 #endif
 
+#ifdef CARL_PLATFORM_EMSCRIPTEN
+#include <emscripten/bind.h>
+#endif
+
 #ifdef CARL_PLATFORM_WINDOWS
 #define C_API_EXPORT(ReturnT) __declspec(dllexport) ReturnT __cdecl
 #define C_API_CALLBACK(ReturnT) ReturnT __cdecl
 #else
 #define C_API_EXPORT(ReturnT) ReturnT __cdecl
 #define C_API_CALLBACK(ReturnT) ReturnT __cdecl
+#endif
+
+#ifdef CARL_PLATFORM_EMSCRIPTEN
+EMSCRIPTEN_BINDINGS(carl_bindings) {
+    emscripten::enum_<carl_InputSample::HAND_JOINT>("HAND_JOINT")
+        .value("XR_HAND_JOINT_PALM_EXT", carl_InputSample::XR_HAND_JOINT_PALM_EXT)
+        .value("XR_HAND_JOINT_WRIST_EXT", carl_InputSample::XR_HAND_JOINT_WRIST_EXT)
+        .value("XR_HAND_JOINT_THUMB_METACARPAL_EXT", carl_InputSample::XR_HAND_JOINT_THUMB_METACARPAL_EXT)
+        .value("XR_HAND_JOINT_THUMB_PROXIMAL_EXT", carl_InputSample::XR_HAND_JOINT_THUMB_PROXIMAL_EXT)
+        .value("XR_HAND_JOINT_THUMB_DISTAL_EXT", carl_InputSample::XR_HAND_JOINT_THUMB_DISTAL_EXT)
+        .value("XR_HAND_JOINT_THUMB_TIP_EXT", carl_InputSample::XR_HAND_JOINT_THUMB_TIP_EXT)
+        .value("XR_HAND_JOINT_INDEX_METACARPAL_EXT", carl_InputSample::XR_HAND_JOINT_INDEX_METACARPAL_EXT)
+        .value("XR_HAND_JOINT_INDEX_PROXIMAL_EXT", carl_InputSample::XR_HAND_JOINT_INDEX_PROXIMAL_EXT)
+        .value("XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT", carl_InputSample::XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT)
+        .value("XR_HAND_JOINT_INDEX_DISTAL_EXT", carl_InputSample::XR_HAND_JOINT_INDEX_DISTAL_EXT)
+        .value("XR_HAND_JOINT_INDEX_TIP_EXT", carl_InputSample::XR_HAND_JOINT_INDEX_TIP_EXT)
+        .value("XR_HAND_JOINT_MIDDLE_METACARPAL_EXT", carl_InputSample::XR_HAND_JOINT_MIDDLE_METACARPAL_EXT)
+        .value("XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT", carl_InputSample::XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT)
+        .value("XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT", carl_InputSample::XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT)
+        .value("XR_HAND_JOINT_MIDDLE_DISTAL_EXT", carl_InputSample::XR_HAND_JOINT_MIDDLE_DISTAL_EXT)
+        .value("XR_HAND_JOINT_MIDDLE_TIP_EXT", carl_InputSample::XR_HAND_JOINT_MIDDLE_TIP_EXT)
+        .value("XR_HAND_JOINT_RING_METACARPAL_EXT", carl_InputSample::XR_HAND_JOINT_RING_METACARPAL_EXT)
+        .value("XR_HAND_JOINT_RING_PROXIMAL_EXT", carl_InputSample::XR_HAND_JOINT_RING_PROXIMAL_EXT)
+        .value("XR_HAND_JOINT_RING_INTERMEDIATE_EXT", carl_InputSample::XR_HAND_JOINT_RING_INTERMEDIATE_EXT)
+        .value("XR_HAND_JOINT_RING_DISTAL_EXT", carl_InputSample::XR_HAND_JOINT_RING_DISTAL_EXT)
+        .value("XR_HAND_JOINT_RING_TIP_EXT", carl_InputSample::XR_HAND_JOINT_RING_TIP_EXT)
+        .value("XR_HAND_JOINT_LITTLE_METACARPAL_EXT", carl_InputSample::XR_HAND_JOINT_LITTLE_METACARPAL_EXT)
+        .value("XR_HAND_JOINT_LITTLE_PROXIMAL_EXT", carl_InputSample::XR_HAND_JOINT_LITTLE_PROXIMAL_EXT)
+        .value("XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT", carl_InputSample::XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT)
+        .value("XR_HAND_JOINT_LITTLE_DISTAL_EXT", carl_InputSample::XR_HAND_JOINT_LITTLE_DISTAL_EXT)
+        .value("XR_HAND_JOINT_LITTLE_TIP_EXT", carl_InputSample::XR_HAND_JOINT_LITTLE_TIP_EXT)
+        .value("COUNT", carl_InputSample::COUNT);
+
+    emscripten::value_object<decltype(carl_InputSample::OptionalTransform::Position)>("Position")
+        .field("x", &decltype(carl_InputSample::OptionalTransform::Position)::X)
+        .field("y", &decltype(carl_InputSample::OptionalTransform::Position)::Y)
+        .field("z", &decltype(carl_InputSample::OptionalTransform::Position)::Z);
+        
+    emscripten::value_object<decltype(carl_InputSample::OptionalTransform::Orientation)>("Orientation")
+        .field("w", &decltype(carl_InputSample::OptionalTransform::Orientation)::W)
+        .field("x", &decltype(carl_InputSample::OptionalTransform::Orientation)::X)
+        .field("y", &decltype(carl_InputSample::OptionalTransform::Orientation)::Y)
+        .field("z", &decltype(carl_InputSample::OptionalTransform::Orientation)::Z);
+
+    emscripten::value_object<carl_InputSample::OptionalTransform>("OptionalTransform")
+        .field("valid", &carl_InputSample::OptionalTransform::Valid)
+        .field("position", &carl_InputSample::OptionalTransform::Position)
+        .field("orientation", &carl_InputSample::OptionalTransform::Orientation);
+    
+    emscripten::value_object<carl_InputSample::OptionalControllerState>("OptionalControllerState")
+        .field("valid", &carl_InputSample::OptionalControllerState::Valid)
+        .field("primaryClick", &carl_InputSample::OptionalControllerState::PrimaryClick)
+        .field("secondaryClick", &carl_InputSample::OptionalControllerState::SecondaryClick)
+        .field("thumbstickX", &carl_InputSample::OptionalControllerState::ThumbstickX)
+        .field("thumbstickY", &carl_InputSample::OptionalControllerState::ThumbstickY)
+        .field("thumbstickClick", &carl_InputSample::OptionalControllerState::ThumbstickClick)
+        .field("squeezeValue", &carl_InputSample::OptionalControllerState::SqueezeValue)
+        .field("triggerValue", &carl_InputSample::OptionalControllerState::TriggerValue);
+        
+    emscripten::value_object<carl_InputSample>("InputSample")
+        .field("timestamp", &carl_InputSample::Timestamp)
+        .field("hmdPose", &carl_InputSample::HmdPose)
+        .field("leftWristPose", &carl_InputSample::LeftWristPose)
+        .field("rightWristPose", &carl_InputSample::RightWristPose)
+        .field("leftHandJointPoses", &carl_InputSample::LeftHandJointPoses)
+        .field("rightHandJointPoses", &carl_InputSample::RightHandJointPoses)
+        .field("leftControllerState", &carl_InputSample::LeftControllerState)
+        .field("rightControllerState", &carl_InputSample::RightControllerState);
+}
 #endif
 
 namespace
@@ -169,7 +242,7 @@ uint64_t carl_getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
     }
     else
     {
-        std::memcpy(destination, bytes.data(), size);
+        std::memcpy(destination, bytes.data(), static_cast<size_t>(size));
         delete& bytes;
         return size;
     }
@@ -190,7 +263,7 @@ void carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSam
 void carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size)
 {
     auto& inProgressRecording = *reinterpret_cast<carl::action::InProgressRecording*>(inProgressRecordingPtr);
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     inProgressRecording.addSample({ deserialization });
 }
 
@@ -212,7 +285,7 @@ uint64_t carl_serializeRecording(uint64_t recordingPtr)
 
 uint64_t carl_deserializeRecording(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     auto* ptr = new carl::action::Recording(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
@@ -348,7 +421,7 @@ uint64_t carl_serializeDefinition(uint64_t definitionPtr)
 
 uint64_t carl_deserializeDefinition(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     auto* ptr = new carl::action::Definition(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
@@ -450,7 +523,7 @@ void carl_tickCallbacks(uint64_t sessionPtr)
 void carl_addSerializedInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size)
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     carl::InputSample sample{ deserialization };
     session.addInput(sample);
 }
