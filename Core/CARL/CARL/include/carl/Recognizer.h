@@ -28,7 +28,7 @@ namespace carl::action
         Recognizer(Session&, const Definition&, ContractId<>::IdT);
         ~Recognizer();
 
-        double currentScore();
+        double currentScore() const;
 
         RecordingInspector getCanonicalRecordingInspector() const;
 

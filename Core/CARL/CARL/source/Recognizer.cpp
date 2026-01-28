@@ -590,7 +590,7 @@ namespace carl::action
     {
     }
 
-    double action::Recognizer::currentScore()
+    double action::Recognizer::currentScore() const
     {
         return static_cast<NumberT>(m_impl->m_currentScore);
     }
