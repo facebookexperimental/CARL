@@ -1,11 +1,9 @@
-export function testNativeIntegration() {
-    const script = document.createElement("script");
-    script.type = "text/javascript";
-    script.src = "assets/carl.js";
-    script.onload = () => {
-        console.log("CARL WASM loaded! In theory!");
-    };
-    document.body.appendChild(script);
-
-    console.log("Native integration test function called.");
+export async function initializeNativeIntegrationAsync() {
+    return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.type = "text/javascript";
+        script.src = "assets/carl.js";
+        script.onload = () => CARL().then(carl => resolve(carl));
+        document.body.appendChild(script);
+    });
 };

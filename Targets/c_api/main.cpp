@@ -592,12 +592,6 @@ void carl_disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr)
     });
 }
 
-
-
-
-
-
-
 #ifdef CARL_PLATFORM_EMSCRIPTEN
 struct carl_InProgressRecordingWrapper
 {
@@ -661,6 +655,12 @@ struct carl_ExampleWrapper
         , RecordingWrapper{ recording }
     {
     }
+    
+    carl_ExampleWrapper(carl::action::Example&& example)
+        : Example{ std::forward<carl::action::Example>(example) }
+        , RecordingWrapper{ Example.getRecording() }
+    {
+    }
 
     const carl_RecordingWrapper& getRecording() const
     {
@@ -675,6 +675,24 @@ struct carl_ExampleWrapper
     double getEndTimestamp() const
     {
         return Example.getEndTimestamp();
+    }
+
+    std::vector<uint8_t> serialize() const
+    {
+        return carl::utilities::Serialize(Example);
+    }
+
+    static std::optional<carl_ExampleWrapper> tryDeserialize(const std::vector<uint8_t>& bytes)
+    {
+        auto example = carl::utilities::TryDeserialize<carl::action::Example>(bytes);
+        if (example.has_value())
+        {
+            return carl_ExampleWrapper{ std::move(example.value()) };
+        }
+        else
+        {
+            return{};
+        }
     }
 
     carl::action::Example Example;
@@ -705,6 +723,11 @@ struct carl_DefinitionWrapper
     {
     }
 
+    carl_DefinitionWrapper(carl::action::Definition&& definition)
+        : Definition{ std::forward<carl::action::Definition>(definition) }
+    {
+    }
+
     void addExample(const carl_ExampleWrapper& example)
     {
         Definition.addExample(example.Example);
@@ -713,6 +736,24 @@ struct carl_DefinitionWrapper
     void addCounterexample(const carl_ExampleWrapper& counterexample)
     {
         Definition.addCounterexample(counterexample.Example);
+    }
+
+    std::vector<uint8_t> serialize() const
+    {
+        return carl::utilities::Serialize(Definition);
+    }
+
+    static std::optional<carl_DefinitionWrapper> tryDeserialize(const std::vector<uint8_t>& bytes)
+    {
+        auto definition = carl::utilities::TryDeserialize<carl::action::Definition>(bytes);
+        if (definition.has_value())
+        {
+            return carl_DefinitionWrapper{ std::move(definition.value()) };
+        }
+        else
+        {
+            return{};
+        }
     }
 
     carl::action::Definition Definition;
@@ -736,33 +777,54 @@ struct carl_SessionWrapper
 
 struct carl_RecognizerWrapper
 {
-    carl_RecognizerWrapper(carl_SessionWrapper& session, const carl_DefinitionWrapper& definition)
-        : Recognizer{ session.Session, definition.Definition }
+    carl_RecognizerWrapper(carl_SessionWrapper& sessionWrapper, const carl_DefinitionWrapper& definitionWrapper)
+        : Recognizer{}
     {
+        auto& session = sessionWrapper.Session;
+        auto& definition = definitionWrapper.Definition;
+        Recognizer = std::make_unique<carl::action::Recognizer>(session, definition);
+        // TODO: This will need to be made asynchronous if we want to support multithreading.
+        /*arcana::make_task(session.processingScheduler(), arcana::cancellation::none(), [&session, &definition]() {
+            return std::make_unique<carl::action::Recognizer>(session, definition);
+        }).then(session.callbackScheduler(), arcana::cancellation::none(), [this](std::unique_ptr<carl::action::Recognizer>& ptr) mutable {
+            Recognizer.swap(ptr);
+        });*/
     }
 
     double currentScore()
     {
-        return Recognizer.currentScore();
+        if (Recognizer != nullptr)
+        {
+            return Recognizer->currentScore();
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     carl_RecordingInspectorWrapper getCanonicalRecordingInspector() const
     {
-        auto inspector = Recognizer.getCanonicalRecordingInspector();
+        auto inspector = Recognizer->getCanonicalRecordingInspector();
         return{ std::move(inspector) };
     }
 
     void setSensitivity(double sensitivity)
     {
-        Recognizer.setSensitivity(sensitivity);
+        if (Recognizer != nullptr)
+        {
+            Recognizer->setSensitivity(sensitivity);
+        }
     }
 
-    carl::action::Recognizer Recognizer;
+    std::unique_ptr<carl::action::Recognizer> Recognizer{};
 };
 
 carl_InputSample carl_createInputSample() { return{}; }
 
 EMSCRIPTEN_BINDINGS(carl_bindings) {
+    emscripten::register_vector<uint8_t>("SerializedBytes");
+
     emscripten::enum_<carl_InputSample::HAND_JOINT>("HAND_JOINT")
         .value("XR_HAND_JOINT_PALM_EXT", carl_InputSample::HAND_JOINT::XR_HAND_JOINT_PALM_EXT)
         .value("XR_HAND_JOINT_WRIST_EXT", carl_InputSample::HAND_JOINT::XR_HAND_JOINT_WRIST_EXT)
@@ -871,11 +933,14 @@ EMSCRIPTEN_BINDINGS(carl_bindings) {
         .function("endTimestamp", &carl_RecordingInspectorWrapper::endTimestamp)
         .function("inspect", &carl_RecordingInspectorWrapper::inspect);
 
+    emscripten::register_optional<carl_ExampleWrapper>();
     emscripten::class_<carl_ExampleWrapper>("Example")
         .constructor<carl_RecordingWrapper&, double, double>()
         .function("getRecording", &carl_ExampleWrapper::getRecording)
         .function("getStartTimestamp", &carl_ExampleWrapper::getStartTimestamp)
-        .function("getEndTimestamp", &carl_ExampleWrapper::getEndTimestamp);
+        .function("getEndTimestamp", &carl_ExampleWrapper::getEndTimestamp)
+        .function("serialize", &carl_ExampleWrapper::serialize)
+        .class_function("tryDeserialize", &carl_ExampleWrapper::tryDeserialize);
 
     emscripten::enum_<carl_ActionTypeWrapper>("ACTION_TYPE")
         .value("LeftHandPose", carl_ActionTypeWrapper::LeftHandPose)
@@ -891,10 +956,13 @@ EMSCRIPTEN_BINDINGS(carl_bindings) {
         .value("LeftHandShape", carl_ActionTypeWrapper::LeftHandShape)
         .value("RightHandShape", carl_ActionTypeWrapper::RightHandShape);
 
+    emscripten::register_optional<carl_DefinitionWrapper>();
     emscripten::class_<carl_DefinitionWrapper>("Definition")
         .constructor<carl_ActionTypeWrapper>()
         .function("addExample", &carl_DefinitionWrapper::addExample)
-        .function("addCounterexample", &carl_DefinitionWrapper::addCounterexample);
+        .function("addCounterexample", &carl_DefinitionWrapper::addCounterexample)
+        .function("serialize", &carl_DefinitionWrapper::serialize)
+        .class_function("tryDeserialize", &carl_DefinitionWrapper::tryDeserialize);
 
     emscripten::class_<carl_SessionWrapper>("Session")
         .constructor<>()

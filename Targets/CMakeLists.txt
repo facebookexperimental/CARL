@@ -22,6 +22,8 @@ if(NOT EMSCRIPTEN)
 endif()
 
 if(EMSCRIPTEN)
+    #set(OPTIMIZATION_LEVEL -sNO_DISABLE_EXCEPTION_CATCHING)
+    set(OPTIMIZATION_LEVEL -O3)
     add_executable(carl
         "c_api/main.cpp"
         "c_api/include/carl.h")
@@ -33,16 +35,16 @@ if(EMSCRIPTEN)
     target_link_options(carl PRIVATE --bind)
     
     # Compile optimizations
-    target_compile_options(carl_input_sample PRIVATE -Oz)
-    target_compile_options(carl_core PRIVATE -Oz)
-    target_compile_options(carl_utilities PRIVATE -Oz)
-    target_compile_options(carl PRIVATE -Oz)
+    target_compile_options(carl_input_sample PRIVATE ${OPTIMIZATION_LEVEL})
+    target_compile_options(carl_core PRIVATE ${OPTIMIZATION_LEVEL})
+    target_compile_options(carl_utilities PRIVATE ${OPTIMIZATION_LEVEL})
+    target_compile_options(carl PRIVATE ${OPTIMIZATION_LEVEL})
 
     # Link optimizatins
-    target_link_options(carl_input_sample PRIVATE -Oz)
-    target_link_options(carl_core PRIVATE -Oz)
-    target_link_options(carl_utilities PRIVATE -Oz)
-    target_link_options(carl PRIVATE -Oz)
+    target_link_options(carl_input_sample PRIVATE ${OPTIMIZATION_LEVEL})
+    target_link_options(carl_core PRIVATE ${OPTIMIZATION_LEVEL})
+    target_link_options(carl_utilities PRIVATE ${OPTIMIZATION_LEVEL})
+    target_link_options(carl PRIVATE ${OPTIMIZATION_LEVEL})
     target_link_options(carl_input_sample PRIVATE -flto)
     target_link_options(carl_core PRIVATE -flto)
     target_link_options(carl_utilities PRIVATE -flto)
