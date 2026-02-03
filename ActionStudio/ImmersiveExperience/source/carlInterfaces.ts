@@ -1,5 +1,3 @@
-import { AbstractMesh, WebXRCamera, WebXRHand, WebXRHandJoint } from "@babylonjs/core";
-
 export interface ICarlPosition {
     x: number;
     y: number;
@@ -39,4 +37,40 @@ export interface ICarlInputSample {
     rightHandJointPoses: ICarlOptionalTransform[];
     leftControllerState: ICarlOptionalControllerState;
     rightControllerState: ICarlOptionalControllerState;
+}
+
+export interface ICarlRecordingInspector {
+    getStartTimestamp(): number;
+    getEndTimestamp(): number;
+    inspect(timestamp: number): ICarlInputSample;
+}
+
+export interface ICarlExample {
+    getStartTimestamp(): number;
+    setStartTimestamp(timestamp: number): number;
+    getEndTimestamp(): number;
+    setEndTimestamp(timestamp: number): number;
+    getRecordingInspector(): ICarlRecordingInspector;
+    dispose(): void;
+}
+
+export interface ICarlDefinition {
+    dispose(): void;
+}
+
+export interface ICarlRecognizer {
+    currentScore(): number;
+    getSensitivity(): number;
+    setSensitivity(sensitivity: number): void;
+    dispose(): void;
+}
+
+export interface ICarl {
+    startRecording(): number;
+    stopRecording(recordingId: number): ICarlExample;
+    getActionTypes(): {name: string, typeId: number}[];
+    createDefinition(actionTypeId: number, examples: ICarlExample[], counterexamples: ICarlExample[]): ICarlDefinition;
+    createRecognizer(definition: ICarlDefinition): ICarlRecognizer;
+    createInputSample(): ICarlInputSample;
+    handleInputSample(sample: ICarlInputSample): void;
 }

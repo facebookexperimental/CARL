@@ -667,14 +667,29 @@ struct carl_ExampleWrapper
         return RecordingWrapper;
     }
 
+    carl_RecordingInspectorWrapper getRecordingInspector() const
+    {
+        return Example.getRecording().getInspector();
+    }
+
     double getStartTimestamp() const
     {
         return Example.getStartTimestamp();
     }
 
+    void setStartTimestamp(double timestamp)
+    {
+        Example.setStartTimestamp(timestamp);
+    }
+
     double getEndTimestamp() const
     {
         return Example.getEndTimestamp();
+    }
+
+    void setEndTimestamp(double timestamp)
+    {
+        Example.setEndTimestamp(timestamp);
     }
 
     std::vector<uint8_t> serialize() const
@@ -809,6 +824,11 @@ struct carl_RecognizerWrapper
         return{ std::move(inspector) };
     }
 
+    double getSensitivity() const
+    {
+        return Recognizer->getSensitivity();
+    }
+
     void setSensitivity(double sensitivity)
     {
         if (Recognizer != nullptr)
@@ -937,8 +957,11 @@ EMSCRIPTEN_BINDINGS(carl_bindings) {
     emscripten::class_<carl_ExampleWrapper>("Example")
         .constructor<carl_RecordingWrapper&, double, double>()
         .function("getRecording", &carl_ExampleWrapper::getRecording)
+        .function("getRecordingInspector", &carl_ExampleWrapper::getRecordingInspector)
         .function("getStartTimestamp", &carl_ExampleWrapper::getStartTimestamp)
+        .function("setStartTimestamp", &carl_ExampleWrapper::setStartTimestamp)
         .function("getEndTimestamp", &carl_ExampleWrapper::getEndTimestamp)
+        .function("setEndTimestamp", &carl_ExampleWrapper::setEndTimestamp)
         .function("serialize", &carl_ExampleWrapper::serialize)
         .class_function("tryDeserialize", &carl_ExampleWrapper::tryDeserialize);
 
@@ -973,6 +996,7 @@ EMSCRIPTEN_BINDINGS(carl_bindings) {
         .constructor<carl_SessionWrapper&, carl_DefinitionWrapper&>()
         .function("currentScore", &carl_RecognizerWrapper::currentScore)
         .function("getCanonicalRecordingInspector", &carl_RecognizerWrapper::getCanonicalRecordingInspector)
+        .function("getSensitivity", &carl_RecognizerWrapper::getSensitivity)
         .function("setSensitivity", &carl_RecognizerWrapper::setSensitivity);
 }
 #endif

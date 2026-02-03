@@ -600,6 +600,11 @@ namespace carl::action
         return m_impl->m_canonicalRecording->getInspector();
     }
 
+    double Recognizer::getSensitivity() const
+    {
+        return static_cast<double>(m_impl->m_sensitivity);
+    }
+
     void Recognizer::setSensitivity(double sensitivity)
     {
         m_impl->m_sensitivity = static_cast<NumberT>(sensitivity);

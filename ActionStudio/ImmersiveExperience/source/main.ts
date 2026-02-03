@@ -1,7 +1,7 @@
-import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
+import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, Tools, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
-import { ICarlInputSample } from "./carlInterfaces";
+import { ICarl, ICarlInputSample } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
@@ -36,7 +36,7 @@ const OPENXR_JOINT_MAPPINGS = [
 ];
 
 const START_T: number  = Date.now() / 1000;
-const WEBXR_TO_OPENXR_ROTATION_CONVERSION = Quaternion.Identity(); // Quaternion.FromEulerAngles(0, Math.PI / 2, 0);
+const WEBXR_TO_OPENXR_ROTATION_CONVERSION = Quaternion.Identity(); // TODO: I don't think this is necessary as the rotation conventions SEEM to be the same. Remove when confirmed.
 const convertedQuaternion = Quaternion.Identity();
 function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | null, rightHand: WebXRHand | null, sample: ICarlInputSample): void {
     sample.timestamp = (Date.now() / 1000) - START_T;
@@ -50,8 +50,6 @@ function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | null, right
     sample.hmdPose.orientation.x = convertedQuaternion.x;
     sample.hmdPose.orientation.y = convertedQuaternion.y;
     sample.hmdPose.orientation.z = convertedQuaternion.z;
-
-    // WEBXR_TO_OPENXR_ROTATION_CONVERSION.multiplyInPlace(Quaternion.FromEulerAngles(0, 0, Math.PI));
 
     let joint: AbstractMesh;
     if (!leftHand) {
@@ -85,8 +83,6 @@ function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | null, right
         }
     }
 
-    // WEBXR_TO_OPENXR_ROTATION_CONVERSION.multiplyInPlace(Quaternion.FromEulerAngles(0, 0, Math.PI));
-
     if (!rightHand) {
         sample.rightWristPose.valid = false;
         for (let idx = 0; idx < sample.rightHandJointPoses.length; ++idx) {
@@ -119,7 +115,7 @@ function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | null, right
     }
 }
 
-export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, inputSample: ICarlInputSample, whenInputSampleAvailable: (inputSample: ICarlInputSample) => void): Promise<void> {
+export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<void> {
     const engine = new Engine(canvas, true);
 
     const resizeHandler = () => {
@@ -135,6 +131,9 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const scene = await PhysicsEnabledScene.loadAsync("./assets/action_studio.glb", engine, hk);
     scene.useRightHandedSystem = true;
+    engine.runRenderLoop(() => {
+        scene.render();
+    });
 
     scene.enablePhysics(new Vector3(0, -9.8, 0), hk);
 
@@ -194,17 +193,31 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
+    const cachedInputSample = carl.createInputSample();
     function createInputSample(): ICarlInputSample {
-        return {...inputSample};
+        return {...cachedInputSample};
     }
 
     xr.input.xrSessionManager.onXRFrameObservable.add((frame) => {
         let sample = createInputSample();
         populateInputSample(xr.input.xrCamera, hands.has("left") ? hands.get("left")! : null, hands.has("right") ? hands.get("right")! : null, sample);
-        whenInputSampleAvailable(sample);
+        carl.handleInputSample(sample);
     });
 
-    engine.runRenderLoop(() => {
-        scene.render();
+    // Testing CARL functionality sans interaction (yet)
+    xr.input.xrSessionManager.onXRFrameObservable.addOnce(async () => {
+        await Tools.DelayAsync(2000);
+        const recId = carl.startRecording();
+        await Tools.DelayAsync(500);
+        const example = carl.stopRecording(recId);
+        const definition = carl.createDefinition(2, [example], []);
+        const recognizer = carl.createRecognizer(definition);
+        
+        example.dispose();
+        definition.dispose();
+    
+        scene.onBeforeRenderObservable.add(() => {
+            console.log("Current score: " + recognizer.currentScore());
+        });
     });
 }

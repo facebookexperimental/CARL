@@ -32,6 +32,7 @@ namespace carl::action
 
         RecordingInspector getCanonicalRecordingInspector() const;
 
+        double getSensitivity() const;
         void setSensitivity(double sensitivity);
 
         Example createAutoTrimmedExample(const Recording&) const;
