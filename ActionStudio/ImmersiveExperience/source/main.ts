@@ -1,10 +1,11 @@
-import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, Tools, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
+import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, Tools, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
 import { ICarl, ICarlInputSample } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
+import { SliderBehavior } from "./slider";
 
 const OPENXR_JOINT_MAPPINGS = [
     WebXRHandJoint.WRIST,                               // XR_HAND_JOINT_PALM_EXT
@@ -38,7 +39,7 @@ const OPENXR_JOINT_MAPPINGS = [
 const START_T: number  = Date.now() / 1000;
 const WEBXR_TO_OPENXR_ROTATION_CONVERSION = Quaternion.Identity(); // TODO: I don't think this is necessary as the rotation conventions SEEM to be the same. Remove when confirmed.
 const convertedQuaternion = Quaternion.Identity();
-function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | null, rightHand: WebXRHand | null, sample: ICarlInputSample): void {
+function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | undefined, rightHand: WebXRHand | undefined, sample: ICarlInputSample): void {
     sample.timestamp = (Date.now() / 1000) - START_T;
 
     sample.hmdPose.valid = true;
@@ -115,6 +116,61 @@ function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | null, right
     }
 }
 
+export class InputPuppet {
+    private _leftHandMeshes: AbstractMesh[];
+    private _rightHandMeshes: AbstractMesh[];
+    private _scratchVec: Vector3 = new Vector3();
+    private _scratchQuat: Quaternion = new Quaternion();
+    private _povMat: Matrix = new Matrix();
+    private _sampleMat: Matrix = new Matrix();
+    private _sampleToPovMat: Matrix = new Matrix();
+    private _jointMat: Matrix = new Matrix();
+
+    public constructor(leftHand: WebXRHand, rightHand: WebXRHand) {
+        this._leftHandMeshes = OPENXR_JOINT_MAPPINGS.map(joint => {
+            const mesh = leftHand.getJointMesh(joint);
+            return mesh.clone(joint, null)!;
+        });
+        this._rightHandMeshes = OPENXR_JOINT_MAPPINGS.map(joint => {
+            const mesh = rightHand.getJointMesh(joint);
+            return mesh.clone(joint, null)!;
+        });
+
+        this.setEnabled(false);
+    }
+
+    public immitateInputSample(sample: ICarlInputSample, samplePosition: Vector3, sampleForward: Vector3, povPosition: Vector3, povForward: Vector3) {
+        povPosition.addToRef(povForward, this._scratchVec);
+        Matrix.LookAtRHToRef(povPosition, this._scratchVec, Vector3.UpReadOnly, this._povMat);
+        samplePosition.addToRef(sampleForward, this._scratchVec);
+        Matrix.LookAtRHToRef(samplePosition, this._scratchVec, Vector3.UpReadOnly, this._sampleMat);
+
+        this._povMat.invertToRef(this._povMat);
+        this._sampleMat.multiplyToRef(this._povMat, this._sampleToPovMat);
+
+        for (let idx = 0; idx < OPENXR_JOINT_MAPPINGS.length; ++idx) {
+            let pose = sample.leftHandJointPoses[idx];
+            this._scratchQuat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
+            Matrix.FromQuaternionToRef(this._scratchQuat, this._jointMat);
+            this._jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
+            this._jointMat.multiplyToRef(this._sampleToPovMat, this._jointMat);
+            this._jointMat.decompose(undefined, this._leftHandMeshes[idx].rotationQuaternion!, this._leftHandMeshes[idx].position);
+            
+            pose = sample.rightHandJointPoses[idx];
+            this._scratchQuat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
+            Matrix.FromQuaternionToRef(this._scratchQuat, this._jointMat);
+            this._jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
+            this._jointMat.multiplyToRef(this._sampleToPovMat, this._jointMat);
+            this._jointMat.decompose(undefined, this._rightHandMeshes[idx].rotationQuaternion!, this._rightHandMeshes[idx].position);
+        }
+    }
+
+    public setEnabled(enabled: boolean): void {
+        this._leftHandMeshes.map(mesh => mesh.setEnabled(enabled));
+        this._rightHandMeshes.map(mesh => mesh.setEnabled(enabled));
+    }
+}
+
 export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<void> {
     const engine = new Engine(canvas, true);
 
@@ -169,9 +225,15 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
-    const hands = new Map<XRHandedness, WebXRHand>();
     handTracking.onHandAddedObservable.add((hand) => {
-        hands.set(hand.xrController.inputSource.handedness, hand);
+        switch (hand.xrController.inputSource.handedness) {
+            case "left":
+                scene.leftHand = hand;
+                break;
+            case "right":
+                scene.rightHand = hand;
+                break;
+        }
 
         const grabber = new HandPinchGrabber("handGrabber", hand, xr.input.xrSessionManager, scene);
         grabber.onGrabChanged.add(() => {
@@ -187,9 +249,16 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             scene.grabbers.delete(hand.xrController.uniqueId);
         }
 
-        const handedness = hand.xrController.inputSource.handedness;
-        if (hands.has(handedness) && hands.get(handedness)?.xrController.uniqueId == hand.xrController.uniqueId) {
-            hands.delete(handedness);
+        switch (hand.xrController.inputSource.handedness) {
+            case "left":
+                if (scene.leftHand?.xrController.uniqueId === hand.xrController.uniqueId) {
+                    scene.leftHand = undefined;
+                }
+                break;
+            case "right":
+                if (scene.rightHand?.xrController.uniqueId === hand.xrController.uniqueId) {
+                    scene.rightHand = undefined;
+                }
         }
     });
 
@@ -200,14 +269,19 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     xr.input.xrSessionManager.onXRFrameObservable.add((frame) => {
         let sample = createInputSample();
-        populateInputSample(xr.input.xrCamera, hands.has("left") ? hands.get("left")! : null, hands.has("right") ? hands.get("right")! : null, sample);
+        populateInputSample(xr.input.xrCamera, scene.leftHand, scene.rightHand, sample);
         carl.handleInputSample(sample);
+
+        if (scene.inputPuppet === undefined && scene.leftHand && scene.rightHand && scene.leftHand.getJointMesh(OPENXR_JOINT_MAPPINGS[0]).scaling.x < 1) {
+            scene.inputPuppet = new InputPuppet(scene.leftHand, scene.rightHand);
+        }
     });
 
     // Testing CARL functionality sans interaction (yet)
     xr.input.xrSessionManager.onXRFrameObservable.addOnce(async () => {
         await Tools.DelayAsync(2000);
         const recId = carl.startRecording();
+        const recId2 = carl.startRecording();
         await Tools.DelayAsync(500);
         const example = carl.stopRecording(recId);
         const definition = carl.createDefinition(2, [example], []);
@@ -217,7 +291,30 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         definition.dispose();
     
         scene.onBeforeRenderObservable.add(() => {
-            console.log("Current score: " + recognizer.currentScore());
+            //console.log("Current score: " + recognizer.currentScore());
         });
+
+        await Tools.DelayAsync(2500);
+        const example2 = carl.stopRecording(recId2);
+        const inspector = example2.getRecordingInspector();
+        const playbackStartT = (Date.now() / 1000) - START_T;
+        scene.onBeforeRenderObservable.runCoroutineAsync(function* () {
+            const duration = inspector.getEndTimestamp() - inspector.getStartTimestamp();
+            scene.inputPuppet?.setEnabled(true);
+            while (true) {
+                let t = (Date.now() / 1000) - START_T;
+                t %= duration;
+                t += inspector.getStartTimestamp();
+                const sample = inspector.inspect(t);
+                scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
+                yield;
+            }
+        }());
     });
+
+    
+
+        // if (scene.inputPuppet) {
+        //     scene.inputPuppet.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly.scale(0.1), Vector3.RightHandedBackwardReadOnly);
+        // }
 }

@@ -1,4 +1,5 @@
 import { Observable, Observer, Quaternion, Scene, TransformNode, Vector3, WebXRHand, WebXRHandJoint, WebXRSessionManager } from "@babylonjs/core";
+import { PhysicsEnabledScene } from "./physicsEnabledScene";
 
 
 export interface IGrabber extends TransformNode {
@@ -24,8 +25,9 @@ export class HandPinchGrabber extends TransformNode implements IGrabber {
     private _frameObserver: Observer<XRFrame>;
     private _sessionManager: WebXRSessionManager;
 
-    constructor(name: string, hand: WebXRHand, sessionManager: WebXRSessionManager, scene: Scene) {
+    constructor(name: string, hand: WebXRHand, sessionManager: WebXRSessionManager, scene: PhysicsEnabledScene) {
         super(name, scene);
+        scene.grabbers.set(hand.xrController.inputSource.handedness, this);
         this.rotationQuaternion = Quaternion.Identity();
 
         this._sessionManager = sessionManager;

@@ -1,4 +1,4 @@
-import { IDisposable, Matrix, Node, Observer, PhysicsMotionType, TransformNode, Vector3 } from "@babylonjs/core";
+import { IDisposable, Matrix, Node, Observable, Observer, PhysicsMotionType, TransformNode, Vector3 } from "@babylonjs/core";
 import { IGrabber, IProposal } from "./handPinchGrabber";
 
 export class PhysicsGrabBehavior implements IDisposable {
@@ -9,6 +9,8 @@ export class PhysicsGrabBehavior implements IDisposable {
     private _currentGrabber: IGrabber | null = null;
     private _currentGrabberDisposeObserver: Observer<Node> | null = null;
     private _disposeObserver: Observer<Node>;
+
+    public onGrabMovedObservable: Observable<TransformNode> = new Observable<TransformNode>();
 
     private constructor(node: TransformNode) {
         this._node = node;
@@ -73,6 +75,7 @@ export class PhysicsGrabBehavior implements IDisposable {
                     this._grabberObserver = this._currentGrabber.onAfterWorldMatrixUpdateObservable.add(() => {
                         this._offsetMatrix.multiplyToRef(grabber.getWorldMatrix(), this._worldMatrix);
                         this._worldMatrix.decompose(undefined, this._node.physicsBody!.transformNode.rotationQuaternion!, this._node.physicsBody!.transformNode.position);
+                        this.onGrabMovedObservable.notifyObservers(this._node.physicsBody!.transformNode);
                     });
                     const grabberDisposedObserver = this._currentGrabber.onDisposeObservable.add(() => {
                         this._resumePhysics();

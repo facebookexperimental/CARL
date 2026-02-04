@@ -1,10 +1,18 @@
-import { AbstractMesh, AppendSceneAsync, Engine, HavokPlugin, PhysicsAggregate, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { AbstractMesh, AppendSceneAsync, Engine, HavokPlugin, PhysicsAggregate, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRHand } from "@babylonjs/core";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 import { HandPinchGrabber } from "./handPinchGrabber";
+import { SliderBehavior, SliderConstraints } from "./slider";
+import { InputPuppet } from "./main";
 
 export class PhysicsEnabledScene extends Scene {
     public grabbables: PhysicsGrabBehavior[] = [];
     public grabbers = new Map<string, HandPinchGrabber>();
+    public sliders = new Array<TransformNode>();
+
+    public leftHand: WebXRHand | undefined;
+    public rightHand: WebXRHand | undefined;
+
+    public inputPuppet: InputPuppet | undefined;
 
     private constructor(engine: Engine) {
         super(engine);
@@ -52,18 +60,40 @@ export class PhysicsEnabledScene extends Scene {
             }
             
             let grabbable = false;
+            let sliderConstraints: SliderConstraints | undefined = undefined;
             const grabbableNulls = mesh.getChildTransformNodes(true, child => child.name.startsWith("grabbable"));
             if (grabbableNulls.length > 0) {
                 grabbable = true;
                 const grabbableNull = grabbableNulls[0];
                 grabbableNull.setParent(null);
                 grabbableNull.dispose();
+
+                const sliderNulls = mesh.getChildTransformNodes(true, child => child.name.startsWith("slider"));
+                if (sliderNulls.length === 2) {
+                    const ab = sliderNulls[0].name.split(';')[1].startsWith("a");
+                    const a = ab ? sliderNulls[0] : sliderNulls[1];
+                    const b = ab ? sliderNulls[1] : sliderNulls[0];
+                    a.setParent(null);
+                    b.setParent(null);
+                    sliderConstraints = new SliderConstraints(a.position, b.position);
+                    a.dispose();
+                    b.dispose();
+                }
             }
 
             const aggregate = new PhysicsAggregate(mesh, shape, { mass: mass }, scene);
-            aggregate.transformNode.rotationQuaternion = Quaternion.Identity();
+            aggregate.transformNode.rotationQuaternion = Quaternion.FromEulerAngles(
+                aggregate.transformNode.rotation.x, 
+                aggregate.transformNode.rotation.y, 
+                aggregate.transformNode.rotation.z);
             if (grabbable) {
-                scene.grabbables.push(PhysicsGrabBehavior.attach(mesh));
+                const behavior = PhysicsGrabBehavior.attach(mesh);
+                scene.grabbables.push(behavior);
+
+                if (sliderConstraints) {
+                    SliderBehavior.attach(aggregate.transformNode, behavior, sliderConstraints);
+                    scene.sliders.push(aggregate.transformNode);
+                }
             }
         });
 
