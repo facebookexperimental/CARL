@@ -7,7 +7,7 @@ import { InputPuppet } from "./main";
 export class PhysicsEnabledScene extends Scene {
     public grabbables: PhysicsGrabBehavior[] = [];
     public grabbers = new Map<string, HandPinchGrabber>();
-    public sliders = new Array<TransformNode>();
+    public sliders: SliderBehavior[] = [];
 
     public leftHand: WebXRHand | undefined;
     public rightHand: WebXRHand | undefined;
@@ -91,8 +91,8 @@ export class PhysicsEnabledScene extends Scene {
                 scene.grabbables.push(behavior);
 
                 if (sliderConstraints) {
-                    SliderBehavior.attach(aggregate.transformNode, behavior, sliderConstraints);
-                    scene.sliders.push(aggregate.transformNode);
+                    const slider = SliderBehavior.attach(aggregate.transformNode, behavior, sliderConstraints);
+                    scene.sliders.push(slider);
                 }
             }
         });

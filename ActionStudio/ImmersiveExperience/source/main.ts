@@ -5,7 +5,6 @@ import { ICarl, ICarlInputSample } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
-import { SliderBehavior } from "./slider";
 
 const OPENXR_JOINT_MAPPINGS = [
     WebXRHandJoint.WRIST,                               // XR_HAND_JOINT_PALM_EXT
@@ -300,15 +299,26 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         const playbackStartT = (Date.now() / 1000) - START_T;
         scene.onBeforeRenderObservable.runCoroutineAsync(function* () {
             const duration = inspector.getEndTimestamp() - inspector.getStartTimestamp();
+            scene.inputPuppet?.immitateInputSample(inspector.inspect(inspector.getStartTimestamp()), Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
             scene.inputPuppet?.setEnabled(true);
-            while (true) {
-                let t = (Date.now() / 1000) - START_T;
-                t %= duration;
-                t += inspector.getStartTimestamp();
-                const sample = inspector.inspect(t);
-                scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
-                yield;
-            }
+
+            scene.sliders.forEach(slider => {
+                slider.onUpdatedObservable.add(() => {
+                    console.log("Updated! " + slider.value);
+                    let t = slider.value;
+                    t = t * duration + inspector.getStartTimestamp();
+                    const sample = inspector.inspect(t);
+                    scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
+                })
+            });
+            // while (true) {
+            //     let t = (Date.now() / 1000) - START_T;
+            //     t %= duration;
+            //     t += inspector.getStartTimestamp();
+            //     const sample = inspector.inspect(t);
+            //     scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
+            //     yield;
+            // }
         }());
     });
 
