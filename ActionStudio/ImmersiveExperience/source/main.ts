@@ -1,7 +1,7 @@
-import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, Matrix, Mesh, MeshBuilder, PBRMaterial, Quaternion, Scene, Tools, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
+import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, IDisposable, Matrix, Mesh, MeshBuilder, Observable, Observer, PBRMaterial, PhysicsAggregate, PhysicsShape, PhysicsShapeType, PhysicsVortexEventData, Quaternion, ReciprocalBlock, Scene, Tools, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
-import { ICarl, ICarlInputSample } from "./carlInterfaces";
+import { ICarl, ICarlExample, ICarlInputSample, ICarlRecordingInspector } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
@@ -170,6 +170,199 @@ export class InputPuppet {
     }
 }
 
+class ExampleBlockSpawner {
+    private _scene: PhysicsEnabledScene;
+    private _nextId: number;
+    private _exampleBlock: AbstractMesh;
+
+    constructor (scene: PhysicsEnabledScene) {
+        this._scene = scene;
+        this._nextId = 0;
+        this._exampleBlock = scene.getMeshByName("example_block")!;
+        this._exampleBlock.setEnabled(false);
+    }
+
+    spawnNewExampleBlock(): AbstractMesh {
+            const clone = this._exampleBlock.clone(`example_block_${++this._nextId}`, null)!;
+            const aggregate = new PhysicsAggregate(clone, PhysicsShapeType.BOX, { mass: 1 }, this._scene);
+            aggregate.transformNode.rotationQuaternion = Quaternion.FromEulerAngles(
+                aggregate.transformNode.rotation.x, 
+                aggregate.transformNode.rotation.y, 
+                aggregate.transformNode.rotation.z);
+            this._scene.grabbables.push(PhysicsGrabBehavior.attach(clone));
+            clone.setEnabled(true);
+            return clone;
+    }
+}
+
+enum PokeButtonState {
+    Default,
+    Poked,
+    Cooldown,
+}
+
+class PokeButton implements IDisposable {
+    private scene: PhysicsEnabledScene;
+    private onButton: AbstractMesh;
+    private offButton: AbstractMesh | undefined;
+
+    private beforeRenderObserver: Observer<Scene>;
+    private state: PokeButtonState = PokeButtonState.Default;
+    private cooldown: number = 0;
+
+    private static readonly POKE_ENTER_THRESHOLD = 0.015;
+    private static readonly POKE_EXIT_THRESHOLD = 0.02;
+
+    public onPokeObservable: Observable<boolean> = new Observable<boolean>();
+
+    public constructor(scene: PhysicsEnabledScene, onButtonName: string, offButtonName: string | undefined) {
+        this.scene = scene;
+        this.onButton = this.scene.getMeshByName(onButtonName)!;
+        if (offButtonName) {
+            this.offButton = this.scene.getMeshByName(offButtonName)!;
+        }
+        this.offButton?.setEnabled(false);
+        this.onPokeObservable.add(isPoked => {
+            if (isPoked && this.offButton) {
+                this.onButton.setEnabled(!this.onButton.isEnabled());
+                this.offButton.setEnabled(!this.offButton.isEnabled());
+            }
+        });
+
+        this.beforeRenderObserver = this.scene.onBeforeRenderObservable.add(() => this.update());
+        this.scene.onDisposeObservable.addOnce(() => this.dispose());
+    }
+
+    private update(): void {
+        this.cooldown -= this.scene.deltaTime;
+
+        let minDist: number = 10;
+        if (this.scene.leftHand) {
+            const tipPosition = this.scene.leftHand.getJointMesh(WebXRHandJoint.INDEX_FINGER_TIP).position;
+            minDist = Math.min(Vector3.Distance(tipPosition, this.onButton.position), minDist);
+        }
+        if (this.scene.rightHand) {
+            const tipPosition = this.scene.rightHand.getJointMesh(WebXRHandJoint.INDEX_FINGER_TIP).position;
+            minDist = Math.min(Vector3.Distance(tipPosition, this.onButton.position), minDist);
+        }
+
+        switch (this.state) {
+            case PokeButtonState.Default:
+                if (minDist < PokeButton.POKE_ENTER_THRESHOLD) {
+                    this.state = PokeButtonState.Poked;
+                    this.onPokeObservable.notifyObservers(true);
+                }
+                break;
+            case PokeButtonState.Poked:
+                if (minDist > PokeButton.POKE_EXIT_THRESHOLD) {
+                    this.cooldown = 500;
+                    this.state = PokeButtonState.Cooldown;
+                }
+                break;
+            case PokeButtonState.Cooldown:
+                if (minDist < PokeButton.POKE_EXIT_THRESHOLD) {
+                    this.state = PokeButtonState.Poked;
+                } else if (this.cooldown < 0) {
+                    this.state = PokeButtonState.Default;
+                    this.onPokeObservable.notifyObservers(false);
+                }
+                break;
+        }
+    }
+
+    public dispose(): void {
+        this.onPokeObservable.clear();
+        this.beforeRenderObserver.remove();
+    }
+}
+
+class ExamplePreviewer {
+    private scene: PhysicsEnabledScene;
+    private previewing: boolean = false;
+    private shouldPlay: boolean = false;
+
+    public constructor(scene: PhysicsEnabledScene) {
+        this.scene = scene;
+    }
+
+    public previewExample(example: ICarlExample): () => void {
+        this.previewing = true;
+        this.scene.onBeforeRenderObservable.runCoroutineAsync(this.previewExampleCoroutine(example));
+        return () => {
+            this.previewing = false;
+        }
+    }
+
+    public play(): void {
+        this.shouldPlay = true;
+    }
+
+    private *previewExampleCoroutine(example: ICarlExample) {
+        const inspector = example.getRecordingInspector();
+        const duration = inspector.getEndTimestamp() - inspector.getStartTimestamp();
+        this.scene.inputPuppet?.immitateInputSample(inspector.inspect(inspector.getStartTimestamp()), Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
+        this.scene.inputPuppet?.setEnabled(true);
+
+        let currentT: number | undefined = undefined;
+
+        let minT = example.getStartTimestamp();
+        let maxT = example.getEndTimestamp();
+
+        const sliderObservers: Observer<void>[] = [];
+        for (let idx = 0; idx < this.scene.sliders.length; ++idx) {
+            const slider = this.scene.sliders[idx];
+            if (idx == 0) {
+                slider.value = (minT - inspector.getStartTimestamp()) / duration;
+            } else {
+                slider.value = (maxT - inspector.getStartTimestamp()) / duration;
+            }
+
+            const otherSlider = this.scene.sliders[(idx + 1) % 2];
+            sliderObservers.push(slider.onUpdatedObservable.add(() => {
+                currentT = undefined;
+
+                let t = slider.value;
+                t = t * duration + inspector.getStartTimestamp();
+
+                if (slider.value < otherSlider.value) {
+                    minT = t;
+                } else {
+                    maxT = t;
+                }
+
+                const sample = inspector.inspect(t);
+                this.scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
+            }));
+        }
+        
+        while (this.previewing) {
+            if (this.shouldPlay) {
+                currentT = minT;
+                this.shouldPlay = false;
+            }
+
+            if (currentT) {
+                const sample = inspector.inspect(currentT);
+                this.scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
+
+                currentT += (this.scene.deltaTime / 1000);
+                if (currentT > maxT) {
+                    currentT = undefined;
+                }
+            }
+            yield;
+        }
+
+        sliderObservers.forEach(observer => {
+            observer.remove();
+        });
+        example.setStartTimestamp(minT);
+        example.setEndTimestamp(maxT);
+        inspector.dispose();
+        this.scene.inputPuppet?.setEnabled(false);
+    }
+}
+
 export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<void> {
     const engine = new Engine(canvas, true);
 
@@ -197,6 +390,8 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
+    
+    const spawner = new ExampleBlockSpawner(scene);
 
     const xr = await scene.createDefaultXRExperienceAsync();
 
@@ -266,6 +461,35 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         return {...cachedInputSample};
     }
 
+    const previewer = new ExamplePreviewer(scene);
+
+    // TODO: Testing the recorder.
+    const recordingStartPoke = new PokeButton(scene, "recording_start", "recording_stop");
+    let recording: number | undefined = undefined;
+    let example: ICarlExample | undefined = undefined;
+    recordingStartPoke.onPokeObservable.add(poked => {
+        if (poked) {
+            if (recording) {
+                example = carl.stopRecording(recording);
+                recording = undefined;
+                spawner.spawnNewExampleBlock();
+
+                // TODO: Testing the previewer.
+                Tools.DelayAsync(2000).then(() => {
+                    const stopper = previewer.previewExample(example!);
+                    Tools.DelayAsync(2000).then(() => {
+                        previewer.play();
+                    });
+                    Tools.DelayAsync(10000).then(() => {
+                        stopper();
+                    });
+                });
+            } else {
+                recording = carl.startRecording();
+            }
+        }
+    });
+
     xr.input.xrSessionManager.onXRFrameObservable.add((frame) => {
         let sample = createInputSample();
         populateInputSample(xr.input.xrCamera, scene.leftHand, scene.rightHand, sample);
@@ -288,38 +512,6 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         
         example.dispose();
         definition.dispose();
-    
-        scene.onBeforeRenderObservable.add(() => {
-            //console.log("Current score: " + recognizer.currentScore());
-        });
-
-        await Tools.DelayAsync(2500);
-        const example2 = carl.stopRecording(recId2);
-        const inspector = example2.getRecordingInspector();
-        const playbackStartT = (Date.now() / 1000) - START_T;
-        scene.onBeforeRenderObservable.runCoroutineAsync(function* () {
-            const duration = inspector.getEndTimestamp() - inspector.getStartTimestamp();
-            scene.inputPuppet?.immitateInputSample(inspector.inspect(inspector.getStartTimestamp()), Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
-            scene.inputPuppet?.setEnabled(true);
-
-            scene.sliders.forEach(slider => {
-                slider.onUpdatedObservable.add(() => {
-                    console.log("Updated! " + slider.value);
-                    let t = slider.value;
-                    t = t * duration + inspector.getStartTimestamp();
-                    const sample = inspector.inspect(t);
-                    scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
-                })
-            });
-            // while (true) {
-            //     let t = (Date.now() / 1000) - START_T;
-            //     t %= duration;
-            //     t += inspector.getStartTimestamp();
-            //     const sample = inspector.inspect(t);
-            //     scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
-            //     yield;
-            // }
-        }());
     });
 
     

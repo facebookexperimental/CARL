@@ -43,6 +43,7 @@ export interface ICarlRecordingInspector {
     getStartTimestamp(): number;
     getEndTimestamp(): number;
     inspect(timestamp: number): ICarlInputSample;
+    dispose(): void;
 }
 
 export interface ICarlExample {
