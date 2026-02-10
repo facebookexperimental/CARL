@@ -1,4 +1,4 @@
-import { Observable, Observer, TransformNode, Vector3 } from "@babylonjs/core";
+import { Observable, Observer, PhysicsMotionType, TransformNode, Vector3 } from "@babylonjs/core";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 
 export class SliderConstraints {
@@ -23,6 +23,9 @@ export class SliderBehavior {
         return this._value;
     }
     public set value(newValue: number) {
+        this._node.physicsBody!.setMotionType(PhysicsMotionType.ANIMATED);
+        this._node.physicsBody!.disablePreStep = false;
+        
         this._value = newValue;
         this._constraints.b.subtractToRef(this._constraints.a, this._ab);
         this._ab.scaleInPlace(this._value);

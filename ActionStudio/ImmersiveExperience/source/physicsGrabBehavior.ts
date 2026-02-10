@@ -10,7 +10,9 @@ export class PhysicsGrabBehavior implements IDisposable {
     private _currentGrabberDisposeObserver: Observer<Node> | null = null;
     private _disposeObserver: Observer<Node>;
 
+    public onGrabStartedObservable: Observable<TransformNode> = new Observable<TransformNode>();
     public onGrabMovedObservable: Observable<TransformNode> = new Observable<TransformNode>();
+    public onGrabEndedObservable: Observable<TransformNode> = new Observable<TransformNode>();
 
     private constructor(node: TransformNode) {
         this._node = node;
@@ -20,7 +22,7 @@ export class PhysicsGrabBehavior implements IDisposable {
 
     private static _behaviors = new Map<number, PhysicsGrabBehavior>();
 
-    public static attach(node: TransformNode): PhysicsGrabBehavior {
+    public static get(node: TransformNode): PhysicsGrabBehavior {
         if (!PhysicsGrabBehavior._behaviors.has(node.uniqueId)) {
             const behavior = new PhysicsGrabBehavior(node);
             PhysicsGrabBehavior._behaviors.set(node.uniqueId, behavior);
@@ -54,6 +56,8 @@ export class PhysicsGrabBehavior implements IDisposable {
         this._grabberObserver = null;
         this._currentGrabberDisposeObserver?.remove();
         this._currentGrabberDisposeObserver = null;
+
+        this.onGrabEndedObservable.notifyObservers(this._node);
     }
 
     public proposeGrab(grabber: IGrabber): IProposal {
@@ -66,6 +70,7 @@ export class PhysicsGrabBehavior implements IDisposable {
                     if (this._currentGrabber !== null) {
                         // If we're already being grabbed, we need to stop observing that grab, but we're already set up for animated physics.
                         this._grabberObserver?.remove();
+                        this.onGrabEndedObservable.notifyObservers(this._node);
                     } else {
                         // Otherwise, we need to change our physics mode from to permit animation.
                         this._pausePhysics();
@@ -76,6 +81,7 @@ export class PhysicsGrabBehavior implements IDisposable {
                         this._offsetMatrix.multiplyToRef(grabber.getWorldMatrix(), this._worldMatrix);
                         this._worldMatrix.decompose(undefined, this._node.physicsBody!.transformNode.rotationQuaternion!, this._node.physicsBody!.transformNode.position);
                         this.onGrabMovedObservable.notifyObservers(this._node.physicsBody!.transformNode);
+                    this.onGrabStartedObservable.notifyObservers(this._node);
                     });
                     const grabberDisposedObserver = this._currentGrabber.onDisposeObservable.add(() => {
                         this._resumePhysics();
@@ -95,6 +101,8 @@ export class PhysicsGrabBehavior implements IDisposable {
 
     public dispose(): void {
         PhysicsGrabBehavior._behaviors.delete(this._node.uniqueId);
+        this.onGrabMovedObservable.clear();
+        this.onGrabEndedObservable.clear();
         this._disposeObserver?.remove();
     }
 }

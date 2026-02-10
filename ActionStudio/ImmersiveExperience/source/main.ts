@@ -1,10 +1,11 @@
-import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, IDisposable, Matrix, Mesh, MeshBuilder, Observable, Observer, PBRMaterial, PhysicsAggregate, PhysicsShape, PhysicsShapeType, PhysicsVortexEventData, Quaternion, ReciprocalBlock, Scene, Tools, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
+import { _InstancesBatch, AbstractMesh, Color3, Engine, FreeCamera, HavokPlugin, HemisphericLight, IDisposable, Matrix, Mesh, MeshBuilder, Observable, Observer, PBRMaterial, PhysicsAggregate, PhysicsShape, PhysicsShapeType, PhysicsVortexEventData, Quaternion, ReciprocalBlock, Scene, Tools, TransformNode, Vector3, WebXRCamera, WebXRControllerPointerSelection, WebXRFeatureName, WebXRHand, WebXRHandJoint, WebXRState } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
 import { ICarl, ICarlExample, ICarlInputSample, ICarlRecordingInspector } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
+import { pbrBlockGeometryInfo } from "@babylonjs/core/Shaders/ShadersInclude/pbrBlockGeometryInfo";
 
 const OPENXR_JOINT_MAPPINGS = [
     WebXRHandJoint.WRIST,                               // XR_HAND_JOINT_PALM_EXT
@@ -174,6 +175,7 @@ class ExampleBlockSpawner {
     private _scene: PhysicsEnabledScene;
     private _nextId: number;
     private _exampleBlock: AbstractMesh;
+    private _nodeToExample = new Map<TransformNode, ICarlExample>();
 
     constructor (scene: PhysicsEnabledScene) {
         this._scene = scene;
@@ -182,16 +184,26 @@ class ExampleBlockSpawner {
         this._exampleBlock.setEnabled(false);
     }
 
-    spawnNewExampleBlock(): AbstractMesh {
-            const clone = this._exampleBlock.clone(`example_block_${++this._nextId}`, null)!;
-            const aggregate = new PhysicsAggregate(clone, PhysicsShapeType.BOX, { mass: 1 }, this._scene);
+    spawnNewExampleBlock(example: ICarlExample): AbstractMesh {
+            const clonedExampleBlock = this._exampleBlock.clone(`example_block_${++this._nextId}`, null)!;
+            const aggregate = new PhysicsAggregate(clonedExampleBlock, PhysicsShapeType.BOX, { mass: 1 }, this._scene);
             aggregate.transformNode.rotationQuaternion = Quaternion.FromEulerAngles(
                 aggregate.transformNode.rotation.x, 
                 aggregate.transformNode.rotation.y, 
                 aggregate.transformNode.rotation.z);
-            this._scene.grabbables.push(PhysicsGrabBehavior.attach(clone));
-            clone.setEnabled(true);
-            return clone;
+            this._scene.grabbables.push(PhysicsGrabBehavior.get(clonedExampleBlock));
+            clonedExampleBlock.setEnabled(true);
+            
+            this._nodeToExample.set(clonedExampleBlock, example);
+            clonedExampleBlock.onDisposeObservable.addOnce(() => {
+                this._nodeToExample.delete(clonedExampleBlock);
+            });
+
+            return clonedExampleBlock;
+    }
+
+    getExampleFromBlock(block: TransformNode): ICarlExample | undefined {
+        return this._nodeToExample.get(block);
     }
 }
 
@@ -311,12 +323,6 @@ class ExamplePreviewer {
         const sliderObservers: Observer<void>[] = [];
         for (let idx = 0; idx < this.scene.sliders.length; ++idx) {
             const slider = this.scene.sliders[idx];
-            if (idx == 0) {
-                slider.value = (minT - inspector.getStartTimestamp()) / duration;
-            } else {
-                slider.value = (maxT - inspector.getStartTimestamp()) / duration;
-            }
-
             const otherSlider = this.scene.sliders[(idx + 1) % 2];
             sliderObservers.push(slider.onUpdatedObservable.add(() => {
                 currentT = undefined;
@@ -334,6 +340,9 @@ class ExamplePreviewer {
                 this.scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedForwardReadOnly);
             }));
         }
+
+        this.scene.sliders[1].value = (maxT - inspector.getStartTimestamp()) / duration;
+        this.scene.sliders[0].value = (minT - inspector.getStartTimestamp()) / duration;
         
         while (this.previewing) {
             if (this.shouldPlay) {
@@ -356,6 +365,7 @@ class ExamplePreviewer {
         sliderObservers.forEach(observer => {
             observer.remove();
         });
+
         example.setStartTimestamp(minT);
         example.setEndTimestamp(maxT);
         inspector.dispose();
@@ -462,6 +472,10 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     }
 
     const previewer = new ExamplePreviewer(scene);
+    let previewStopper: any = null;
+    let currentlyPreviewed: TransformNode | null = null;
+
+    const editorMesh = scene.getMeshByName("editor");
 
     // TODO: Testing the recorder.
     const recordingStartPoke = new PokeButton(scene, "recording_start", "recording_stop");
@@ -472,18 +486,38 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             if (recording) {
                 example = carl.stopRecording(recording);
                 recording = undefined;
-                spawner.spawnNewExampleBlock();
+                
+                const block = spawner.spawnNewExampleBlock(example);
+                const blockGrabbable = PhysicsGrabBehavior.get(block);
+                const tryStopPreviewing = () => {
+                    if (previewStopper) previewStopper();
+                    previewStopper = null;
+                    currentlyPreviewed = null;
+                };
+                blockGrabbable.onGrabStartedObservable.add(() =>  {
+                    if (currentlyPreviewed === block) {
+                        tryStopPreviewing();
+                    }
+                });
+                blockGrabbable.onGrabEndedObservable.add(() => {
+                    if (Vector3.Distance(block.position, editorMesh!.position) < 0.05) {
+                        tryStopPreviewing();
+                        currentlyPreviewed = block;
+                        previewStopper = previewer.previewExample(spawner.getExampleFromBlock(block)!);
+                    }
+                });
+
 
                 // TODO: Testing the previewer.
-                Tools.DelayAsync(2000).then(() => {
-                    const stopper = previewer.previewExample(example!);
-                    Tools.DelayAsync(2000).then(() => {
-                        previewer.play();
-                    });
-                    Tools.DelayAsync(10000).then(() => {
-                        stopper();
-                    });
-                });
+                // Tools.DelayAsync(2000).then(() => {
+                //     const stopper = previewer.previewExample(example!);
+                //     Tools.DelayAsync(2000).then(() => {
+                //         previewer.play();
+                //     });
+                //     Tools.DelayAsync(10000).then(() => {
+                //         stopper();
+                //     });
+                // });
             } else {
                 recording = carl.startRecording();
             }
@@ -513,8 +547,6 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         example.dispose();
         definition.dispose();
     });
-
-    
 
         // if (scene.inputPuppet) {
         //     scene.inputPuppet.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly.scale(0.1), Vector3.RightHandedBackwardReadOnly);

@@ -87,7 +87,7 @@ export class PhysicsEnabledScene extends Scene {
                 aggregate.transformNode.rotation.y, 
                 aggregate.transformNode.rotation.z);
             if (grabbable) {
-                const behavior = PhysicsGrabBehavior.attach(mesh);
+                const behavior = PhysicsGrabBehavior.get(mesh);
                 scene.grabbables.push(behavior);
 
                 if (sliderConstraints) {
