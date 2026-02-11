@@ -118,7 +118,7 @@ class CarlIntegration {
     _session;
     _inProgressRecordings = new Map();
 
-    _nextId = 0;
+    _nextId = 1;
 
     _actionTypes = [];
     _idToActionType = new Map();

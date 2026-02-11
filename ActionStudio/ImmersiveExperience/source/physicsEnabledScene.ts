@@ -2,7 +2,7 @@ import { AbstractMesh, AppendSceneAsync, Engine, HavokPlugin, PhysicsAggregate, 
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { SliderBehavior, SliderConstraints } from "./slider";
-import { InputPuppet } from "./main";
+import { InputPuppet } from "./inputPuppet";
 
 export class PhysicsEnabledScene extends Scene {
     public grabbables: PhysicsGrabBehavior[] = [];

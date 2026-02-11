@@ -1,15 +1,16 @@
-import { _InstancesBatch, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, Tools, TransformNode, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRState } from "@babylonjs/core";
+import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRState } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
 import { ICarl, ICarlExample, ICarlInputSample } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
-import { InputPuppet } from "./inputPuppet";
 import { OPENXR_JOINT_MAPPINGS, populateInputSample } from "./utils";
 import { ExampleBlockSpawner } from "./exampleBlockSpawner";
 import { PokeButton } from "./pokeButton";
 import { ExamplePreviewer } from "./examplePreviewer";
+import { InputPuppet } from "./inputPuppet";
+import { RecognitionGraph } from "./recognitionGraph";
 
 export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<void> {
     const engine = new Engine(canvas, true);
@@ -29,6 +30,12 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     scene.useRightHandedSystem = true;
     engine.runRenderLoop(() => {
         scene.render();
+    });
+
+    scene.transformNodes.map(node => {
+        if (node.name.startsWith("invisible")) {
+            node.parent!.setEnabled(false);
+        }
     });
 
     scene.enablePhysics(new Vector3(0, -9.8, 0), hk);
@@ -111,15 +118,57 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const previewer = new ExamplePreviewer(scene);
     let previewStopper: any = null;
-    let currentlyPreviewed: TransformNode | null = null;
+    let currentlyPreviewed: AbstractMesh | null = null;
 
     const editorMesh = scene.getMeshByName("editor");
 
+    const addPreviewingSupportToExampleBlock = (block: AbstractMesh, blockGrabbable: PhysicsGrabBehavior) => {
+        const tryStopPreviewing = () => {
+            if (previewStopper) previewStopper();
+            previewStopper = null;
+            currentlyPreviewed = null;
+        };
+        blockGrabbable.onGrabStartedObservable.add(() =>  {
+            if (currentlyPreviewed === block) {
+                tryStopPreviewing();
+            }
+        });
+        blockGrabbable.onGrabEndedObservable.add(() => {
+            if (Vector3.Distance(block.position, editorMesh!.position) < 0.08) {
+                tryStopPreviewing();
+                currentlyPreviewed = block;
+                previewStopper = previewer.previewExample(spawner.getExampleFromBlock(block)!);
+            }
+        });
+    };
+
+    const currentGraph = new RecognitionGraph(scene, Color4.FromInts(255, 255, 255, 255));
+    scene.onDisposeObservable.add(() => {
+        currentGraph.dispose();
+    });
+    const isExampleMatrix = scene.getMeshByName("examples_volume")!.computeWorldMatrix(true).invert();
+    const scratchVec = new Vector3();
+    const addCurrentDefinitionSupportToExampleBlock = (block: AbstractMesh, blockGrabbable: PhysicsGrabBehavior) => {
+        blockGrabbable.onGrabStartedObservable.add(() =>  {
+            // TODO: Do this for real.
+            currentGraph.recognizer = undefined;
+        });
+        blockGrabbable.onGrabEndedObservable.add(() => {
+            Vector3.TransformCoordinatesToRef(block.position, isExampleMatrix, scratchVec);
+            if (Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1) {
+                const example = spawner.getExampleFromBlock(block)!;
+                const definition = carl.createDefinition(2, [example], []);
+                currentGraph.recognizer = carl.createRecognizer(definition);
+                definition.dispose();
+            }
+        });
+    };
+
     // TODO: Testing the recorder.
-    const recordingStartPoke = new PokeButton(scene, "recording_start", "recording_stop");
+    const recordingPokeButton = new PokeButton(scene, "recording_start", "recording_stop");
     let recording: number | undefined = undefined;
     let example: ICarlExample | undefined = undefined;
-    recordingStartPoke.onPokeObservable.add(poked => {
+    recordingPokeButton.onPokeObservable.add(poked => {
         if (poked) {
             if (recording) {
                 example = carl.stopRecording(recording);
@@ -127,27 +176,11 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 
                 const block = spawner.spawnNewExampleBlock(example);
                 const blockGrabbable = PhysicsGrabBehavior.get(block);
-
-                // TODO: Typify the following behavior.
-                const tryStopPreviewing = () => {
-                    if (previewStopper) previewStopper();
-                    previewStopper = null;
-                    currentlyPreviewed = null;
-                };
-                blockGrabbable.onGrabStartedObservable.add(() =>  {
-                    if (currentlyPreviewed === block) {
-                        tryStopPreviewing();
-                    }
-                });
-                blockGrabbable.onGrabEndedObservable.add(() => {
-                    if (Vector3.Distance(block.position, editorMesh!.position) < 0.08) {
-                        tryStopPreviewing();
-                        currentlyPreviewed = block;
-                        previewStopper = previewer.previewExample(spawner.getExampleFromBlock(block)!);
-                    }
-                });
+                addPreviewingSupportToExampleBlock(block, blockGrabbable);
+                addCurrentDefinitionSupportToExampleBlock(block, blockGrabbable);
             } else {
                 recording = carl.startRecording();
+                console.log("Recording! " + recording);
             }
         }
     });
@@ -168,24 +201,5 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             scene.inputPuppet = new InputPuppet(scene.leftHand, scene.rightHand);
         }
     });
-
-    // Testing CARL functionality sans interaction (yet)
-    xr.input.xrSessionManager.onXRFrameObservable.addOnce(async () => {
-        await Tools.DelayAsync(2000);
-        const recId = carl.startRecording();
-        const recId2 = carl.startRecording();
-        await Tools.DelayAsync(500);
-        const example = carl.stopRecording(recId);
-        const definition = carl.createDefinition(2, [example], []);
-        const recognizer = carl.createRecognizer(definition);
-        
-        example.dispose();
-        definition.dispose();
-    });
-
-        // if (scene.inputPuppet) {
-        //     scene.inputPuppet.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, Vector3.RightHandedBackwardReadOnly.scale(0.1), Vector3.RightHandedBackwardReadOnly);
-        // }
 }
-export { InputPuppet };
 
