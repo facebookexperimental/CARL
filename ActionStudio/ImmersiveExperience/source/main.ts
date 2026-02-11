@@ -1,7 +1,7 @@
-import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRState } from "@babylonjs/core";
+import { _InstancesBatch, Color4, Matrix, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRState, Tools, TransformNode } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
-import { ICarl, ICarlExample, ICarlInputSample } from "./carlInterfaces";
+import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
@@ -118,51 +118,93 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const previewer = new ExamplePreviewer(scene);
     let previewStopper: any = null;
-    let currentlyPreviewed: AbstractMesh | null = null;
-
-    const editorMesh = scene.getMeshByName("editor");
-
-    const addPreviewingSupportToExampleBlock = (block: AbstractMesh, blockGrabbable: PhysicsGrabBehavior) => {
-        const tryStopPreviewing = () => {
-            if (previewStopper) previewStopper();
-            previewStopper = null;
-            currentlyPreviewed = null;
-        };
-        blockGrabbable.onGrabStartedObservable.add(() =>  {
-            if (currentlyPreviewed === block) {
-                tryStopPreviewing();
-            }
-        });
-        blockGrabbable.onGrabEndedObservable.add(() => {
-            if (Vector3.Distance(block.position, editorMesh!.position) < 0.08) {
-                tryStopPreviewing();
-                currentlyPreviewed = block;
-                previewStopper = previewer.previewExample(spawner.getExampleFromBlock(block)!);
-            }
-        });
-    };
+    
+    const exampleBlocks = new Set<TransformNode>();
+    const counterexampleBlocks = new Set<TransformNode>();
 
     const currentGraph = new RecognitionGraph(scene, Color4.FromInts(255, 255, 255, 255));
     scene.onDisposeObservable.add(() => {
         currentGraph.dispose();
     });
-    const isExampleMatrix = scene.getMeshByName("examples_volume")!.computeWorldMatrix(true).invert();
-    const scratchVec = new Vector3();
-    const addCurrentDefinitionSupportToExampleBlock = (block: AbstractMesh, blockGrabbable: PhysicsGrabBehavior) => {
-        blockGrabbable.onGrabStartedObservable.add(() =>  {
-            // TODO: Do this for real.
+
+    let currentDefinition: ICarlDefinition | undefined = undefined;
+    const regenerateDefinition = () => {
+        currentDefinition?.dispose();
+        if (exampleBlocks.size < 1) {
+            currentDefinition = undefined;
             currentGraph.recognizer = undefined;
-        });
-        blockGrabbable.onGrabEndedObservable.add(() => {
-            Vector3.TransformCoordinatesToRef(block.position, isExampleMatrix, scratchVec);
-            if (Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1) {
-                const example = spawner.getExampleFromBlock(block)!;
-                const definition = carl.createDefinition(2, [example], []);
-                currentGraph.recognizer = carl.createRecognizer(definition);
-                definition.dispose();
+            return;
+        }
+
+        const examples: ICarlExample[] = [];
+        exampleBlocks.forEach(block => {
+            const example = spawner.getExampleFromBlock(block);
+            if (example) {
+                examples.push(example);
             }
         });
+        const counterexamples: ICarlExample[] = [];
+        counterexampleBlocks.forEach(block => {
+            const counterexample = spawner.getExampleFromBlock(block);
+            if (counterexample) {
+                counterexamples.push(counterexample);
+            }
+        });
+        currentDefinition = carl.createDefinition(2, examples, counterexamples);
+        currentGraph.recognizer = carl.createRecognizer(currentDefinition);
     };
+
+    const inEditorMatrix = scene.getMeshByName("editor_volume")!.computeWorldMatrix(true).clone().invert();
+    const isExampleMatrix = scene.getMeshByName("examples_volume")!.computeWorldMatrix(true).clone().invert();
+    const isCounterexampleMatrix = scene.getMeshByName("counterexamples_volume")!.computeWorldMatrix(true).clone().invert();
+
+    const scratchVec = new Vector3();
+    const addExampleBlockPlacementDetection = (block: AbstractMesh) => {
+        const blockState = {
+            inEditor: false,
+            isExample: false,
+            isCounterexample: false,
+        };
+        scene.onBeforeRenderObservable.add(() => {
+            Vector3.TransformCoordinatesToRef(block.position, inEditorMatrix, scratchVec);
+            let inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
+            if (!blockState.inEditor && inBounds) {
+                previewStopper = previewer.previewExample(spawner.getExampleFromBlock(block)!);
+                blockState.inEditor = true;
+                return;
+            } else if (blockState.inEditor && !inBounds) {
+                previewStopper();
+                previewStopper = null;
+                blockState.inEditor = false;
+            }
+            
+            Vector3.TransformCoordinatesToRef(block.position, isExampleMatrix, scratchVec);
+            inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
+            if (!blockState.isExample && inBounds) {
+                exampleBlocks.add(block);
+                regenerateDefinition();
+                blockState.isExample = true;
+                return;
+            } else if (blockState.isExample && !inBounds) {
+                exampleBlocks.delete(block);
+                regenerateDefinition();
+                blockState.isExample = false;
+            }
+            
+            Vector3.TransformCoordinatesToRef(block.position, isCounterexampleMatrix, scratchVec);
+            inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
+            if (!blockState.isCounterexample && inBounds) {
+                counterexampleBlocks.add(block);
+                regenerateDefinition();
+                blockState.isCounterexample = true;
+                return;
+            } else if (blockState.isCounterexample && !inBounds) {
+                counterexampleBlocks.delete(block);
+                regenerateDefinition();
+                blockState.isCounterexample = false;
+            }
+        });
+    }
 
     // TODO: Testing the recorder.
     const recordingPokeButton = new PokeButton(scene, "recording_start", "recording_stop");
@@ -175,19 +217,16 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 recording = undefined;
                 
                 const block = spawner.spawnNewExampleBlock(example);
-                const blockGrabbable = PhysicsGrabBehavior.get(block);
-                addPreviewingSupportToExampleBlock(block, blockGrabbable);
-                addCurrentDefinitionSupportToExampleBlock(block, blockGrabbable);
+                addExampleBlockPlacementDetection(block);
             } else {
                 recording = carl.startRecording();
-                console.log("Recording! " + recording);
             }
         }
     });
 
     const playPoke = new PokeButton(scene, "example_play");
     playPoke.onPokeObservable.add(poked => {
-        if (poked && currentlyPreviewed) {
+        if (poked) {
             previewer.play();
         }
     });

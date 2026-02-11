@@ -20,7 +20,7 @@ export class ExamplePreviewer {
     }
 
     public play(): void {
-        this.shouldPlay = true;
+        this.shouldPlay = this.previewing;
     }
 
     private *previewExampleCoroutine(example: ICarlExample) {
