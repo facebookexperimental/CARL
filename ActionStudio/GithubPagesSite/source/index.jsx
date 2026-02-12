@@ -84,6 +84,12 @@ class CarlDefinition {
         this._nativeDefinition = nativeDefinition;
     }
 
+    download() {
+        const bytes = this._nativeDefinition.serialize();
+        downloadSerializedBytes(bytes, "definition_" + (Date.now() / 1000) + ".bin");
+        bytes.delete();
+    }
+
     dispose() {
         this._nativeDefinition.delete();
     }

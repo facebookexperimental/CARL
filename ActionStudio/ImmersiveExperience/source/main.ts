@@ -11,6 +11,7 @@ import { PokeButton } from "./pokeButton";
 import { ExamplePreviewer } from "./examplePreviewer";
 import { InputPuppet } from "./inputPuppet";
 import { RecognitionGraph } from "./recognitionGraph";
+import { SliderBehavior } from "./slider";
 
 export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<void> {
     const engine = new Engine(canvas, true);
@@ -48,7 +49,11 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     
     const spawner = new ExampleBlockSpawner(scene);
 
-    const xr = await scene.createDefaultXRExperienceAsync();
+    const xr = await scene.createDefaultXRExperienceAsync({
+        uiOptions: {
+            sessionMode: "immersive-ar",
+        }
+    });
 
     xr.baseExperience.onStateChangedObservable.add((state) => {
         if (state === WebXRState.IN_XR) {
@@ -118,7 +123,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const previewer = new ExamplePreviewer(scene);
     let previewStopper: any = null;
-    
+
     const exampleBlocks = new Set<TransformNode>();
     const counterexampleBlocks = new Set<TransformNode>();
 
@@ -127,7 +132,29 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         currentGraph.dispose();
     });
 
+    let currentActionType = 10;
+    const actionTypeNameMeshes: AbstractMesh[] = [];
+    for (let id = 0; id < 12; ++id) {
+        actionTypeNameMeshes.push(scene.getMeshByName(`text_action_type_${id}`)!);
+    }
+    const actionTypePoke = new PokeButton(scene, "action_type_button");
+    const actionTypeChangedHandler = () => {
+        currentActionType = (currentActionType + 1) % actionTypeNameMeshes.length;
+        actionTypeNameMeshes.map((mesh, idx) => mesh.isVisible = (idx === currentActionType));
+    };
+    actionTypeChangedHandler();
+    actionTypePoke.onPokeObservable.add(poked => {
+        if (poked) {
+            actionTypeChangedHandler();
+        }
+    });
+
+    const sensitivityMesh = scene.getMeshByName("sensitivity_slider")!;
+    const sensitivitySlider = SliderBehavior.GetForNode(sensitivityMesh)!;
+    const sensitivityGrabbable = PhysicsGrabBehavior.get(sensitivityMesh)!;
+
     let currentDefinition: ICarlDefinition | undefined = undefined;
+    let currentSensitivity = 5;
     const regenerateDefinition = () => {
         currentDefinition?.dispose();
         if (exampleBlocks.size < 1) {
@@ -150,8 +177,12 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 counterexamples.push(counterexample);
             }
         });
-        currentDefinition = carl.createDefinition(2, examples, counterexamples);
+        currentDefinition = carl.createDefinition(currentActionType, examples, counterexamples);
         currentGraph.recognizer = carl.createRecognizer(currentDefinition);
+        // TODO: Instead of this, set the default sensitivity on the definition BEFORE you make the recognizer.
+        // Will need to recompile the WASM to do that.
+        currentGraph.recognizer.setSensitivity(currentSensitivity);
+        sensitivitySlider.value = currentSensitivity / 10;
     };
 
     const inEditorMatrix = scene.getMeshByName("editor_volume")!.computeWorldMatrix(true).clone().invert();
@@ -206,7 +237,11 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         });
     }
 
-    // TODO: Testing the recorder.
+    sensitivityGrabbable.onGrabEndedObservable.add(() => {
+        currentSensitivity = 10 * sensitivitySlider.value;
+        regenerateDefinition();
+    });
+
     const recordingPokeButton = new PokeButton(scene, "recording_start", "recording_stop");
     let recording: number | undefined = undefined;
     let example: ICarlExample | undefined = undefined;
@@ -228,6 +263,13 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     playPoke.onPokeObservable.add(poked => {
         if (poked) {
             previewer.play();
+        }
+    });
+
+    const downloadPoke = new PokeButton(scene, "download_button");
+    downloadPoke.onPokeObservable.add(poked => {
+        if (poked && currentDefinition) {
+            currentDefinition.download();
         }
     });
 

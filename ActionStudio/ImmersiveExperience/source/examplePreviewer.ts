@@ -1,14 +1,23 @@
 import { Vector3, Observer } from "@babylonjs/core";
 import { ICarlExample } from "./carlInterfaces";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
+import { SliderBehavior } from "./slider";
 
 export class ExamplePreviewer {
     private scene: PhysicsEnabledScene;
+    private sliders: SliderBehavior[];
     private previewing: boolean = false;
     private shouldPlay: boolean = false;
 
     public constructor(scene: PhysicsEnabledScene) {
         this.scene = scene;
+        this.sliders = [];
+
+        scene.meshes.map(mesh => {
+            if (mesh.name.startsWith("editor_slider_")) {
+                this.sliders.push(SliderBehavior.GetForNode(mesh)!);
+            }
+        });
     }
 
     public previewExample(example: ICarlExample): () => void {
@@ -35,13 +44,13 @@ export class ExamplePreviewer {
         let minT = example.getStartTimestamp();
         let maxT = example.getEndTimestamp();
 
-        this.scene.sliders[0].value = 0;
-        this.scene.sliders[1].value = 1;
+        this.sliders[0].value = 0;
+        this.sliders[1].value = 1;
 
         const sliderObservers: Observer<void>[] = [];
-        for (let idx = 0; idx < this.scene.sliders.length; ++idx) {
-            const slider = this.scene.sliders[idx];
-            const otherSlider = this.scene.sliders[(idx + 1) % 2];
+        for (let idx = 0; idx < this.sliders.length; ++idx) {
+            const slider = this.sliders[idx];
+            const otherSlider = this.sliders[(idx + 1) % 2];
             sliderObservers.push(slider.onUpdatedObservable.add(() => {
                 currentT = undefined;
 
@@ -59,8 +68,8 @@ export class ExamplePreviewer {
             }));
         }
 
-        this.scene.sliders[1].value = (maxT - inspector.getStartTimestamp()) / duration;
-        this.scene.sliders[0].value = (minT - inspector.getStartTimestamp()) / duration;
+        this.sliders[1].value = (maxT - inspector.getStartTimestamp()) / duration;
+        this.sliders[0].value = (minT - inspector.getStartTimestamp()) / duration;
         
         while (this.previewing) {
             if (this.shouldPlay) {

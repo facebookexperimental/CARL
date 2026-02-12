@@ -56,6 +56,7 @@ export interface ICarlExample {
 }
 
 export interface ICarlDefinition {
+    download(): void;
     dispose(): void;
 }
 
