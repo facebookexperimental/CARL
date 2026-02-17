@@ -753,6 +753,16 @@ struct carl_DefinitionWrapper
         Definition.addCounterexample(counterexample.Example);
     }
 
+    auto getDefaultSensitivity() const
+    {
+        return Definition.DefaultSensitivity;
+    }
+
+    void setDefaultSensitivity(double sensitivity)
+    {
+        Definition.DefaultSensitivity = sensitivity;
+    }
+
     std::vector<uint8_t> serialize() const
     {
         return carl::utilities::Serialize(Definition);
@@ -984,6 +994,8 @@ EMSCRIPTEN_BINDINGS(carl_bindings) {
         .constructor<carl_ActionTypeWrapper>()
         .function("addExample", &carl_DefinitionWrapper::addExample)
         .function("addCounterexample", &carl_DefinitionWrapper::addCounterexample)
+        .function("getDefaultSensitivity", &carl_DefinitionWrapper::getDefaultSensitivity)
+        .function("setDefaultSensitivity", &carl_DefinitionWrapper::setDefaultSensitivity)
         .function("serialize", &carl_DefinitionWrapper::serialize)
         .class_function("tryDeserialize", &carl_DefinitionWrapper::tryDeserialize);
 

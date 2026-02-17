@@ -56,6 +56,8 @@ export interface ICarlExample {
 }
 
 export interface ICarlDefinition {
+    getDefaultSensitivity(): number;
+    setDefaultSensitivity(sensitivity: number): void;
     download(): void;
     dispose(): void;
 }

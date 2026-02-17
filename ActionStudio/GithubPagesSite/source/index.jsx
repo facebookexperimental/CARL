@@ -90,6 +90,14 @@ class CarlDefinition {
         bytes.delete();
     }
 
+    getDefaultSensitivity() {
+        return this._nativeDefinition.getDefaultSensitivity();
+    }
+
+    setDefaultSensitivity(sensitivity) {
+        this._nativeDefinition.setDefaultSensitivity(sensitivity);
+    }
+
     dispose() {
         this._nativeDefinition.delete();
     }

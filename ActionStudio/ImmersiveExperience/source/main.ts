@@ -178,10 +178,8 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             }
         });
         currentDefinition = carl.createDefinition(currentActionType, examples, counterexamples);
+        currentDefinition.setDefaultSensitivity(currentSensitivity);
         currentGraph.recognizer = carl.createRecognizer(currentDefinition);
-        // TODO: Instead of this, set the default sensitivity on the definition BEFORE you make the recognizer.
-        // Will need to recompile the WASM to do that.
-        currentGraph.recognizer.setSensitivity(currentSensitivity);
         sensitivitySlider.value = currentSensitivity / 10;
     };
 
