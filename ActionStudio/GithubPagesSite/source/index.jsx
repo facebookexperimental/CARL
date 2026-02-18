@@ -3,12 +3,7 @@ import * as ReactDOM from 'react-dom/client';
 import { initializeImmersiveExperienceAsync } from 'carl-actionstudio-immersiveexperience';
 import { initializeNativeIntegrationAsync } from 'carl-actionstudio-nativeintegration';
 
-const downloadSerializedBytes = (bytes, filename) => {
-    const jsBytes = new Uint8Array(bytes.size());
-    for (let idx = 0; idx < jsBytes.length; ++idx) {
-        jsBytes[idx] = bytes.get(idx);
-    }
-
+const downloadSerializedBytes = (jsBytes, filename) => {
     const buffer = jsBytes.buffer;
     const blob = new Blob([buffer], { type: "application/octet-stream" });
     const link = document.createElement('a');
@@ -85,9 +80,19 @@ class CarlDefinition {
     }
 
     download() {
-        const bytes = this._nativeDefinition.serialize();
+        const bytes = this.serialize();
         downloadSerializedBytes(bytes, "definition_" + (Date.now() / 1000) + ".bin");
         bytes.delete();
+    }
+
+    serialize() {
+        const bytes = this._nativeDefinition.serialize();
+        const jsBytes = new Uint8Array(bytes.size());
+        for (let idx = 0; idx < jsBytes.length; ++idx) {
+            jsBytes[idx] = bytes.get(idx);
+        }
+        bytes.delete();
+        return jsBytes;
     }
 
     getDefaultSensitivity() {
@@ -236,6 +241,117 @@ class CarlIntegration {
         this._session.addInput(sample);
         this._inProgressRecordings.forEach(ipr => {
             ipr.addInput(sample);
+        });
+    }
+}
+
+class SerializationsDB {
+    static _DB_NAME = "carl_files";
+    static _OBJECT_STORE_NAME = "serializations";
+    _db;
+
+    static async loadAsync() {
+        const db = new SerializationsDB();
+        db._db = await new Promise((resolve, reject) => {
+            const request = window.indexedDB.open(SerializationsDB._DB_NAME, 3);
+            request.onsuccess = evt => resolve(evt.target.result);
+            request.onerror = () => {
+                reject("Error fetching database: recordings will not be persisted in-browser");
+            };
+            request.onupgradeneeded = (evt) => {
+                const db = evt.target.result;
+
+                db.createObjectStore(SerializationsDB._OBJECT_STORE_NAME, { keyPath: "id", autoIncrement: true });
+            };
+        });
+
+        db._db.onerror = (evt) => {
+            console.error(`Database error: ${evt.target.error?.message}`);
+        };
+
+        return db;
+    }
+
+    static async resetAsync() {
+        await new Promise((resolve, reject) => {
+            const request = window.indexedDB.deleteDatabase(SerializationsDB._DB_NAME);
+
+            request.onerror = (evt) => {
+                reject("Error deleting database: we are in an unknown state");
+            };
+            request.onsuccess = (evt) => {
+                resolve();
+            };
+        });
+    }
+
+    async addAsync(carlObject, type) {
+        const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readwrite")
+        const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
+
+        os.add({
+            type: type,
+            bytes: carlObject.serialize(),
+        });
+        
+        return await new Promise((resolve, reject) => {
+            transaction.onerror = () => reject("Error storing CARL object");
+            transaction.onsuccess = resolve();
+        });
+    }
+
+    async fetchAllAsync() {
+        const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readonly")
+        const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
+
+        const carlObjects = await new Promise((resolve, reject) => {
+            const request = os.getAll();
+            request.onerror = () => reject("Error in getAll() request");
+            request.onsuccess = (evt) => {
+                resolve(evt.target.result);
+            };
+        });
+        
+        return await new Promise((resolve, reject) => {
+            transaction.onerror = () => reject("Error loading CARL objects");
+            transaction.onsuccess = resolve(carlObjects);
+        });
+    }
+
+    async updateAsync(id, carlObject) {
+        const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readwrite")
+        const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
+
+        const fetched = await new Promise((resolve, reject) => {
+            const request = os.get(id);
+            request.onerror = () => reject("Error in get() request");
+            request.onsuccess = (evt) => {
+                resolve(evt.target.result);
+            };
+        });
+        fetched.bytes = carlObject.serialize();
+
+        await new Promise((resolve, reject) => {
+            const request = os.put(fetched);
+            request.onerror = () => reject("Error in put() request");
+            request.onsuccess = () => resolve();
+        });
+        
+        return await new Promise((resolve, reject) => {
+            transaction.onerror = () => reject("Error loading CARL objects");
+            transaction.onsuccess = resolve();
+        });
+    }
+
+    async deleteAsync(id) {
+        const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readwrite")
+        const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
+        
+        os.delete(id);
+        
+        return await new Promise((resolve, reject) => {
+            transaction.onerror = () => reject("Error deleting CARL objects");
+            transaction.onsuccess = resolve();
         });
     }
 }

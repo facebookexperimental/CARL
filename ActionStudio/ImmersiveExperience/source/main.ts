@@ -1,4 +1,4 @@
-import { _InstancesBatch, Color4, Matrix, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRState, Tools, TransformNode } from "@babylonjs/core";
+import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRState, TransformNode } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
 import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample } from "./carlInterfaces";
@@ -280,5 +280,10 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             scene.inputPuppet = new InputPuppet(scene.leftHand, scene.rightHand);
         }
     });
-}
 
+    const exitPoke = new PokeButton(scene, "exit_xr_button");
+    exitPoke.onPokeObservable.addOnce(() => {
+        xr.input.xrSessionManager.exitXRAsync();
+        // TODO: Dispose scene? Or reset?
+    });
+}
