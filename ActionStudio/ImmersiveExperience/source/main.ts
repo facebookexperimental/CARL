@@ -1,4 +1,4 @@
-import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, WebXRState, TransformNode } from "@babylonjs/core";
+import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, TransformNode, Color3, StandardMaterial } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
 import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample } from "./carlInterfaces";
@@ -6,15 +6,21 @@ import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 import { OPENXR_JOINT_MAPPINGS, populateInputSample } from "./utils";
-import { ExampleBlockSpawner } from "./exampleBlockSpawner";
 import { PokeButton } from "./pokeButton";
 import { ExamplePreviewer } from "./examplePreviewer";
 import { InputPuppet } from "./inputPuppet";
 import { RecognitionGraph } from "./recognitionGraph";
 import { SliderBehavior } from "./slider";
+import { BlockSpawner } from "./blockSpawner";
 
-export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<void> {
+export interface IImmersiveExperience {
+    enterImmersiveMode(): void;
+}
+
+export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<IImmersiveExperience> {
     const engine = new Engine(canvas, true);
+    engine.displayLoadingUI = () => {};
+    engine.hideLoadingUI();
 
     const resizeHandler = () => {
         engine.resize();
@@ -47,20 +53,16 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
     
-    const spawner = new ExampleBlockSpawner(scene);
+    const exampleSpawner = new BlockSpawner<ICarlExample>(scene, "example_block");
+    const definitionSpawner = new BlockSpawner<ICarlDefinition>(scene, "definition_block");
 
     const xr = await scene.createDefaultXRExperienceAsync({
         uiOptions: {
             sessionMode: "immersive-ar",
-        }
-    });
-
-    xr.baseExperience.onStateChangedObservable.add((state) => {
-        if (state === WebXRState.IN_XR) {
-            canvas.style.display = "none";
-        } else {
-            canvas.style.display = "block";
-        }
+        },
+        disableDefaultUI: true,
+        disablePointerSelection: true,
+        disableTeleportation: true,
     });
 
     xr.baseExperience.featuresManager.disableFeature(WebXRControllerPointerSelection.Name);
@@ -149,6 +151,26 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
+    const rMesh = scene.getMeshByName("r_slider")!;
+    const rSlider = SliderBehavior.GetForNode(rMesh)!;
+    const gMesh = scene.getMeshByName("g_slider")!;
+    const gSlider = SliderBehavior.GetForNode(gMesh)!;
+    const bMesh = scene.getMeshByName("b_slider")!;
+    const bSlider = SliderBehavior.GetForNode(bMesh)!;
+
+    const colorMat = new StandardMaterial("colorMat", scene);
+    const handleColorChanged = () => {
+        colorMat.diffuseColor = Color3.FromInts(
+            Math.floor(rSlider.value * 256),
+            Math.floor(gSlider.value * 256),
+            Math.floor(bSlider.value * 256));
+    };
+    rSlider.onUpdatedObservable.add(handleColorChanged);
+    gSlider.onUpdatedObservable.add(handleColorChanged);
+    bSlider.onUpdatedObservable.add(handleColorChanged);
+    scene.getMeshByName("color_swatch")!.material = colorMat;
+    handleColorChanged();
+
     const sensitivityMesh = scene.getMeshByName("sensitivity_slider")!;
     const sensitivitySlider = SliderBehavior.GetForNode(sensitivityMesh)!;
     const sensitivityGrabbable = PhysicsGrabBehavior.get(sensitivityMesh)!;
@@ -165,14 +187,14 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
         const examples: ICarlExample[] = [];
         exampleBlocks.forEach(block => {
-            const example = spawner.getExampleFromBlock(block);
+            const example = exampleSpawner.getValueFromBlock(block);
             if (example) {
                 examples.push(example);
             }
         });
         const counterexamples: ICarlExample[] = [];
         counterexampleBlocks.forEach(block => {
-            const counterexample = spawner.getExampleFromBlock(block);
+            const counterexample = exampleSpawner.getValueFromBlock(block);
             if (counterexample) {
                 counterexamples.push(counterexample);
             }
@@ -198,7 +220,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             Vector3.TransformCoordinatesToRef(block.position, inEditorMatrix, scratchVec);
             let inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.inEditor && inBounds) {
-                previewStopper = previewer.previewExample(spawner.getExampleFromBlock(block)!);
+                previewStopper = previewer.previewExample(exampleSpawner.getValueFromBlock(block)!);
                 blockState.inEditor = true;
                 return;
             } else if (blockState.inEditor && !inBounds) {
@@ -249,7 +271,8 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 example = carl.stopRecording(recording);
                 recording = undefined;
                 
-                const block = spawner.spawnNewExampleBlock(example);
+                const block = exampleSpawner.spawnNewBlock(example);
+                block.material = colorMat.clone(`${block.name}_mat`);
                 addExampleBlockPlacementDetection(block);
             } else {
                 recording = carl.startRecording();
@@ -271,6 +294,14 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
+    const createDefinitionPoke = new PokeButton(scene, "definition_button");
+    createDefinitionPoke.onPokeObservable.add(poked => {
+        if (poked && currentDefinition) {
+            const definitionBlock = definitionSpawner.spawnNewBlock(currentDefinition);
+            definitionBlock.material = colorMat.clone(`${definitionBlock.name}_mat`);
+        }
+    });
+
     xr.input.xrSessionManager.onXRFrameObservable.add((frame) => {
         let sample = createInputSample();
         populateInputSample(xr.input.xrCamera, scene.leftHand, scene.rightHand, sample);
@@ -282,8 +313,14 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     });
 
     const exitPoke = new PokeButton(scene, "exit_xr_button");
-    exitPoke.onPokeObservable.addOnce(() => {
-        xr.input.xrSessionManager.exitXRAsync();
+    exitPoke.onPokeObservable.add(() => {
+        xr.baseExperience.exitXRAsync();
         // TODO: Dispose scene? Or reset?
     });
+
+    return {
+        enterImmersiveMode: () => {
+            xr.baseExperience.enterXRAsync("immersive-ar", "local-floor");
+        }
+    };
 }

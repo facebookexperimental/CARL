@@ -358,9 +358,13 @@ class SerializationsDB {
 
 const Greet = () => {
     const canvasRef = React.useRef(null);
+    const buttonRef = React.useRef(null);
     async function bootstrapAsync() {
         const carl = await CarlIntegration.CreateAsync();
-        await initializeImmersiveExperienceAsync(canvasRef.current, carl);
+        const immersiveExperience = await initializeImmersiveExperienceAsync(canvasRef.current, carl);
+        buttonRef.current.addEventListener("click", () => {
+            immersiveExperience.enterImmersiveMode();
+        });
     }
     React.useEffect(() => {
         bootstrapAsync();
@@ -369,7 +373,8 @@ const Greet = () => {
     return <>
         <h1>Hello, world!</h1>
         <p>How's life?</p>
-        <canvas ref={canvasRef} width={400} height={400} style={{ border: '1px solid black' }}></canvas>
+        <button ref={buttonRef}>Enter XR</button>
+        <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>
     </>;
 };
 
