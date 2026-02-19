@@ -36,7 +36,7 @@ export class PokeButton implements IDisposable {
         });
 
         this.beforeRenderObserver = this.scene.onBeforeRenderObservable.add(() => this.update());
-        this.scene.onDisposeObservable.addOnce(() => this.dispose());
+        this.onButton.onDisposeObservable.addOnce(() => this.dispose());
     }
 
     private update(): void {

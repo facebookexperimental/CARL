@@ -135,21 +135,6 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     });
 
     let currentActionType = 10;
-    const actionTypeNameMeshes: AbstractMesh[] = [];
-    for (let id = 0; id < 12; ++id) {
-        actionTypeNameMeshes.push(scene.getMeshByName(`text_action_type_${id}`)!);
-    }
-    const actionTypePoke = new PokeButton(scene, "action_type_button");
-    const actionTypeChangedHandler = () => {
-        currentActionType = (currentActionType + 1) % actionTypeNameMeshes.length;
-        actionTypeNameMeshes.map((mesh, idx) => mesh.isVisible = (idx === currentActionType));
-    };
-    actionTypeChangedHandler();
-    actionTypePoke.onPokeObservable.add(poked => {
-        if (poked) {
-            actionTypeChangedHandler();
-        }
-    });
 
     const rMesh = scene.getMeshByName("r_slider")!;
     const rSlider = SliderBehavior.GetForNode(rMesh)!;
@@ -262,6 +247,23 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         regenerateDefinition();
     });
 
+    const actionTypeNameMeshes: AbstractMesh[] = [];
+    for (let id = 0; id < 12; ++id) {
+        actionTypeNameMeshes.push(scene.getMeshByName(`text_action_type_${id}`)!);
+    }
+    const actionTypePoke = new PokeButton(scene, "action_type_button");
+    const actionTypeChangedHandler = () => {
+        currentActionType = (currentActionType + 1) % actionTypeNameMeshes.length;
+        actionTypeNameMeshes.map((mesh, idx) => mesh.isVisible = (idx === currentActionType));
+        regenerateDefinition();
+    };
+    actionTypeChangedHandler();
+    actionTypePoke.onPokeObservable.add(poked => {
+        if (poked) {
+            actionTypeChangedHandler();
+        }
+    });
+
     const recordingPokeButton = new PokeButton(scene, "recording_start", "recording_stop");
     let recording: number | undefined = undefined;
     let example: ICarlExample | undefined = undefined;
@@ -299,6 +301,9 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         if (poked && currentDefinition) {
             const definitionBlock = definitionSpawner.spawnNewBlock(currentDefinition);
             definitionBlock.material = colorMat.clone(`${definitionBlock.name}_mat`);
+            
+            currentDefinition = undefined;
+            regenerateDefinition();
         }
     });
 

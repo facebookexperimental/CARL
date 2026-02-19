@@ -1,4 +1,4 @@
-import { AbstractMesh, TransformNode, PhysicsAggregate, PhysicsShapeType, Quaternion } from "@babylonjs/core";
+import { AbstractMesh, TransformNode, PhysicsAggregate, PhysicsShapeType, Quaternion, IDisposable } from "@babylonjs/core";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 
@@ -15,6 +15,8 @@ export class BlockSpawner<T> {
         this._block.setEnabled(false);
     }
 
+    // Note: blocks do NOT take ownership of the value they represent and WILL NOT dispose it on their dispose.
+    // This must be handled separately.
     spawnNewBlock(value: T): AbstractMesh {
             const clonedExampleBlock = this._block.clone(`${this._block.name}_${++this._nextId}`, null)!;
             const aggregate = new PhysicsAggregate(clonedExampleBlock, PhysicsShapeType.BOX, { mass: 1 }, this._scene);

@@ -41,6 +41,7 @@ class CarlRecordingInspector {
 
 class CarlExample {
     _nativeExample;
+    onDisposed = undefined;
 
     constructor(nativeExample) {
         this._nativeExample = nativeExample;
@@ -68,12 +69,14 @@ class CarlExample {
     }
 
     dispose() {
+        if (this.onDisposed) this.onDisposed();
         this._nativeExample.delete();
     }
 }
 
 class CarlDefinition {
     _nativeDefinition;
+    onDisposed = undefined;
 
     constructor(nativeDefinition) {
         this._nativeDefinition = nativeDefinition;
@@ -104,6 +107,7 @@ class CarlDefinition {
     }
 
     dispose() {
+        if (this.onDisposed) this.onDisposed();
         this._nativeDefinition.delete();
     }
 }
@@ -141,6 +145,9 @@ class CarlIntegration {
 
     _actionTypes = [];
     _idToActionType = new Map();
+
+    onExampleCreated = undefined;
+    onDefinitionCreated = undefined;
 
     constructor(carl) {
         this._carl = carl;
@@ -211,7 +218,9 @@ class CarlIntegration {
         recording.delete();
         ipr.delete();
 
-        return new CarlExample(example)
+        const jsExample = new CarlExample(example);
+        if (this.onExampleCreated) this.onExampleCreated(jsExample);
+        return jsExample;
     }
 
     getActionTypesMap() {
@@ -226,7 +235,9 @@ class CarlIntegration {
         counterexamples.forEach(example => {
             definition.addCounterexample(example._nativeExample);
         });
-        return new CarlDefinition(definition);
+        const jsDefinition = new CarlDefinition(definition);
+        if (this.onDefinitionCreated) this.onDefinitionCreated(jsDefinition);
+        return jsDefinition;
     }
 
     createRecognizer(definition) {
@@ -359,8 +370,28 @@ class SerializationsDB {
 const Greet = () => {
     const canvasRef = React.useRef(null);
     const buttonRef = React.useRef(null);
+    let examplesCount = 0;
+    let definitionsCount = 0;
+    const [examples, setExamples] = React.useState(0);
+    const [definitions, setDefinitions] = React.useState(0);
     async function bootstrapAsync() {
         const carl = await CarlIntegration.CreateAsync();
+        carl.onExampleCreated = example => {
+            examplesCount += 1;
+            setExamples(examplesCount);
+            example.onDisposed = () => {
+                examplesCount -= 1;
+                setExamples(examplesCount);
+            };
+        };
+        carl.onDefinitionCreated = definition => {
+            definitionsCount += 1;
+            setDefinitions(definitionsCount);
+            definition.onDisposed = () => {
+                definitionsCount -= 1;
+                setDefinitions(definitionsCount);
+            };
+        };
         const immersiveExperience = await initializeImmersiveExperienceAsync(canvasRef.current, carl);
         buttonRef.current.addEventListener("click", () => {
             immersiveExperience.enterImmersiveMode();
@@ -373,6 +404,8 @@ const Greet = () => {
     return <>
         <h1>Hello, world!</h1>
         <p>How's life?</p>
+        <p>You have {examples} examples.</p>
+        <p>You have {definitions} definitions.</p>
         <button ref={buttonRef}>Enter XR</button>
         <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>
     </>;
