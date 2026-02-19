@@ -370,26 +370,26 @@ class SerializationsDB {
 const Greet = () => {
     const canvasRef = React.useRef(null);
     const buttonRef = React.useRef(null);
-    let examplesCount = 0;
-    let definitionsCount = 0;
-    const [examples, setExamples] = React.useState(0);
-    const [definitions, setDefinitions] = React.useState(0);
+    const examples = new Set();
+    const definitions = new Set();
+    const [examplesCount, setExamplesCount] = React.useState(0);
+    const [definitionsCount, setDefinitionsCount] = React.useState(0);
     async function bootstrapAsync() {
         const carl = await CarlIntegration.CreateAsync();
         carl.onExampleCreated = example => {
-            examplesCount += 1;
-            setExamples(examplesCount);
+            examples.add(example);
+            setExamplesCount(examples.size);
             example.onDisposed = () => {
-                examplesCount -= 1;
-                setExamples(examplesCount);
+                examples.delete(example);
+                setExamplesCount(examples.size);
             };
         };
         carl.onDefinitionCreated = definition => {
-            definitionsCount += 1;
-            setDefinitions(definitionsCount);
+            definitions.add(definition);
+            setDefinitionsCount(definitions.size);
             definition.onDisposed = () => {
-                definitionsCount -= 1;
-                setDefinitions(definitionsCount);
+                definitions.delete(definition);
+                setDefinitionsCount(definitions.size);
             };
         };
         const immersiveExperience = await initializeImmersiveExperienceAsync(canvasRef.current, carl);
@@ -404,8 +404,8 @@ const Greet = () => {
     return <>
         <h1>Hello, world!</h1>
         <p>How's life?</p>
-        <p>You have {examples} examples.</p>
-        <p>You have {definitions} definitions.</p>
+        <p>You have {examplesCount} examples.</p>
+        <p>You have {definitionsCount} definitions.</p>
         <button ref={buttonRef}>Enter XR</button>
         <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>
     </>;

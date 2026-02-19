@@ -1,4 +1,4 @@
-import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, TransformNode, Color3, StandardMaterial } from "@babylonjs/core";
+import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, TransformNode, Color3, StandardMaterial, Mesh } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
 import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample } from "./carlInterfaces";
@@ -130,9 +130,6 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const counterexampleBlocks = new Set<TransformNode>();
 
     const currentGraph = new RecognitionGraph(scene, Color4.FromInts(255, 255, 255, 255));
-    scene.onDisposeObservable.add(() => {
-        currentGraph.dispose();
-    });
 
     let currentActionType = 10;
 
@@ -190,9 +187,11 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         sensitivitySlider.value = currentSensitivity / 10;
     };
 
+    const isDiscardedMatrix = scene.getMeshByName("discard_volume")!.computeWorldMatrix(true).clone().invert();
     const inEditorMatrix = scene.getMeshByName("editor_volume")!.computeWorldMatrix(true).clone().invert();
     const isExampleMatrix = scene.getMeshByName("examples_volume")!.computeWorldMatrix(true).clone().invert();
     const isCounterexampleMatrix = scene.getMeshByName("counterexamples_volume")!.computeWorldMatrix(true).clone().invert();
+    const isDemoMatrix = scene.getMeshByName("demo_volume")!.computeWorldMatrix(true).clone().invert();
 
     const scratchVec = new Vector3();
     const addExampleBlockPlacementDetection = (block: AbstractMesh) => {
@@ -202,8 +201,16 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             isCounterexample: false,
         };
         scene.onBeforeRenderObservable.add(() => {
-            Vector3.TransformCoordinatesToRef(block.position, inEditorMatrix, scratchVec);
+            Vector3.TransformCoordinatesToRef(block.position, isDiscardedMatrix, scratchVec);
             let inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
+            if (inBounds) {
+                exampleSpawner.getValueFromBlock(block)?.dispose();
+                block.dispose();
+                return;
+            }
+
+            Vector3.TransformCoordinatesToRef(block.position, inEditorMatrix, scratchVec);
+            inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.inEditor && inBounds) {
                 previewStopper = previewer.previewExample(exampleSpawner.getValueFromBlock(block)!);
                 blockState.inEditor = true;
@@ -238,6 +245,36 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 counterexampleBlocks.delete(block);
                 regenerateDefinition();
                 blockState.isCounterexample = false;
+            }
+        });
+    }
+
+    const addDefinitionBlockPlacementDetection = (block: AbstractMesh) => {
+        interface IBlockState {
+            graph: RecognitionGraph | undefined;
+        }
+        const blockState: IBlockState = {
+            graph: undefined,
+        };
+        scene.onBeforeRenderObservable.add(() => {
+            Vector3.TransformCoordinatesToRef(block.position, isDiscardedMatrix, scratchVec);
+            let inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
+            if (inBounds) {
+                definitionSpawner.getValueFromBlock(block)?.dispose();
+                block.dispose();
+                return;
+            }
+            
+            Vector3.TransformCoordinatesToRef(block.position, isDemoMatrix, scratchVec);
+            inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
+            if (!blockState.graph && inBounds) {
+                const definition = definitionSpawner.getValueFromBlock(block)!;
+                blockState.graph = new RecognitionGraph(scene, Color4.FromColor3(((block as Mesh).material as StandardMaterial).diffuseColor));
+                blockState.graph.recognizer = carl.createRecognizer(definition);
+                return;
+            } else if (blockState.graph && !inBounds) {
+                blockState.graph.dispose();
+                blockState.graph = undefined;
             }
         });
     }
@@ -301,7 +338,8 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         if (poked && currentDefinition) {
             const definitionBlock = definitionSpawner.spawnNewBlock(currentDefinition);
             definitionBlock.material = colorMat.clone(`${definitionBlock.name}_mat`);
-            
+            addDefinitionBlockPlacementDetection(definitionBlock);
+
             currentDefinition = undefined;
             regenerateDefinition();
         }

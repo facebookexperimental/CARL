@@ -7,7 +7,8 @@ export class RecognitionGraph implements IDisposable {
     private _emitter: AbstractMesh;
     private _particleSystem: ParticleSystem;
     private _texture: DynamicTexture;
-    private _observer: Observer<Scene>;
+    private _onBeforeRenderObserver: Observer<Scene>;
+    private _onSceneDisposeObserver: Observer<Scene>;
 
     public get recognizer(): ICarlRecognizer | undefined {
         return this._recognizer;
@@ -62,16 +63,21 @@ export class RecognitionGraph implements IDisposable {
         this._particleSystem.direction1 = Vector3.Left();
         this._particleSystem.direction2 = Vector3.Left();
 
-        this._observer = scene.onBeforeRenderObservable.add(() => {
+        this._onBeforeRenderObserver = scene.onBeforeRenderObservable.add(() => {
             if (this._recognizer) {
                 this._emitter.position.y = 1 + 0.7 * this._recognizer.currentScore();
             }
         });
+
+        this._onSceneDisposeObserver = scene.onDisposeObservable.add(() => {
+            this.dispose();
+        });
     }
 
     public dispose(): void {
-        this._recognizer?.dispose();
-        this._observer.remove();
+        this._recognizer = undefined;
+        this._onBeforeRenderObserver.remove();
+        this._onSceneDisposeObserver.remove();
         this._particleSystem.dispose();
         this._texture.dispose();
         this._emitter.dispose();
