@@ -1,0 +1,136 @@
+.card {
+  background-color: #1a1a2e;
+  border-radius: 8px;
+  border-left: 4px solid;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  transform: translateY(-2px);
+}
+
+.card-preview {
+  width: 100%;
+  height: 160px;
+  overflow: hidden;
+}
+
+.preview-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-icon {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.card-content {
+  padding: 16px;
+  flex: 1;
+}
+
+.card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.card-name:hover {
+  color: #5B9FFF;
+}
+
+.card-name-input {
+  width: 100%;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #888;
+}
+
+.duration {
+  font-family: 'Courier New', monospace;
+}
+
+.definition-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.action-type-badge {
+  background-color: #2a2a3e;
+  color: #5B9FFF;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sensitivity {
+  font-size: 13px;
+  color: #888;
+}
+
+.example-count {
+  font-size: 13px;
+  color: #888;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #2a2a3e;
+  background-color: #16162a;
+}
+
+.action-btn {
+  background-color: transparent;
+  color: #888;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background-color: #2a2a3e;
+  color: #e0e0e0;
+  transform: none;
+}
+
+.action-btn.danger:hover {
+  background-color: #FF5757;
+  color: white;
+}

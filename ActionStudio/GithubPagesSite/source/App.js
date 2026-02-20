@@ -1,7 +1,13 @@
-import * as React from 'react';
-import * as ReactDOM from 'react-dom/client';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Navigation from './components/Navigation';
+import LibraryView from './components/LibraryView';
+import PreviewMode from './components/PreviewMode';
+import DefinitionBuilder from './components/DefinitionBuilder';
+import { mockExamples, mockDefinitions } from './data/mockData';
 import { initializeImmersiveExperienceAsync } from 'carl-actionstudio-immersiveexperience';
 import { initializeNativeIntegrationAsync } from 'carl-actionstudio-nativeintegration';
+import './styles/App.css';
 
 const downloadSerializedBytes = (jsBytes, filename) => {
     const buffer = jsBytes.buffer;
@@ -367,49 +373,130 @@ class SerializationsDB {
     }
 }
 
-const Greet = () => {
-    const canvasRef = React.useRef(null);
-    const buttonRef = React.useRef(null);
-    const examples = new Set();
-    const definitions = new Set();
-    const [examplesCount, setExamplesCount] = React.useState(0);
-    const [definitionsCount, setDefinitionsCount] = React.useState(0);
-    async function bootstrapAsync() {
-        const carl = await CarlIntegration.CreateAsync();
-        carl.onExampleCreated = example => {
-            examples.add(example);
-            setExamplesCount(examples.size);
-            example.onDisposed = () => {
-                examples.delete(example);
-                setExamplesCount(examples.size);
-            };
-        };
-        carl.onDefinitionCreated = definition => {
-            definitions.add(definition);
-            setDefinitionsCount(definitions.size);
-            definition.onDisposed = () => {
-                definitions.delete(definition);
-                setDefinitionsCount(definitions.size);
-            };
-        };
-        const immersiveExperience = await initializeImmersiveExperienceAsync(canvasRef.current, carl);
-        buttonRef.current.addEventListener("click", () => {
-            immersiveExperience.enterImmersiveMode();
-        });
+function App() {
+  const canvasRef = React.useRef(null);
+  const [examples, setExamples] = useState(mockExamples);
+  const [definitions, setDefinitions] = useState(mockDefinitions);
+  let immersiveExperience = undefined;
+  
+  async function bootstrapAsync() {
+    const carl = await CarlIntegration.CreateAsync();
+    carl.onExampleCreated = example => {
+      // examples.add(example);
+      // setExamplesCount(examples.size);
+      // example.onDisposed = () => {
+      //   examples.delete(example);
+      //   setExamplesCount(examples.size);
+      // };
+    };
+    carl.onDefinitionCreated = definition => {
+      // definitions.add(definition);
+      // setDefinitionsCount(definitions.size);
+      // definition.onDisposed = () => {
+      //   definitions.delete(definition);
+      //   setDefinitionsCount(definitions.size);
+      // };
+    };
+    immersiveExperience = await initializeImmersiveExperienceAsync(canvasRef.current, carl);
+  }
+  React.useEffect(() => {
+    bootstrapAsync();
+  }, []);
+
+  // Handler for recording new actions (stub for integration)
+  const handleRecordNewActions = () => {
+    immersiveExperience?.enterImmersiveMode();
+  };
+
+  // Handler for updating an example
+  const updateExample = (id, updates) => {
+    setExamples(examples.map(ex => ex.id === id ? { ...ex, ...updates } : ex));
+  };
+
+  // Handler for deleting an example
+  const deleteExample = (id) => {
+    setExamples(examples.filter(ex => ex.id !== id));
+    // Also remove from definitions
+    setDefinitions(definitions.map(def => ({
+      ...def,
+      examples: def.examples.filter(exId => exId !== id),
+      counterexamples: def.counterexamples.filter(exId => exId !== id),
+    })));
+  };
+
+  // Handler for updating a definition
+  const updateDefinition = (id, updates) => {
+    setDefinitions(definitions.map(def => def.id === id ? { ...def, ...updates } : def));
+  };
+
+  // Handler for deleting a definition
+  const deleteDefinition = (id) => {
+    setDefinitions(definitions.filter(def => def.id !== id));
+  };
+
+  // Handler for unpacking a definition
+  const unpackDefinition = (id) => {
+    const definition = definitions.find(def => def.id === id);
+    if (definition) {
+      console.log(`Unpacking definition: ${definition.name}`);
+      // Examples are already in the examples array, just remove the definition
+      deleteDefinition(id);
     }
-    React.useEffect(() => {
-        bootstrapAsync();
-    }, []);
+  };
 
-    return <>
-        <h1>Hello, world!</h1>
-        <p>How's life?</p>
-        <p>You have {examplesCount} examples.</p>
-        <p>You have {definitionsCount} definitions.</p>
-        <button ref={buttonRef}>Enter XR</button>
-        <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>
-    </>;
-};
+  // Handler for creating a new definition
+  const createDefinition = (newDefinition) => {
+    const id = `def-${Date.now()}`;
+    setDefinitions([...definitions, { ...newDefinition, id }]);
+  };
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<Greet />);
+  return (
+    <Router>
+      <div className="app">
+        <Navigation />
+        <Routes>
+          <Route 
+            path="/library" 
+            element={
+              <LibraryView 
+                examples={examples}
+                definitions={definitions}
+                onRecordNewActions={handleRecordNewActions}
+                onUpdateExample={updateExample}
+                onDeleteExample={deleteExample}
+                onUpdateDefinition={updateDefinition}
+                onDeleteDefinition={deleteDefinition}
+                onUnpackDefinition={unpackDefinition}
+              />
+            } 
+          />
+          <Route 
+            path="/preview/:exampleId?" 
+            element={
+              <PreviewMode 
+                examples={examples}
+                onUpdateExample={updateExample}
+                onDeleteExample={deleteExample}
+              />
+            } 
+          />
+          <Route 
+            path="/definition-builder/:definitionId?" 
+            element={
+              <DefinitionBuilder 
+                examples={examples}
+                definitions={definitions}
+                onCreateDefinition={createDefinition}
+                onUpdateDefinition={updateDefinition}
+              />
+            } 
+          />
+          <Route path="/" element={<Navigate to="/library" replace />} />
+        </Routes>
+      </div>
+      <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>
+    </Router>
+  );
+}
+
+export default App;

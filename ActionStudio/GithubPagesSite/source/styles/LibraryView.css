@@ -1,0 +1,154 @@
+.library-view {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.drag-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(91, 159, 255, 0.1);
+  border: 3px dashed #5B9FFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.drag-message {
+  background-color: #5B9FFF;
+  color: white;
+  padding: 24px 48px;
+  border-radius: 12px;
+  font-size: 20px;
+  font-weight: 600;
+  box-shadow: 0 8px 32px rgba(91, 159, 255, 0.4);
+}
+
+.library-sidebar {
+  width: 240px;
+  background-color: #16162a;
+  border-right: 1px solid #2a2a3e;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.record-button {
+  background: linear-gradient(135deg, #4ADE80, #10B981);
+  color: white;
+  padding: 16px 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
+}
+
+.record-button:hover {
+  box-shadow: 0 6px 16px rgba(74, 222, 128, 0.4);
+}
+
+.record-icon {
+  font-size: 20px;
+}
+
+.filter-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-controls h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.search-input {
+  width: 100%;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.toggle-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  color: #888;
+}
+
+.filter-select {
+  width: 100%;
+}
+
+.library-main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px;
+}
+
+.library-section {
+  margin-bottom: 48px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+.create-definition-btn {
+  margin-left: auto;
+  background-color: #5B9FFF;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.create-definition-btn:hover {
+  background-color: #4A8FEF;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.definitions-grid {
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}

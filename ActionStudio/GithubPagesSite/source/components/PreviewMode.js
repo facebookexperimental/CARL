@@ -1,0 +1,351 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import '../styles/PreviewMode.css';
+
+function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
+  const { exampleId } = useParams();
+  const navigate = useNavigate();
+  const canvasRef = useRef(null);
+  
+  const [currentExample, setCurrentExample] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [startTime, setStartTime] = useState(0);
+  const [endTime, setEndTime] = useState(0);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [name, setName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isDraggingStart, setIsDraggingStart] = useState(false);
+  const [isDraggingEnd, setIsDraggingEnd] = useState(false);
+  const timelineRef = useRef(null);
+
+  useEffect(() => {
+    if (exampleId) {
+      const example = examples.find(ex => ex.id === exampleId);
+      if (example) {
+        setCurrentExample(example);
+        setName(example.name);
+        setStartTime(example.startTime);
+        setEndTime(example.endTime);
+        setCurrentTime(example.startTime);
+      }
+    } else if (examples.length > 0) {
+      // Load first example if no ID specified
+      navigate(`/preview/${examples[0].id}`, { replace: true });
+    }
+  }, [exampleId, examples, navigate]);
+
+  useEffect(() => {
+    // Initialize canvas for preview rendering
+    // User will implement actual rendering logic here
+    const canvas = canvasRef.current;
+    if (canvas && currentExample) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Placeholder visualization
+      ctx.fillStyle = currentExample.color + '44';
+      ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
+      
+      ctx.fillStyle = currentExample.color;
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Preview Canvas - Integrate your rendering here', canvas.width / 2, canvas.height / 2);
+    }
+  }, [currentExample, currentTime]);
+
+  const handleExampleSelect = (example) => {
+    navigate(`/preview/${example.id}`);
+  };
+
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+    // TODO: Implement actual playback logic
+  };
+
+  const handleTimelineChange = (e) => {
+    const newTime = parseFloat(e.target.value);
+    setCurrentTime(newTime);
+  };
+
+  const handleStartTimeChange = (value) => {
+    const newStart = Math.max(0, Math.min(value, endTime - 0.1));
+    setStartTime(newStart);
+  };
+
+  const handleEndTimeChange = (value) => {
+    const newEnd = Math.max(startTime + 0.1, Math.min(value, currentExample.duration));
+    setEndTime(newEnd);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!timelineRef.current || !currentExample) return;
+    
+    const rect = timelineRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const time = percentage * currentExample.duration;
+    
+    if (isDraggingStart) {
+      handleStartTimeChange(time);
+    } else if (isDraggingEnd) {
+      handleEndTimeChange(time);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDraggingStart(false);
+    setIsDraggingEnd(false);
+  };
+
+  useEffect(() => {
+    if (isDraggingStart || isDraggingEnd) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDraggingStart, isDraggingEnd, currentExample]);
+
+  const handleSave = () => {
+    if (currentExample) {
+      onUpdateExample(currentExample.id, {
+        name: name.trim(),
+        startTime,
+        endTime,
+      });
+    }
+  };
+
+  const handleDelete = () => {
+    if (currentExample && window.confirm(`Delete "${currentExample.name}"?`)) {
+      onDeleteExample(currentExample.id);
+      navigate('/library');
+    }
+  };
+
+  const handleNameSubmit = () => {
+    if (name.trim() && name !== currentExample.name) {
+      onUpdateExample(currentExample.id, { name: name.trim() });
+    }
+    setIsEditingName(false);
+  };
+
+  const handleColorChange = (e) => {
+    if (currentExample) {
+      onUpdateExample(currentExample.id, { color: e.target.value });
+    }
+  };
+
+  const handleToggleXR = () => {
+    if (currentExample) {
+      onUpdateExample(currentExample.id, { showInXR: !currentExample.showInXR });
+    }
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = (seconds % 60).toFixed(2);
+    return `${mins.toString().padStart(2, '0')}:${parseFloat(secs).toFixed(2).padStart(5, '0')}`;
+  };
+
+  const filteredExamples = examples.filter(ex =>
+    ex.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (!currentExample) {
+    return (
+      <div className="preview-mode">
+        <div className="no-examples">
+          <p>No examples available. Record some actions first!</p>
+          <button onClick={() => navigate('/library')}>Go to Library</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="preview-mode">
+      <aside className="examples-browser">
+        <div className="browser-header">
+          <h3>Examples</h3>
+          <input
+            type="text"
+            className="browser-search"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="examples-list">
+          {filteredExamples.map(example => (
+            <div
+              key={example.id}
+              className={`example-item ${example.id === currentExample.id ? 'active' : ''}`}
+              onClick={() => handleExampleSelect(example)}
+            >
+              <div className="item-color" style={{ backgroundColor: example.color }}></div>
+              <div className="item-info">
+                <span className="item-name">{example.name}</span>
+                <span className="item-duration">{formatTime(example.duration)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <main className="preview-main">
+        <div className="preview-header">
+          {isEditingName ? (
+            <input
+              type="text"
+              className="preview-name-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={handleNameSubmit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNameSubmit();
+                if (e.key === 'Escape') {
+                  setName(currentExample.name);
+                  setIsEditingName(false);
+                }
+              }}
+              autoFocus
+            />
+          ) : (
+            <h2 onClick={() => setIsEditingName(true)}>{currentExample.name}</h2>
+          )}
+          <button className="close-btn" onClick={() => navigate('/library')}>✕</button>
+        </div>
+
+        <div className="preview-canvas-container">
+          <canvas
+            ref={canvasRef}
+            className="preview-canvas"
+            width={1200}
+            height={600}
+          />
+        </div>
+
+        <div className="playback-controls">
+          <button className="play-btn" onClick={handlePlayPause}>
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <span className="time-display">{formatTime(currentTime)}</span>
+          <span className="time-separator">/</span>
+          <span className="time-display">{formatTime(currentExample.duration)}</span>
+        </div>
+
+        <div className="timeline-container">
+          <div className="timeline-labels">
+            <span>Start: {formatTime(startTime)}</span>
+            <span className="current-time-label">{formatTime(currentTime)}</span>
+            <span>End: {formatTime(endTime)}</span>
+          </div>
+          
+          <div className="timeline" ref={timelineRef}>
+            <input
+              type="range"
+              className="timeline-scrubber"
+              min="0"
+              max={currentExample.duration}
+              step="0.01"
+              value={currentTime}
+              onChange={handleTimelineChange}
+            />
+            <div className="trim-handles">
+              <div 
+                className="trim-handle start-handle"
+                style={{ left: `${(startTime / currentExample.duration) * 100}%` }}
+                onMouseDown={() => setIsDraggingStart(true)}
+              >
+                <span className="handle-label">START</span>
+                <div className="handle-grabber"></div>
+              </div>
+              <div 
+                className="trim-handle end-handle"
+                style={{ left: `${(endTime / currentExample.duration) * 100}%` }}
+                onMouseDown={() => setIsDraggingEnd(true)}
+              >
+                <span className="handle-label">END</span>
+                <div className="handle-grabber"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div className="timeline-timestamps">
+            <input
+              type="number"
+              className="timestamp-input"
+              value={startTime.toFixed(2)}
+              onChange={(e) => handleStartTimeChange(parseFloat(e.target.value))}
+              step="0.01"
+            />
+            <input
+              type="number"
+              className="timestamp-input"
+              value={endTime.toFixed(2)}
+              onChange={(e) => handleEndTimeChange(parseFloat(e.target.value))}
+              step="0.01"
+            />
+          </div>
+        </div>
+      </main>
+
+      <aside className="preview-sidebar">
+        <h3>Metadata</h3>
+        
+        <div className="metadata-section">
+          <label>Color</label>
+          <input
+            type="color"
+            className="color-picker"
+            value={currentExample.color}
+            onChange={handleColorChange}
+          />
+        </div>
+
+        <div className="metadata-section">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={currentExample.showInXR}
+              onChange={handleToggleXR}
+            />
+            <span>Show in XR Experience</span>
+          </label>
+        </div>
+
+        <div className="metadata-section">
+          <label>Start Time</label>
+          <input
+            type="number"
+            className="time-input"
+            value={startTime.toFixed(2)}
+            onChange={(e) => handleStartTimeChange(parseFloat(e.target.value))}
+            step="0.01"
+          />
+        </div>
+
+        <div className="metadata-section">
+          <label>End Time</label>
+          <input
+            type="number"
+            className="time-input"
+            value={endTime.toFixed(2)}
+            onChange={(e) => handleEndTimeChange(parseFloat(e.target.value))}
+            step="0.01"
+          />
+        </div>
+
+        <button className="save-btn" onClick={handleSave}>Save Changes</button>
+        <button className="delete-btn" onClick={handleDelete}>Delete Example</button>
+      </aside>
+    </div>
+  );
+}
+
+export default PreviewMode;
