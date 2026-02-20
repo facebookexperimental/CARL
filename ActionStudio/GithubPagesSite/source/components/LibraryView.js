@@ -43,10 +43,6 @@ function LibraryView({
     navigate(`/preview/${exampleId}`);
   };
 
-  const handleEditDefinition = (definitionId) => {
-    navigate(`/definition-builder/${definitionId}`);
-  };
-
   const handleCreateDefinition = () => {
     navigate('/definition-builder');
   };
@@ -78,7 +74,7 @@ function LibraryView({
 
       <aside className="library-sidebar">
         <button className="record-button" onClick={onRecordNewActions}>
-          <span className="record-icon">⏺</span>
+          <span className="record-icon">🥽</span>
           Record New Actions
         </button>
 
@@ -153,7 +149,6 @@ function LibraryView({
                 key={definition.id}
                 definition={definition}
                 examples={examples}
-                onEdit={() => handleEditDefinition(definition.id)}
                 onUpdate={(updates) => onUpdateDefinition(definition.id, updates)}
                 onDelete={() => onDeleteDefinition(definition.id)}
                 onUnpack={() => onUnpackDefinition(definition.id)}

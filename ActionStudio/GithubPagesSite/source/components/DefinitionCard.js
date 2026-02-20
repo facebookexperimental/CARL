@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/Card.css';
 
-function DefinitionCard({ definition, examples, onEdit, onUpdate, onDelete, onUnpack }) {
+function DefinitionCard({ definition, examples, onUpdate, onDelete, onUnpack }) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(definition.name);
 
@@ -59,7 +59,7 @@ function DefinitionCard({ definition, examples, onEdit, onUpdate, onDelete, onUn
           </div>
           <div className="meta-row">
             <span className="example-count">
-              {definition.examples.length} examples, {definition.counterexamples.length} counterexamples
+              {definition.examplesCount} examples, {definition.counterexamplesCount} counterexamples
             </span>
           </div>
         </div>
@@ -87,13 +87,13 @@ function DefinitionCard({ definition, examples, onEdit, onUpdate, onDelete, onUn
         >
           📦
         </button>
-        <button 
+        {/* <button // TODO: Replace this with a "compress" feature?
           className="action-btn" 
           onClick={onEdit}
           title="Edit"
         >
           ✏️
-        </button>
+        </button> */}
         <button 
           className="action-btn danger" 
           onClick={onDelete}

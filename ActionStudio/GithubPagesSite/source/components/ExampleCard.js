@@ -69,7 +69,14 @@ function ExampleCard({ example, onPreview, onUpdate, onDelete }) {
           onClick={onPreview}
           title="Preview"
         >
-          👁
+          📹
+        </button>
+        <button 
+          className="action-btn" 
+          onClick={() => onUpdate({ showInXR: !example.showInXR })}
+          title={example.showInXR ? "Hide in XR" : "Show in XR"}
+        >
+          {example.showInXR ? '👁' : '🚫'}
         </button>
         <button 
           className="action-btn" 

@@ -21,7 +21,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
 
   useEffect(() => {
     if (exampleId) {
-      const example = examples.find(ex => ex.id === exampleId);
+      const example = examples.find(ex => ex.id === Number.parseInt(exampleId));
       if (example) {
         setCurrentExample(example);
         setName(example.name);

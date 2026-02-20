@@ -2,7 +2,7 @@
 
 export const mockExamples = [
   {
-    id: 'ex-001',
+    id: 1,
     name: 'Example_001',
     startTime: 0.5,
     endTime: 3.2,
@@ -12,7 +12,7 @@ export const mockExamples = [
     recordingData: null, // Will be populated by actual recording system
   },
   {
-    id: 'ex-002',
+    id: 2,
     name: 'Example_002',
     startTime: 0.3,
     endTime: 2.8,
@@ -22,7 +22,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-003',
+    id: 3,
     name: 'Example_003',
     startTime: 0.5,
     endTime: 3.0,
@@ -32,7 +32,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-004',
+    id: 4,
     name: 'Example_004',
     startTime: 0.2,
     endTime: 2.5,
@@ -42,7 +42,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-005',
+    id: 5,
     name: 'Example_005',
     startTime: 0.4,
     endTime: 3.5,
@@ -52,7 +52,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-006',
+    id: 6,
     name: 'Example_006',
     startTime: 0.6,
     endTime: 2.9,
@@ -62,7 +62,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-007',
+    id: 7,
     name: 'Example_007',
     startTime: 0.3,
     endTime: 3.1,
@@ -72,7 +72,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-008',
+    id: 8,
     name: 'Example_008',
     startTime: 0.5,
     endTime: 2.7,
@@ -82,7 +82,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-009',
+    id: 9,
     name: 'Example_009',
     startTime: 0.4,
     endTime: 3.3,
@@ -92,7 +92,7 @@ export const mockExamples = [
     recordingData: null,
   },
   {
-    id: 'ex-010',
+    id: 10,
     name: 'Example_010',
     startTime: 0.2,
     endTime: 2.6,
@@ -105,41 +105,41 @@ export const mockExamples = [
 
 export const mockDefinitions = [
   {
-    id: 'def-001',
+    id: 11,
     name: 'Punch Definition',
-    actionType: 'Strike',
-    examples: ['ex-001', 'ex-002', 'ex-003', 'ex-008', 'ex-009'],
-    counterexamples: ['ex-004', 'ex-007'],
+    actionType: 'Right Hand Pose',
+    examplesCount: 5,
+    counterexamplesCount: 2,
     defaultSensitivity: 7.5,
     color: '#5B9FFF',
     showInXR: true,
   },
   {
-    id: 'def-002',
+    id: 12,
     name: 'Kick Definition',
-    actionType: 'Strike',
-    examples: ['ex-005', 'ex-006'],
-    counterexamples: ['ex-001', 'ex-002', 'ex-010'],
+    actionType: 'Left Hand Gesture',
+    examplesCount: 2,
+    counterexamplesCount: 3,
     defaultSensitivity: 6.8,
     color: '#A78BFA',
     showInXR: true,
   },
   {
-    id: 'def-003',
+    id: 13,
     name: 'Block Definition',
-    actionType: 'Defense',
-    examples: ['ex-004', 'ex-007', 'ex-010'],
-    counterexamples: ['ex-003', 'ex-005'],
+    actionType: 'Right Controller Trajectory',
+    examplesCount: 3,
+    counterexamplesCount: 2,
     defaultSensitivity: 8.2,
     color: '#FF5757',
     showInXR: false,
   },
   {
-    id: 'def-004',
+    id: 14,
     name: 'Takedown Definition',
-    actionType: 'Grapple',
-    examples: ['ex-003', 'ex-006', 'ex-009'],
-    counterexamples: ['ex-002', 'ex-004', 'ex-007', 'ex-008'],
+    actionType: 'Custom',
+    examplesCount: 3,
+    counterexamplesCount: 4,
     defaultSensitivity: 5.9,
     color: '#4ADE80',
     showInXR: true,
@@ -147,9 +147,17 @@ export const mockDefinitions = [
 ];
 
 export const actionTypes = [
-  'Strike',
-  'Grapple',
-  'Defense',
-  'Movement',
-  'Gesture',
+  'Left Hand Pose',
+  'Left Hand Gesture',
+  'Right Hand Pose',
+  'Right Hand Gesture',
+  'Two Hand Gesture',
+  'Left Controller Gesture',
+  'Right Controller Gesture',
+  'Two Controller Gesture',
+  'Left Wrist Trajectory',
+  'Right Wrist Trajectory',
+  'Left Hand Shape',
+  'Right Hand Shape',
+  'Custom',
 ];

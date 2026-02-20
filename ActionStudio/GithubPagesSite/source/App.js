@@ -416,12 +416,6 @@ function App() {
   // Handler for deleting an example
   const deleteExample = (id) => {
     setExamples(examples.filter(ex => ex.id !== id));
-    // Also remove from definitions
-    setDefinitions(definitions.map(def => ({
-      ...def,
-      examples: def.examples.filter(exId => exId !== id),
-      counterexamples: def.counterexamples.filter(exId => exId !== id),
-    })));
   };
 
   // Handler for updating a definition
@@ -446,7 +440,7 @@ function App() {
 
   // Handler for creating a new definition
   const createDefinition = (newDefinition) => {
-    const id = `def-${Date.now()}`;
+    const id = `${Date.now()}`; // TODO: Get this from the database.
     setDefinitions([...definitions, { ...newDefinition, id }]);
   };
 
@@ -481,13 +475,12 @@ function App() {
             } 
           />
           <Route 
-            path="/definition-builder/:definitionId?" 
+            path="/definition-builder" 
             element={
               <DefinitionBuilder 
                 examples={examples}
                 definitions={definitions}
                 onCreateDefinition={createDefinition}
-                onUpdateDefinition={updateDefinition}
               />
             } 
           />

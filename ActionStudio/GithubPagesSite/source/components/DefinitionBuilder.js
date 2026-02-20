@@ -3,8 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { actionTypes } from '../data/mockData';
 import '../styles/DefinitionBuilder.css';
 
-function DefinitionBuilder({ examples, definitions, onCreateDefinition, onUpdateDefinition }) {
-  const { definitionId } = useParams();
+function DefinitionBuilder({ examples, definitions, onCreateDefinition }) {
   const navigate = useNavigate();
   
   const [name, setName] = useState('New Definition');
@@ -15,20 +14,6 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, onUpdate
   const [selectedCounterexamples, setSelectedCounterexamples] = useState([]);
   const [testExamples, setTestExamples] = useState([]);
   const [testResults, setTestResults] = useState([]);
-
-  useEffect(() => {
-    if (definitionId) {
-      const definition = definitions.find(def => def.id === definitionId);
-      if (definition) {
-        setName(definition.name);
-        setActionType(definition.actionType);
-        setSensitivity(definition.defaultSensitivity);
-        setColor(definition.color);
-        setSelectedExamples(definition.examples);
-        setSelectedCounterexamples(definition.counterexamples);
-      }
-    }
-  }, [definitionId, definitions]);
 
   const handleSave = () => {
     const definitionData = {
@@ -41,11 +26,7 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, onUpdate
       showInXR: true,
     };
 
-    if (definitionId) {
-      onUpdateDefinition(definitionId, definitionData);
-    } else {
-      onCreateDefinition(definitionData);
-    }
+    onCreateDefinition(definitionData);
     
     navigate('/library');
   };
