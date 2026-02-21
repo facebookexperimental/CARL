@@ -71,9 +71,10 @@ export interface ICarlRecognizer {
 
 export interface ICarl {
     startRecording(): number;
-    stopRecording(recordingId: number): ICarlExample;
+    stopRecording(recordingId: number, metadata?: object): ICarlExample;
     getActionTypes(): {name: string, typeId: number}[];
-    createDefinition(actionTypeId: number, examples: ICarlExample[], counterexamples: ICarlExample[]): ICarlDefinition;
+    draftDefinition(actionTypeId: number, examples: ICarlExample[], counterexamples: ICarlExample[]): ICarlDefinition;
+    finalizeDefinition(definition: ICarlDefinition, metadata?: object): void;
     createRecognizer(definition: ICarlDefinition): ICarlRecognizer;
     createInputSample(): ICarlInputSample;
     handleInputSample(sample: ICarlInputSample): void;

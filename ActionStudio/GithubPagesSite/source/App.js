@@ -25,7 +25,7 @@ class CarlRecordingInspector {
     _nativeInspector;
 
     constructor(nativeInspector) {
-        this._nativeInspector= nativeInspector;
+        this._nativeInspector = nativeInspector;
     }
 
     getStartTimestamp() {
@@ -74,6 +74,16 @@ class CarlExample {
         return new CarlRecordingInspector(inspector);
     }
 
+    serialize() {
+        const bytes = this._nativeExample.serialize();
+        const jsBytes = new Uint8Array(bytes.size());
+        for (let idx = 0; idx < jsBytes.length; ++idx) {
+            jsBytes[idx] = bytes.get(idx);
+        }
+        bytes.delete();
+        return jsBytes;
+    }
+
     dispose() {
         if (this.onDisposed) this.onDisposed();
         this._nativeExample.delete();
@@ -102,6 +112,21 @@ class CarlDefinition {
         }
         bytes.delete();
         return jsBytes;
+    }
+
+    getActionType() {
+        console.error("TODO: Implement in C++");
+        return 0;
+    }
+
+    getExamplesCount() {
+        console.error("TODO: Implement in C++");
+        return -1;
+    }
+
+    getCounterexamplesCount() {
+        console.error("TODO: Implement in C++");
+        return -1;
     }
 
     getDefaultSensitivity() {
@@ -158,7 +183,7 @@ class CarlIntegration {
     constructor(carl) {
         this._carl = carl;
         this._session = new this._carl.Session();
-        
+
         // TODO: Find a better way to deal with this block than this manual approach.
         let actionTypeId = 0;
         this._idToActionType.set(actionTypeId, this._carl.ACTION_TYPE.LeftHandPose);
@@ -209,7 +234,7 @@ class CarlIntegration {
         return id;
     }
 
-    stopRecording(id) {
+    stopRecording(id, metadata) {
         const ipr = this._inProgressRecordings.get(id);
         this._inProgressRecordings.delete(id);
 
@@ -225,7 +250,7 @@ class CarlIntegration {
         ipr.delete();
 
         const jsExample = new CarlExample(example);
-        if (this.onExampleCreated) this.onExampleCreated(jsExample);
+        if (this.onExampleCreated) this.onExampleCreated(jsExample, metadata);
         return jsExample;
     }
 
@@ -233,7 +258,7 @@ class CarlIntegration {
         return this._actionTypes;
     }
 
-    createDefinition(actionTypeId, examples, counterexamples) {
+    draftDefinition(actionTypeId, examples, counterexamples) {
         const definition = new this._carl.Definition(this._idToActionType.get(actionTypeId));
         examples.forEach(example => {
             definition.addExample(example._nativeExample);
@@ -241,9 +266,11 @@ class CarlIntegration {
         counterexamples.forEach(example => {
             definition.addCounterexample(example._nativeExample);
         });
-        const jsDefinition = new CarlDefinition(definition);
-        if (this.onDefinitionCreated) this.onDefinitionCreated(jsDefinition);
-        return jsDefinition;
+        return new CarlDefinition(definition);
+    }
+
+    finalizeDefinition(definition, metadata) {
+        if (this.onDefinitionCreated) this.onDefinitionCreated(definition, metadata);
     }
 
     createRecognizer(definition) {
@@ -292,28 +319,19 @@ class SerializationsDB {
     static async resetAsync() {
         await new Promise((resolve, reject) => {
             const request = window.indexedDB.deleteDatabase(SerializationsDB._DB_NAME);
-
-            request.onerror = (evt) => {
-                reject("Error deleting database: we are in an unknown state");
-            };
-            request.onsuccess = (evt) => {
-                resolve();
-            };
+            request.onerror = () => reject("Error deleting database: we are in an unknown state");
+            request.onsuccess = () => resolve();
         });
     }
 
-    async addAsync(carlObject, type) {
+    async addAsync(obj) {
         const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readwrite")
         const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
-
-        os.add({
-            type: type,
-            bytes: carlObject.serialize(),
-        });
         
         return await new Promise((resolve, reject) => {
-            transaction.onerror = () => reject("Error storing CARL object");
-            transaction.onsuccess = resolve();
+            const request = os.add(obj);
+            request.onerror = () => reject("Error storing CARL object");
+            request.onsuccess = () => resolve(request.result);
         });
     }
 
@@ -321,175 +339,247 @@ class SerializationsDB {
         const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readonly")
         const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
 
-        const carlObjects = await new Promise((resolve, reject) => {
+        return await new Promise((resolve, reject) => {
             const request = os.getAll();
-            request.onerror = () => reject("Error in getAll() request");
+            request.onerror = () => reject("Error loading CARL objects");
             request.onsuccess = (evt) => {
                 resolve(evt.target.result);
             };
         });
-        
-        return await new Promise((resolve, reject) => {
-            transaction.onerror = () => reject("Error loading CARL objects");
-            transaction.onsuccess = resolve(carlObjects);
-        });
     }
 
-    async updateAsync(id, carlObject) {
+    async updateAsync(id, updates) {
         const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readwrite")
         const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
 
-        const fetched = await new Promise((resolve, reject) => {
+        let fetched = await new Promise((resolve, reject) => {
             const request = os.get(id);
             request.onerror = () => reject("Error in get() request");
             request.onsuccess = (evt) => {
                 resolve(evt.target.result);
             };
         });
-        fetched.bytes = carlObject.serialize();
+        fetched = { ...fetched, ...updates };
 
-        await new Promise((resolve, reject) => {
+        return await new Promise((resolve, reject) => {
             const request = os.put(fetched);
             request.onerror = () => reject("Error in put() request");
             request.onsuccess = () => resolve();
-        });
-        
-        return await new Promise((resolve, reject) => {
-            transaction.onerror = () => reject("Error loading CARL objects");
-            transaction.onsuccess = resolve();
         });
     }
 
     async deleteAsync(id) {
         const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readwrite")
         const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
-        
-        os.delete(id);
-        
+
         return await new Promise((resolve, reject) => {
-            transaction.onerror = () => reject("Error deleting CARL objects");
-            transaction.onsuccess = resolve();
+            const request = os.delete(id);
+            request.onerror = () => reject("Error deleting CARL objects");
+            request.onsuccess = () => resolve();
         });
     }
 }
 
 function App() {
-  const canvasRef = React.useRef(null);
-  const [examples, setExamples] = useState(mockExamples);
-  const [definitions, setDefinitions] = useState(mockDefinitions);
-  let immersiveExperience = undefined;
-  
-  async function bootstrapAsync() {
-    const carl = await CarlIntegration.CreateAsync();
-    carl.onExampleCreated = example => {
-      // examples.add(example);
-      // setExamplesCount(examples.size);
-      // example.onDisposed = () => {
-      //   examples.delete(example);
-      //   setExamplesCount(examples.size);
-      // };
-    };
-    carl.onDefinitionCreated = definition => {
-      // definitions.add(definition);
-      // setDefinitionsCount(definitions.size);
-      // definition.onDisposed = () => {
-      //   definitions.delete(definition);
-      //   setDefinitionsCount(definitions.size);
-      // };
-    };
-    immersiveExperience = await initializeImmersiveExperienceAsync(canvasRef.current, carl);
-  }
-  React.useEffect(() => {
-    bootstrapAsync();
-  }, []);
+    const canvasRef = React.useRef(null);
+    const immersiveExperienceRef = React.useRef(null);
+    const dbRef = React.useRef(null);
+    const carlRef = React.useRef(null);
+    const [examples, setExamples] = useState([]);
+    const [definitions, setDefinitions] = useState([]);
 
-  // Handler for recording new actions (stub for integration)
-  const handleRecordNewActions = () => {
-    immersiveExperience?.enterImmersiveMode();
-  };
+    async function reloadFromDatabase() {
+        let xmpls = [];
+        let defs = [];
 
-  // Handler for updating an example
-  const updateExample = (id, updates) => {
-    setExamples(examples.map(ex => ex.id === id ? { ...ex, ...updates } : ex));
-  };
+        const records = await dbRef.current.fetchAllAsync();
+        records.forEach(record => {
+            switch (record.type) {
+                case "example":
+                    xmpls.push(record);
+                    break;
+                case "definition":
+                    defs.push(record);
+                    break;
+                default:
+                    console.error("Unknown record:");
+                    console.error(record);
+                    break;
+            }
+        });
 
-  // Handler for deleting an example
-  const deleteExample = (id) => {
-    setExamples(examples.filter(ex => ex.id !== id));
-  };
-
-  // Handler for updating a definition
-  const updateDefinition = (id, updates) => {
-    setDefinitions(definitions.map(def => def.id === id ? { ...def, ...updates } : def));
-  };
-
-  // Handler for deleting a definition
-  const deleteDefinition = (id) => {
-    setDefinitions(definitions.filter(def => def.id !== id));
-  };
-
-  // Handler for unpacking a definition
-  const unpackDefinition = (id) => {
-    const definition = definitions.find(def => def.id === id);
-    if (definition) {
-      console.log(`Unpacking definition: ${definition.name}`);
-      // Examples are already in the examples array, just remove the definition
-      deleteDefinition(id);
+        console.log(xmpls);
+        console.log(defs);
+        setExamples(xmpls);
+        setDefinitions(defs);
     }
-  };
+    
+    async function bootstrapAsync() {
+        dbRef.current = await SerializationsDB.loadAsync();
+        carlRef.current = await CarlIntegration.CreateAsync();
+        reloadFromDatabase();
 
-  // Handler for creating a new definition
-  const createDefinition = (newDefinition) => {
-    const id = `${Date.now()}`; // TODO: Get this from the database.
-    setDefinitions([...definitions, { ...newDefinition, id }]);
-  };
+        carlRef.current.onExampleCreated = (example, metadata) => {
+            const inspector = example.getRecordingInspector();
+            const recStart = inspector.getStartTimestamp();
+            const recEnd = inspector.getEndTimestamp();
+            inspector.dispose();
+            const start = example.getStartTimestamp();
+            const end = example.getEndTimestamp();
+            console.log(metadata);
+            dbRef.current.addAsync({
+                type: "example",
+                name: `Example ${Date.now()}`,
+                recordingStart: recStart,
+                recordingEnd: recEnd,
+                exampleStart: start,
+                exampleEnd: end,
+                startTime: start - recStart,
+                endTime: end - recStart,
+                duration: recEnd - recStart,
+                color: '#FF0000',
+                showInXR: true,
+                bytes: example.serialize(),
+                ...metadata,
+            }).then(id => {
+                reloadFromDatabase();
+                example.onDisposed = () => {
+                    dbRef.current.deleteAsync(id);
+                    reloadFromDatabase();
+                };
+            });
+        };
+        carlRef.current.onDefinitionCreated = (definition, metadata) => {
+            dbRef.current.addAsync({
+                type: "definition",
+                name: `Definition ${Date.now()}`,
+                actionType: carlRef.current.getActionTypesMap()[definition.getActionType()].name,
+                examplesCount: definition.getExamplesCount(),
+                counterexamplesCount: definition.getCounterexamplesCount(),
+                defaultSensitivity: definition.getDefaultSensitivity(),
+                color: '#FF0000',
+                showInXR: true,
+                bytes: definition.serialize(),
+                ...metadata,
+            }).then(id => {
+                reloadFromDatabase();
+                definition.onDisposed = () => {
+                    dbRef.current.deleteAsync(id);
+                    reloadFromDatabase();
+                };
+            });
+        };
+        immersiveExperienceRef.current = await initializeImmersiveExperienceAsync(canvasRef.current, carlRef.current);
+    }
+    React.useEffect(() => {
+        bootstrapAsync();
+    }, []);
 
-  return (
-    <Router>
-      <div className="app">
-        <Navigation />
-        <Routes>
-          <Route 
-            path="/library" 
-            element={
-              <LibraryView 
-                examples={examples}
-                definitions={definitions}
-                onRecordNewActions={handleRecordNewActions}
-                onUpdateExample={updateExample}
-                onDeleteExample={deleteExample}
-                onUpdateDefinition={updateDefinition}
-                onDeleteDefinition={deleteDefinition}
-                onUnpackDefinition={unpackDefinition}
-              />
-            } 
-          />
-          <Route 
-            path="/preview/:exampleId?" 
-            element={
-              <PreviewMode 
-                examples={examples}
-                onUpdateExample={updateExample}
-                onDeleteExample={deleteExample}
-              />
-            } 
-          />
-          <Route 
-            path="/definition-builder" 
-            element={
-              <DefinitionBuilder 
-                examples={examples}
-                definitions={definitions}
-                onCreateDefinition={createDefinition}
-              />
-            } 
-          />
-          <Route path="/" element={<Navigate to="/library" replace />} />
-        </Routes>
-      </div>
-      <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>
-    </Router>
-  );
+    // Handler for recording new actions (stub for integration)
+    const handleRecordNewActions = () => {
+        immersiveExperienceRef.current?.enterImmersiveMode();
+    };
+
+    // Handler for updating an example
+    const updateExample = (id, updates) => {
+        if (dbRef.current) {
+            dbRef.current.updateAsync(id, updates).then(() => {
+                reloadFromDatabase();
+            });
+        }
+    };
+
+    // Handler for deleting an example
+    const deleteExample = (id) => {
+        if (dbRef.current) {
+            dbRef.current.deleteAsync(id).then(() => {
+                reloadFromDatabase();
+            });
+        }
+    };
+
+    // Handler for updating a definition
+    const updateDefinition = (id, updates) => {
+        if (dbRef.current) {
+            dbRef.current.updateAsync(id, updates).then(() => {
+                reloadFromDatabase();
+            });
+        }
+    };
+
+    // Handler for deleting a definition
+    const deleteDefinition = (id) => {
+        if (dbRef.current) {
+            dbRef.current.deleteAsync(id).then(() => {
+                reloadFromDatabase();
+            });
+        }
+    };
+
+    // Handler for unpacking a definition
+    const unpackDefinition = (id) => {
+        // const definition = definitions.find(def => def.id === id);
+        // if (definition) {
+        //     console.log(`Unpacking definition: ${definition.name}`);
+        //     // Examples are already in the examples array, just remove the definition
+        //     deleteDefinition(id);
+        // }
+        console.error("TODO: Implement");
+    };
+
+    // Handler for creating a new definition
+    const createDefinition = (newDefinition) => {
+        // const id = `${Date.now()}`;
+        // setDefinitions([...definitions, { ...newDefinition, id }]);
+        console.error("TODO: Implement");
+    };
+
+    return (
+        <Router>
+            <div className="app">
+                <Navigation />
+                <Routes>
+                    <Route
+                        path="/library"
+                        element={
+                            <LibraryView
+                                examples={examples}
+                                definitions={definitions}
+                                onRecordNewActions={handleRecordNewActions}
+                                onUpdateExample={updateExample}
+                                onDeleteExample={deleteExample}
+                                onUpdateDefinition={updateDefinition}
+                                onDeleteDefinition={deleteDefinition}
+                                onUnpackDefinition={unpackDefinition}
+                            />
+                        }
+                    />
+                    <Route
+                        path="/preview/:exampleId?"
+                        element={
+                            <PreviewMode
+                                examples={examples}
+                                onUpdateExample={updateExample}
+                                onDeleteExample={deleteExample}
+                            />
+                        }
+                    />
+                    <Route
+                        path="/definition-builder"
+                        element={
+                            <DefinitionBuilder
+                                examples={examples}
+                                definitions={definitions}
+                                onCreateDefinition={createDefinition}
+                            />
+                        }
+                    />
+                    <Route path="/" element={<Navigate to="/library" replace />} />
+                </Routes>
+            </div>
+            <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>
+        </Router>
+    );
 }
 
 export default App;

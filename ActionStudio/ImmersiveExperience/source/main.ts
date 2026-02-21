@@ -142,10 +142,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const colorMat = new StandardMaterial("colorMat", scene);
     const handleColorChanged = () => {
-        colorMat.diffuseColor = Color3.FromInts(
-            Math.floor(rSlider.value * 256),
-            Math.floor(gSlider.value * 256),
-            Math.floor(bSlider.value * 256));
+        colorMat.diffuseColor.set(rSlider.value, gSlider.value, bSlider.value);
     };
     rSlider.onUpdatedObservable.add(handleColorChanged);
     gSlider.onUpdatedObservable.add(handleColorChanged);
@@ -157,12 +154,12 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const sensitivitySlider = SliderBehavior.GetForNode(sensitivityMesh)!;
     const sensitivityGrabbable = PhysicsGrabBehavior.get(sensitivityMesh)!;
 
-    let currentDefinition: ICarlDefinition | undefined = undefined;
+    let draftDefinition: ICarlDefinition | undefined = undefined;
     let currentSensitivity = 5;
     const regenerateDefinition = () => {
-        currentDefinition?.dispose();
+        draftDefinition?.dispose();
         if (exampleBlocks.size < 1) {
-            currentDefinition = undefined;
+            draftDefinition = undefined;
             currentGraph.recognizer = undefined;
             return;
         }
@@ -181,9 +178,9 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 counterexamples.push(counterexample);
             }
         });
-        currentDefinition = carl.createDefinition(currentActionType, examples, counterexamples);
-        currentDefinition.setDefaultSensitivity(currentSensitivity);
-        currentGraph.recognizer = carl.createRecognizer(currentDefinition);
+        draftDefinition = carl.draftDefinition(currentActionType, examples, counterexamples);
+        draftDefinition.setDefaultSensitivity(currentSensitivity);
+        currentGraph.recognizer = carl.createRecognizer(draftDefinition);
         sensitivitySlider.value = currentSensitivity / 10;
     };
 
@@ -307,7 +304,8 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     recordingPokeButton.onPokeObservable.add(poked => {
         if (poked) {
             if (recording) {
-                example = carl.stopRecording(recording);
+                const colorString = colorMat.diffuseColor.toHexString();
+                example = carl.stopRecording(recording, { color: colorString });
                 recording = undefined;
                 
                 const block = exampleSpawner.spawnNewBlock(example);
@@ -328,19 +326,21 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const downloadPoke = new PokeButton(scene, "download_button");
     downloadPoke.onPokeObservable.add(poked => {
-        if (poked && currentDefinition) {
-            currentDefinition.download();
+        if (poked && draftDefinition) {
+            draftDefinition.download();
         }
     });
 
     const createDefinitionPoke = new PokeButton(scene, "definition_button");
     createDefinitionPoke.onPokeObservable.add(poked => {
-        if (poked && currentDefinition) {
-            const definitionBlock = definitionSpawner.spawnNewBlock(currentDefinition);
+        if (poked && draftDefinition) {
+            const colorString = colorMat.diffuseColor.toHexString();
+            carl.finalizeDefinition(draftDefinition, { color: colorString });
+            const definitionBlock = definitionSpawner.spawnNewBlock(draftDefinition);
             definitionBlock.material = colorMat.clone(`${definitionBlock.name}_mat`);
             addDefinitionBlockPlacementDetection(definitionBlock);
 
-            currentDefinition = undefined;
+            draftDefinition = undefined;
             regenerateDefinition();
         }
     });
