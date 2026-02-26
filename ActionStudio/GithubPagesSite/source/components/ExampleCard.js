@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/Card.css';
 
-function ExampleCard({ example, onPreview, onUpdate, onDelete }) {
+function ExampleCard({ example, onPreview, onUpdate, onDownload, onDelete }) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(example.name);
 
@@ -25,12 +25,6 @@ function ExampleCard({ example, onPreview, onUpdate, onDelete }) {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleDownload = () => {
-    console.log(`Downloading example: ${example.name}`);
-    // TODO: Implement actual download functionality
-    alert(`Download functionality will be implemented with your data format.\nExample: ${example.name}`);
   };
 
   return (
@@ -80,7 +74,7 @@ function ExampleCard({ example, onPreview, onUpdate, onDelete }) {
         </button>
         <button 
           className="action-btn" 
-          onClick={handleDownload}
+          onClick={onDownload}
           title="Download"
         >
           ⬇

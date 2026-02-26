@@ -9,8 +9,10 @@ function LibraryView({
   definitions, 
   onRecordNewActions,
   onUpdateExample,
+  onDownloadExample,
   onDeleteExample,
   onUpdateDefinition,
+  onDownloadDefinition,
   onDeleteDefinition,
   onUnpackDefinition
 }) {
@@ -129,6 +131,7 @@ function LibraryView({
                 example={example}
                 onPreview={() => handlePreviewExample(example.id)}
                 onUpdate={(updates) => onUpdateExample(example.id, updates)}
+                onDownload={() => onDownloadExample(example.name, example.bytes)}
                 onDelete={() => onDeleteExample(example.id)}
               />
             ))}
@@ -150,6 +153,7 @@ function LibraryView({
                 definition={definition}
                 examples={examples}
                 onUpdate={(updates) => onUpdateDefinition(definition.id, updates)}
+                onDownload={() => onDownloadDefinition(definition.name, definition.bytes)}
                 onDelete={() => onDeleteDefinition(definition.id)}
                 onUnpack={() => onUnpackDefinition(definition.id)}
               />

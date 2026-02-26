@@ -115,18 +115,15 @@ class CarlDefinition {
     }
 
     getActionType() {
-        console.error("TODO: Implement in C++");
-        return 0;
+        return this._nativeDefinition.getActionType();
     }
 
     getExamplesCount() {
-        console.error("TODO: Implement in C++");
-        return -1;
+        return this._nativeDefinition.getExamplesCount();
     }
 
     getCounterexamplesCount() {
-        console.error("TODO: Implement in C++");
-        return -1;
+        return this._nativeDefinition.getCounterexamplesCount();
     }
 
     getDefaultSensitivity() {
@@ -489,6 +486,13 @@ function App() {
         }
     };
 
+    // Handler for downloading an example
+    const downloadExample = (name, bytes) => {
+        if (dbRef.current) {
+            downloadSerializedBytes(bytes, `example_${name}.carl`);
+        }
+    }
+
     // Handler for deleting an example
     const deleteExample = (id) => {
         if (dbRef.current) {
@@ -506,6 +510,13 @@ function App() {
             });
         }
     };
+
+    // Handler for downloading a definition
+    const downloadDefinition = (name, bytes) => {
+        if (dbRef.current) {
+            downloadSerializedBytes(bytes, `definition_${name}.carl`);
+        }
+    }
 
     // Handler for deleting a definition
     const deleteDefinition = (id) => {
@@ -547,8 +558,10 @@ function App() {
                                 definitions={definitions}
                                 onRecordNewActions={handleRecordNewActions}
                                 onUpdateExample={updateExample}
+                                onDownloadExample={downloadExample}
                                 onDeleteExample={deleteExample}
                                 onUpdateDefinition={updateDefinition}
+                                onDownloadDefinition={downloadDefinition}
                                 onDeleteDefinition={deleteDefinition}
                                 onUnpackDefinition={unpackDefinition}
                             />
@@ -575,6 +588,7 @@ function App() {
                         }
                     />
                     <Route path="/" element={<Navigate to="/library" replace />} />
+                    <Route path="*" element={<Navigate to="/library" replace />} />
                 </Routes>
             </div>
             <canvas ref={canvasRef} width={16} height={16} style={{ display: 'none' }}></canvas>

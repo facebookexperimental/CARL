@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/Card.css';
 
-function DefinitionCard({ definition, examples, onUpdate, onDelete, onUnpack }) {
+function DefinitionCard({ definition, examples, onUpdate, onDownload, onDelete, onUnpack }) {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(definition.name);
 
@@ -19,12 +19,6 @@ function DefinitionCard({ definition, examples, onUpdate, onDelete, onUnpack }) 
       setName(definition.name);
       setIsEditing(false);
     }
-  };
-
-  const handleDownload = () => {
-    console.log(`Downloading definition: ${definition.name}`);
-    // TODO: Implement actual download functionality
-    alert(`Download functionality will be implemented with your data format.\nDefinition: ${definition.name}`);
   };
 
   const handleUnpack = () => {
@@ -75,7 +69,7 @@ function DefinitionCard({ definition, examples, onUpdate, onDelete, onUnpack }) 
         </button>
         <button 
           className="action-btn" 
-          onClick={handleDownload}
+          onClick={onDownload}
           title="Download"
         >
           ⬇
