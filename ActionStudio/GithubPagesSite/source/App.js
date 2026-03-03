@@ -581,28 +581,104 @@ function App() {
         console.error("TODO: Implement");
     };
 
-    const handleFilesDropped = (files) => {
-        const newExamples = [];
-        const newDefinitions = [];
-        files.forEach(file => {
-            var reader = new FileReader();
-            reader.onload = function () {
-                const arrayBuffer = this.result;
-                const array = new Uint8Array(arrayBuffer);
-                const example = carlRef.current.tryDeserializeExample(array);
-                if (example) {
-                    newExamples.push(example);
-                } else {
-                    const definition = carlRef.current.tryDeserializeDefinition(array);
-                    if (definition) {
-                        newDefinitions.push(definition);
+    const handleFilesDropped = async (files) => {
+        if (!dbRef.current || !carlRef.current) {
+            // nothing to do if integration or DB isn't ready yet
+            return;
+        }
+
+        // helper that reads a file into a Uint8Array and tries to parse it
+        const processFile = (file) => {
+            return new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const arrayBuffer = reader.result;
+                    const array = new Uint8Array(arrayBuffer);
+                    let parsed = null;
+                    let type = null;
+
+                    const example = carlRef.current.tryDeserializeExample(array);
+                    if (example) {
+                        parsed = example;
+                        type = "example";
+                    } else {
+                        const definition = carlRef.current.tryDeserializeDefinition(array);
+                        if (definition) {
+                            parsed = definition;
+                            type = "definition";
+                        }
                     }
-                }
-            };
-            reader.readAsArrayBuffer(file);
-        });
-        // TODO: Add all new examples and definitions to the database.
-        // TODO: Reload from database.
+
+                    resolve({ file, type, parsed });
+                };
+                reader.onerror = () => {
+                    console.error(`Failed reading dropped file: ${file.name}`);
+                    resolve({ file, type: null, parsed: null });
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        };
+
+        const results = await Promise.all(Array.from(files).map(processFile));
+
+        for (const { file, type, parsed } of results) {
+            if (!parsed) {
+                continue; // skip unknown blobs
+            }
+
+            if (type === "example") {
+                const example = parsed; // CarlExample
+                const inspector = example.getRecordingInspector();
+                const recStart = inspector.getStartTimestamp();
+                const recEnd = inspector.getEndTimestamp();
+                inspector.dispose();
+                const start = example.getStartTimestamp();
+                const end = example.getEndTimestamp();
+
+                await dbRef.current.addAsync({
+                    type: "example",
+                    name: file.name,
+                    recordingStart: recStart,
+                    recordingEnd: recEnd,
+                    exampleStart: start,
+                    exampleEnd: end,
+                    startTime: start - recStart,
+                    endTime: end - recStart,
+                    duration: recEnd - recStart,
+                    color: '#FF0000',
+                    showInXR: true,
+                    bytes: example.serialize(),
+                    fileName: file.name,
+                }).then(id => {
+                    example.onDisposed = () => {
+                        dbRef.current.deleteAsync(id);
+                        reloadFromDatabase();
+                    };
+                });
+            } else if (type === "definition") {
+                const definition = parsed; // CarlDefinition
+                await dbRef.current.addAsync({
+                    type: "definition",
+                    name: file.name,
+                    actionType: carlRef.current.getActionTypesMap()[definition.getActionType()].name,
+                    examplesCount: definition.getExamplesCount(),
+                    counterexamplesCount: definition.getCounterexamplesCount(),
+                    defaultSensitivity: definition.getDefaultSensitivity(),
+                    color: '#FF0000',
+                    showInXR: true,
+                    bytes: definition.serialize(),
+                    fileName: file.name,
+                }).then(id => {
+                    definition.onDisposed = () => {
+                        dbRef.current.deleteAsync(id);
+                        reloadFromDatabase();
+                    };
+                });
+            }
+        }
+
+        // once all files have been persisted, refresh view
+        reloadFromDatabase();
     };
 
     // Handler for creating a new definition

@@ -38,8 +38,9 @@ function LibraryView({
     setIsDragging(false);
     const files = Array.from(e.dataTransfer.files);
     console.log('Files dropped:', files);
-    // TODO: Implement file parsing and import
-    alert(`Dropped ${files.length} file(s). File import will be implemented with your data format.`);
+    if (onFilesDropped) {
+      onFilesDropped(files);
+    }
   };
 
   const handlePreviewExample = (exampleId) => {
