@@ -79,12 +79,12 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
     setEndTime(newEnd);
   };
 
-  const handleMouseMove = (e) => {
+  const handlePointerMove = (e) => {
     if (!timelineRef.current || !currentExample) return;
     
     const rect = timelineRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    const percentage = Math.max(0.0, Math.min(1.0, x / rect.width));
     const time = percentage * currentExample.duration;
     
     if (isDraggingStart) {
@@ -94,18 +94,18 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
     }
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = () => {
     setIsDraggingStart(false);
     setIsDraggingEnd(false);
   };
 
   useEffect(() => {
     if (isDraggingStart || isDraggingEnd) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
       return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
       };
     }
   }, [isDraggingStart, isDraggingEnd, currentExample]);
@@ -260,7 +260,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
               <div 
                 className="trim-handle start-handle"
                 style={{ left: `${(startTime / currentExample.duration) * 100}%` }}
-                onMouseDown={() => setIsDraggingStart(true)}
+                onPointerDown={() => setIsDraggingStart(true)}
               >
                 <span className="handle-label">START</span>
                 <div className="handle-grabber"></div>
@@ -268,7 +268,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
               <div 
                 className="trim-handle end-handle"
                 style={{ left: `${(endTime / currentExample.duration) * 100}%` }}
-                onMouseDown={() => setIsDraggingEnd(true)}
+                onPointerDown={() => setIsDraggingEnd(true)}
               >
                 <span className="handle-label">END</span>
                 <div className="handle-grabber"></div>

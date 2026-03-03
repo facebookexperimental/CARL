@@ -284,6 +284,28 @@ class CarlIntegration {
             ipr.addInput(sample);
         });
     }
+
+    tryDeserializeExample(jsBytes) {
+        const nativeBytes = new this._carl.SerializedBytes();
+        nativeBytes.resize(jsBytes.length);
+        for (let idx = 0; idx < jsBytes.length; ++idx) {
+            nativeBytes.set(idx, jsBytes[idx]);
+        }
+        const nativeExample = this._carl.Example.tryDeserialize(nativeBytes);
+        nativeBytes.delete();
+        return nativeExample ? new CarlExample(nativeExample) : null;
+    }
+
+    tryDeserializeDefinition(jsBytes) {
+        const nativeBytes = new this._carl.SerializedBytes();
+        nativeBytes.resize(jsBytes.length);
+        for (let idx = 0; idx < jsBytes.length; ++idx) {
+            nativeBytes.set(idx, jsBytes[idx]);
+        }
+        const nativeDefinition = this._carl.Definition.tryDeserialize(nativeBytes);
+        nativeBytes.delete();
+        return nativeDefinition ? new CarlDefinition(nativeDefinition) : null;
+    }
 }
 
 class SerializationsDB {
@@ -405,8 +427,6 @@ function App() {
             }
         });
 
-        console.log(xmpls);
-        console.log(defs);
         setExamples(xmpls);
         setDefinitions(defs);
     }
@@ -480,8 +500,31 @@ function App() {
     // Handler for updating an example
     const updateExample = (id, updates) => {
         if (dbRef.current) {
-            dbRef.current.updateAsync(id, updates).then(() => {
-                reloadFromDatabase();
+            examples.map((example) => {
+                if (example.id === id) {
+                    let shouldReserialize = false;
+                    if (updates.startTime) {
+                        updates.exampleStart = updates.startTime + example.recordingStart;
+                        shouldReserialize = true;
+                    }
+
+                    if (updates.endTime) {
+                        updates.exampleEnd = updates.endTime + example.recordingStart;
+                        shouldReserialize = true;
+                    }
+
+                    if (shouldReserialize) {
+                        let ex = carlRef.current.tryDeserializeExample(example.bytes);
+                        ex.setStartTimestamp(updates.exampleStart ?? example.exampleStart);
+                        ex.setEndTimestamp(updates.exampleEnd ?? example.exampleEnd);
+                        updates.bytes = ex.serialize();
+                        ex.dispose();
+                    }
+
+                    dbRef.current.updateAsync(id, updates).then(() => {
+                        reloadFromDatabase();
+                    });
+                }
             });
         }
     };
@@ -538,6 +581,30 @@ function App() {
         console.error("TODO: Implement");
     };
 
+    const handleFilesDropped = (files) => {
+        const newExamples = [];
+        const newDefinitions = [];
+        files.forEach(file => {
+            var reader = new FileReader();
+            reader.onload = function () {
+                const arrayBuffer = this.result;
+                const array = new Uint8Array(arrayBuffer);
+                const example = carlRef.current.tryDeserializeExample(array);
+                if (example) {
+                    newExamples.push(example);
+                } else {
+                    const definition = carlRef.current.tryDeserializeDefinition(array);
+                    if (definition) {
+                        newDefinitions.push(definition);
+                    }
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+        // TODO: Add all new examples and definitions to the database.
+        // TODO: Reload from database.
+    };
+
     // Handler for creating a new definition
     const createDefinition = (newDefinition) => {
         // const id = `${Date.now()}`;
@@ -564,27 +631,30 @@ function App() {
                                 onDownloadDefinition={downloadDefinition}
                                 onDeleteDefinition={deleteDefinition}
                                 onUnpackDefinition={unpackDefinition}
+                                onFilesDropped={handleFilesDropped}
                             />
                         }
                     />
                     <Route
                         path="/preview/:exampleId?"
-                        element={
+                        element={ examples.length > 0 ?
                             <PreviewMode
                                 examples={examples}
                                 onUpdateExample={updateExample}
                                 onDeleteExample={deleteExample}
-                            />
+                            /> : 
+                            <Navigate to="/library" replace />
                         }
                     />
                     <Route
                         path="/definition-builder"
-                        element={
+                        element={ examples.length > 0 ?
                             <DefinitionBuilder
                                 examples={examples}
                                 definitions={definitions}
                                 onCreateDefinition={createDefinition}
-                            />
+                            /> :
+                            <Navigate to="/library" replace />
                         }
                     />
                     <Route path="/" element={<Navigate to="/library" replace />} />

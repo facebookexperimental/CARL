@@ -14,7 +14,8 @@ function LibraryView({
   onUpdateDefinition,
   onDownloadDefinition,
   onDeleteDefinition,
-  onUnpackDefinition
+  onUnpackDefinition,
+  onFilesDropped,
 }) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
