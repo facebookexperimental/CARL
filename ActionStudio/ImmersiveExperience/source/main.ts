@@ -33,8 +33,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const havok = await HavokPhysics();
     const hk = new HavokPlugin(true, havok);
 
-    const scene = await PhysicsEnabledScene.loadAsync("./assets/action_studio.glb", engine, hk);
-    scene.useRightHandedSystem = true;
+const scene = await PhysicsEnabledScene.loadAsync("./assets/action_studio.glb", engine, hk);
     engine.runRenderLoop(() => {
         scene.render();
     });
@@ -52,7 +51,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
-    
+
     const exampleSpawner = new BlockSpawner<ICarlExample>(scene, "example_block");
     const definitionSpawner = new BlockSpawner<ICarlDefinition>(scene, "definition_block");
 
@@ -217,7 +216,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 previewStopper = null;
                 blockState.inEditor = false;
             }
-            
+
             Vector3.TransformCoordinatesToRef(block.position, isExampleMatrix, scratchVec);
             inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.isExample && inBounds) {
@@ -230,7 +229,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 regenerateDefinition();
                 blockState.isExample = false;
             }
-            
+
             Vector3.TransformCoordinatesToRef(block.position, isCounterexampleMatrix, scratchVec);
             inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.isCounterexample && inBounds) {
@@ -261,7 +260,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 block.dispose();
                 return;
             }
-            
+
             Vector3.TransformCoordinatesToRef(block.position, isDemoMatrix, scratchVec);
             inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.graph && inBounds) {
@@ -307,7 +306,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 const colorString = colorMat.diffuseColor.toHexString();
                 example = carl.stopRecording(recording, { color: colorString });
                 recording = undefined;
-                
+
                 const block = exampleSpawner.spawnNewBlock(example);
                 block.material = colorMat.clone(`${block.name}_mat`);
                 addExampleBlockPlacementDetection(block);
@@ -345,9 +344,9 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
-    xr.input.xrSessionManager.onXRFrameObservable.add((frame) => {
+xr.input.xrSessionManager.onXRFrameObservable.add((frame) => {
         let sample = createInputSample();
-        populateInputSample(xr.input.xrCamera, scene.leftHand, scene.rightHand, sample);
+        populateInputSample(frame, xr.input.xrSessionManager, scene.leftHand, scene.rightHand, sample);
         carl.handleInputSample(sample);
 
         if (scene.inputPuppet === undefined && scene.leftHand && scene.rightHand && scene.leftHand.getJointMesh(OPENXR_JOINT_MAPPINGS[0]).scaling.x < 1) {

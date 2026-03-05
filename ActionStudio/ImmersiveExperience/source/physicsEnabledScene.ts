@@ -20,7 +20,6 @@ export class PhysicsEnabledScene extends Scene {
 
     public static async loadAsync(url: string, engine: Engine, havok: HavokPlugin): Promise<PhysicsEnabledScene> {
         const scene = new PhysicsEnabledScene(engine);
-        scene.useRightHandedSystem = true;
         await AppendSceneAsync(url, scene);
         scene.enablePhysics(Vector3.DownReadOnly.scale(9.81), havok);
 
@@ -58,7 +57,7 @@ export class PhysicsEnabledScene extends Scene {
                 massNull.setParent(null);
                 massNull.dispose();
             }
-            
+
             let grabbable = false;
             let sliderConstraints: SliderConstraints | undefined = undefined;
             const grabbableNulls = mesh.getChildTransformNodes(true, child => child.name.startsWith("grabbable"));
@@ -83,8 +82,8 @@ export class PhysicsEnabledScene extends Scene {
 
             const aggregate = new PhysicsAggregate(mesh, shape, { mass: mass }, scene);
             aggregate.transformNode.rotationQuaternion = Quaternion.FromEulerAngles(
-                aggregate.transformNode.rotation.x, 
-                aggregate.transformNode.rotation.y, 
+                aggregate.transformNode.rotation.x,
+                aggregate.transformNode.rotation.y,
                 aggregate.transformNode.rotation.z);
             if (grabbable) {
                 const behavior = PhysicsGrabBehavior.get(mesh);
