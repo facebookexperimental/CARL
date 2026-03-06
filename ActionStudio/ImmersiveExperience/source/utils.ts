@@ -96,8 +96,8 @@ function populatePoseFromXRPose(pose: XRPose, target: ICarlOptionalTransform): v
     target.position.z = pose.transform.position.z;
     target.orientation.w = pose.transform.orientation.w;
     target.orientation.x = pose.transform.orientation.x;
-    target.orientation.y = pose.transform.orientation.y;
-    target.orientation.z = pose.transform.orientation.z;
+    target.orientation.y = -pose.transform.orientation.y;
+    target.orientation.z = -pose.transform.orientation.z;
 }
 
 function invalidatePose(target: ICarlOptionalTransform): void {
@@ -214,23 +214,4 @@ export function populateInputSample(
             }
         }
     }
-}
-
-export function convertOpenXRSampleToBabylonConventions(sample: ICarlInputSample): void {
-    convertPoseToBabylonConventions(sample.hmdPose);
-    convertPoseToBabylonConventions(sample.leftWristPose);
-    convertPoseToBabylonConventions(sample.rightWristPose);
-    for (const pose of sample.leftHandJointPoses) {
-        convertPoseToBabylonConventions(pose);
-    }
-    for (const pose of sample.rightHandJointPoses) {
-        convertPoseToBabylonConventions(pose);
-    }
-}
-
-function convertPoseToBabylonConventions(pose: ICarlOptionalTransform): void {
-    if (!pose.valid) return;
-    pose.position.z = -pose.position.z;
-    pose.orientation.x = -pose.orientation.x;
-    pose.orientation.y = -pose.orientation.y;
 }
