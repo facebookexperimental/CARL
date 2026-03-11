@@ -20,7 +20,6 @@ export class PhysicsEnabledScene extends Scene {
 
     public static async loadAsync(url: string, engine: Engine, havok: HavokPlugin): Promise<PhysicsEnabledScene> {
         const scene = new PhysicsEnabledScene(engine);
-        scene.useRightHandedSystem = true;
         await AppendSceneAsync(url, scene);
         scene.enablePhysics(Vector3.DownReadOnly.scale(9.81), havok);
 

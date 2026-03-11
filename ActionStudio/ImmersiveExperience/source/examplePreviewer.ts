@@ -33,10 +33,10 @@ export class ExamplePreviewer {
     }
 
     private *previewExampleCoroutine(example: ICarlExample) {
-        const IMMITATION_ORIGIN = Vector3.RightHandedBackwardReadOnly.scale(2);
+        const IMMITATION_ORIGIN = Vector3.BackwardReadOnly.scale(2);
         const inspector = example.getRecordingInspector();
         const duration = inspector.getEndTimestamp() - inspector.getStartTimestamp();
-        this.scene.inputPuppet?.immitateInputSample(inspector.inspect(inspector.getStartTimestamp()), Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, IMMITATION_ORIGIN, Vector3.RightHandedForwardReadOnly);
+        this.scene.inputPuppet?.immitateInputSample(inspector.inspect(inspector.getStartTimestamp()), Vector3.ZeroReadOnly, Vector3.BackwardReadOnly, IMMITATION_ORIGIN, Vector3.ForwardReadOnly);
         this.scene.inputPuppet?.setEnabled(true);
 
         let currentT: number | undefined = undefined;
@@ -64,7 +64,7 @@ export class ExamplePreviewer {
                 }
 
                 const sample = inspector.inspect(t);
-                this.scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.RightHandedBackwardReadOnly, IMMITATION_ORIGIN, Vector3.RightHandedForwardReadOnly);
+                this.scene.inputPuppet?.immitateInputSample(sample, Vector3.ZeroReadOnly, Vector3.BackwardReadOnly, IMMITATION_ORIGIN, Vector3.ForwardReadOnly);
             }));
         }
 
