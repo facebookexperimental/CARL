@@ -26,7 +26,7 @@ export class RecognitionGraph implements IDisposable {
 
     public constructor(scene: PhysicsEnabledScene, color: Color4) {
         this._emitter = MeshBuilder.CreateBox("recognizerEmitter", {size: 0.01});
-        this._emitter.position.set(1, 1, 2);
+        this._emitter.position.set(1, 1, 0).addInPlace(Vector3.RightHandedForwardReadOnly).addInPlace(Vector3.RightHandedForwardReadOnly);
         this._emitter.isVisible = false;
 
         this._particleSystem = new ParticleSystem("particles", 2000, scene);
