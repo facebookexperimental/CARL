@@ -79,3 +79,8 @@ export interface ICarl {
     createInputSample(): ICarlInputSample;
     handleInputSample(sample: ICarlInputSample): void;
 }
+
+export interface IInitialBlock<T> {
+    value: T;
+    color: string;
+}

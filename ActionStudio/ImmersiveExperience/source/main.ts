@@ -1,7 +1,7 @@
 import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, TransformNode, Color3, StandardMaterial, Mesh } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
-import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample } from "./carlInterfaces";
+import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample, IInitialBlock } from "./carlInterfaces";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
@@ -14,10 +14,20 @@ import { SliderBehavior } from "./slider";
 import { BlockSpawner } from "./blockSpawner";
 
 export interface IImmersiveExperience {
-    enterImmersiveMode(): void;
+    dispose(): void;
 }
 
-export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl): Promise<IImmersiveExperience> {
+export interface IImmersiveExperienceOptions {
+    initialExamples?: IInitialBlock<ICarlExample>[];
+    initialDefinitions?: IInitialBlock<ICarlDefinition>[];
+    onSessionEnded?: () => void;
+}
+
+export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl, options?: IImmersiveExperienceOptions): Promise<IImmersiveExperience> {
+    const initialExamples = options?.initialExamples ?? [];
+    const initialDefinitions = options?.initialDefinitions ?? [];
+    const onSessionEnded = options?.onSessionEnded;
+
     const engine = new Engine(canvas, true);
     engine.displayLoadingUI = () => {};
     engine.hideLoadingUI();
@@ -52,7 +62,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
-    
+
     const exampleSpawner = new BlockSpawner<ICarlExample>(scene, "example_block");
     const definitionSpawner = new BlockSpawner<ICarlDefinition>(scene, "definition_block");
 
@@ -96,7 +106,6 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             PhysicsGrabBehavior.handleGrab(grabber);
         });
         scene.grabbers.set(hand.xrController.uniqueId, grabber);
-        hand.xrController.inputSource.handedness
     });
 
     handTracking.onHandRemovedObservable.add((hand) => {
@@ -217,7 +226,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 previewStopper = null;
                 blockState.inEditor = false;
             }
-            
+
             Vector3.TransformCoordinatesToRef(block.position, isExampleMatrix, scratchVec);
             inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.isExample && inBounds) {
@@ -230,7 +239,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 regenerateDefinition();
                 blockState.isExample = false;
             }
-            
+
             Vector3.TransformCoordinatesToRef(block.position, isCounterexampleMatrix, scratchVec);
             inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.isCounterexample && inBounds) {
@@ -261,7 +270,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 block.dispose();
                 return;
             }
-            
+
             Vector3.TransformCoordinatesToRef(block.position, isDemoMatrix, scratchVec);
             inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.graph && inBounds) {
@@ -307,7 +316,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
                 const colorString = colorMat.diffuseColor.toHexString();
                 example = carl.stopRecording(recording, { color: colorString });
                 recording = undefined;
-                
+
                 const block = exampleSpawner.spawnNewBlock(example);
                 block.material = colorMat.clone(`${block.name}_mat`);
                 addExampleBlockPlacementDetection(block);
@@ -355,15 +364,51 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
+    // --- Disposal ---
+    let disposed = false;
+    const shutdown = async () => {
+        if (disposed) return;
+        disposed = true;
+
+        try {
+            await xr.baseExperience.exitXRAsync();
+        } catch (e) {
+            // XR session may already be ended
+        }
+
+        engine.stopRenderLoop();
+        scene.dispose();
+        engine.dispose();
+        onSessionEnded?.();
+    };
+
     const exitPoke = new PokeButton(scene, "exit_xr_button");
     exitPoke.onPokeObservable.add(() => {
-        xr.baseExperience.exitXRAsync();
-        // TODO: Dispose scene? Or reset?
+        shutdown();
     });
 
+    // --- Auto-spawn initial example blocks ---
+    for (const initial of initialExamples) {
+        const mat = new StandardMaterial(`initial_example_mat`, scene);
+        mat.diffuseColor = Color3.FromHexString(initial.color);
+        const block = exampleSpawner.spawnNewBlock(initial.value);
+        block.material = mat;
+        addExampleBlockPlacementDetection(block);
+    }
+
+    // --- Auto-spawn initial definition blocks ---
+    for (const initial of initialDefinitions) {
+        const mat = new StandardMaterial(`initial_definition_mat`, scene);
+        mat.diffuseColor = Color3.FromHexString(initial.color);
+        const block = definitionSpawner.spawnNewBlock(initial.value);
+        block.material = mat;
+        addDefinitionBlockPlacementDetection(block);
+    }
+
+    // --- Enter XR automatically ---
+    xr.baseExperience.enterXRAsync("immersive-ar", "local-floor");
+
     return {
-        enterImmersiveMode: () => {
-            xr.baseExperience.enterXRAsync("immersive-ar", "local-floor");
-        }
+        dispose: () => { shutdown(); },
     };
 }

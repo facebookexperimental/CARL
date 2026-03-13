@@ -346,7 +346,7 @@ class SerializationsDB {
     async addAsync(obj) {
         const transaction = this._db.transaction(SerializationsDB._OBJECT_STORE_NAME, "readwrite")
         const os = transaction.objectStore(SerializationsDB._OBJECT_STORE_NAME);
-        
+
         return await new Promise((resolve, reject) => {
             const request = os.add(obj);
             request.onerror = () => reject("Error storing CARL object");
@@ -430,7 +430,7 @@ function App() {
         setExamples(xmpls);
         setDefinitions(defs);
     }
-    
+
     async function bootstrapAsync() {
         dbRef.current = await SerializationsDB.loadAsync();
         carlRef.current = await CarlIntegration.CreateAsync();
@@ -486,15 +486,43 @@ function App() {
                 };
             });
         };
-        immersiveExperienceRef.current = await initializeImmersiveExperienceAsync(canvasRef.current, carlRef.current);
     }
     React.useEffect(() => {
         bootstrapAsync();
     }, []);
 
-    // Handler for recording new actions (stub for integration)
-    const handleRecordNewActions = () => {
-        immersiveExperienceRef.current?.enterImmersiveMode();
+    const handleRecordNewActions = async () => {
+        if (!carlRef.current || !canvasRef.current) return;
+        if (immersiveExperienceRef.current) return;
+
+        const initialExamples = [];
+        for (const record of examples) {
+            if (!record.showInXR) continue;
+            const deserialized = carlRef.current.tryDeserializeExample(record.bytes);
+            if (deserialized) {
+                initialExamples.push({ value: deserialized, color: record.color });
+            }
+        }
+
+        const initialDefinitions = [];
+        for (const record of definitions) {
+            if (!record.showInXR) continue;
+            const deserialized = carlRef.current.tryDeserializeDefinition(record.bytes);
+            if (deserialized) {
+                initialDefinitions.push({ value: deserialized, color: record.color });
+            }
+        }
+
+        const onSessionEnded = () => {
+            immersiveExperienceRef.current = null;
+            reloadFromDatabase();
+        };
+
+        immersiveExperienceRef.current = await initializeImmersiveExperienceAsync(
+            canvasRef.current,
+            carlRef.current,
+            { initialExamples, initialDefinitions, onSessionEnded },
+        );
     };
 
     // Handler for updating an example
@@ -718,7 +746,7 @@ function App() {
                                 examples={examples}
                                 onUpdateExample={updateExample}
                                 onDeleteExample={deleteExample}
-                            /> : 
+                            /> :
                             <Navigate to="/library" replace />
                         }
                     />
