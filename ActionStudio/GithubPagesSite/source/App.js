@@ -746,6 +746,7 @@ function App() {
                                 examples={examples}
                                 onUpdateExample={updateExample}
                                 onDeleteExample={deleteExample}
+                                carl={carlRef.current}
                             /> :
                             <Navigate to="/library" replace />
                         }

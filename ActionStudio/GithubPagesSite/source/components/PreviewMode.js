@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { initializePreviewExperienceAsync } from 'carl-actionstudio-immersiveexperience';
 import '../styles/PreviewMode.css';
 
-function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
+function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
   const { exampleId } = useParams();
   const navigate = useNavigate();
   const canvasRef = useRef(null);
@@ -18,6 +19,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
   const [isDraggingStart, setIsDraggingStart] = useState(false);
   const [isDraggingEnd, setIsDraggingEnd] = useState(false);
   const timelineRef = useRef(null);
+  const experienceHandleRef = useRef(null);
 
   useEffect(() => {
     if (exampleId) {
@@ -35,33 +37,42 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample }) {
     }
   }, [exampleId, examples, navigate]);
 
+  // Effect A — initialize/teardown Babylon.js scene when example changes
   useEffect(() => {
-    // Initialize canvas for preview rendering
-    // User will implement actual rendering logic here
-    const canvas = canvasRef.current;
-    if (canvas && currentExample) {
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Placeholder visualization
-      ctx.fillStyle = currentExample.color + '44';
-      ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
-      
-      ctx.fillStyle = currentExample.color;
-      ctx.font = '24px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('Preview Canvas - Integrate your rendering here', canvas.width / 2, canvas.height / 2);
+    if (!canvasRef.current || !currentExample || !carl) return;
+    let handle;
+    const carlExample = carl.tryDeserializeExample(currentExample.bytes);
+    if (!carlExample) return;
+    initializePreviewExperienceAsync(canvasRef.current, carlExample)
+      .then(h => {
+        handle = h;
+        experienceHandleRef.current = h;
+        h.onTimeUpdate = (t) => setCurrentTime(t);
+        h.onPlaybackEnd = () => setIsPlaying(false);
+        h.setTime(currentExample.startTime);
+      });
+    return () => {
+      experienceHandleRef.current = null;
+      handle?.dispose();
+      carlExample.dispose();
+    };
+  }, [currentExample, carl]);
+
+  // Effect B — scrub to current time when not playing
+  useEffect(() => {
+    if (!isPlaying) {
+      experienceHandleRef.current?.setTime(currentTime);
     }
-  }, [currentExample, currentTime]);
+  }, [currentTime, isPlaying]);
 
   const handleExampleSelect = (example) => {
     navigate(`/preview/${example.id}`);
   };
 
   const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-    // TODO: Implement actual playback logic
+    const newPlaying = !isPlaying;
+    setIsPlaying(newPlaying);
+    experienceHandleRef.current?.setPlaying(newPlaying);
   };
 
   const handleTimelineChange = (e) => {
