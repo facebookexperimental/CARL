@@ -83,10 +83,9 @@ export class PhysicsGrabBehavior implements IDisposable {
                         this.onGrabMovedObservable.notifyObservers(this._node.physicsBody!.transformNode);
                     this.onGrabStartedObservable.notifyObservers(this._node);
                     });
-                    const grabberDisposedObserver = this._currentGrabber.onDisposeObservable.add(() => {
+                    this._currentGrabberDisposeObserver = this._currentGrabber.onDisposeObservable.add(() => {
                         this._resumePhysics();
                     });
-                    // TODO: Handle what happens if the grabber is disposed.
                 }
             }
         } else if (this._currentGrabber === grabber && !grabber.isGrabbing) {
@@ -103,6 +102,8 @@ export class PhysicsGrabBehavior implements IDisposable {
         PhysicsGrabBehavior._behaviors.delete(this._node.uniqueId);
         this.onGrabMovedObservable.clear();
         this.onGrabEndedObservable.clear();
+        this._grabberObserver?.remove();
+        this._currentGrabberDisposeObserver?.remove();
         this._disposeObserver?.remove();
     }
 }

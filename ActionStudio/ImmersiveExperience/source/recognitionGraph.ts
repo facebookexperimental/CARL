@@ -3,6 +3,9 @@ import { ICarlRecognizer } from "./carlInterfaces";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 
 export class RecognitionGraph implements IDisposable {
+    private static _sharedTexture: DynamicTexture | null = null;
+    private static _sharedTextureRefCount: number = 0;
+
     private _recognizer: ICarlRecognizer | undefined = undefined;
     private _emitter: AbstractMesh;
     private _particleSystem: ParticleSystem;
@@ -31,13 +34,16 @@ export class RecognitionGraph implements IDisposable {
 
         this._particleSystem = new ParticleSystem("particles", 2000, scene);
 
-        // TODO: Pull this out so that all the graphs can use the same texture.
-        const size = 1;
-        this._texture = new DynamicTexture("whiteTexture", { width: size, height: size }, scene, false);
-        const ctx = this._texture.getContext();
-        ctx.fillStyle = "#FFFFFF";
-        ctx.fillRect(0, 0, size, size);
-        this._texture.update();
+        if (RecognitionGraph._sharedTexture === null) {
+            const size = 1;
+            RecognitionGraph._sharedTexture = new DynamicTexture("whiteTexture", { width: size, height: size }, scene, false);
+            const ctx = RecognitionGraph._sharedTexture.getContext();
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, size, size);
+            RecognitionGraph._sharedTexture.update();
+        }
+        RecognitionGraph._sharedTextureRefCount++;
+        this._texture = RecognitionGraph._sharedTexture;
         this._particleSystem.particleTexture = this._texture;
 
         this._particleSystem.color1 = color;
@@ -79,7 +85,11 @@ export class RecognitionGraph implements IDisposable {
         this._onBeforeRenderObserver.remove();
         this._onSceneDisposeObserver.remove();
         this._particleSystem.dispose();
-        this._texture.dispose();
+        RecognitionGraph._sharedTextureRefCount--;
+        if (RecognitionGraph._sharedTextureRefCount === 0) {
+            RecognitionGraph._sharedTexture!.dispose();
+            RecognitionGraph._sharedTexture = null;
+        }
         this._emitter.dispose();
     }
 }

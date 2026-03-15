@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { actionTypes } from '../data/mockData';
 import '../styles/DefinitionBuilder.css';
 
-function DefinitionBuilder({ examples, definitions, onCreateDefinition }) {
+function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) {
   const navigate = useNavigate();
   
   const [name, setName] = useState('New Definition');
-  const [actionType, setActionType] = useState('Strike');
+  const [actionType, setActionType] = useState(actionTypes[0]);
   const [sensitivity, setSensitivity] = useState(7.5);
   const [color, setColor] = useState('#5B9FFF');
   const [selectedExamples, setSelectedExamples] = useState([]);
@@ -56,33 +56,54 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition }) {
       alert('Please select examples to test');
       return;
     }
+    if (selectedExamples.length === 0) {
+      alert('Please select at least one example to build the definition before testing');
+      return;
+    }
+    if (!carl) return;
 
-    // Generate mock test results
-    const results = testExamples.map(exId => {
-      const example = examples.find(ex => ex.id === exId);
-      // Generate mock sensitivity curve data
-      const dataPoints = [];
-      const duration = example.duration;
-      const steps = 50;
-      
-      for (let i = 0; i <= steps; i++) {
-        const time = (duration * i) / steps;
-        // Mock sensitivity response with some randomness
-        const baseResponse = Math.sin((i / steps) * Math.PI * 2) * 3 + sensitivity;
-        const noise = (Math.random() - 0.5) * 1.5;
-        const response = Math.max(0, Math.min(10, baseResponse + noise));
-        dataPoints.push({ time, response });
-      }
-      
-      return {
-        exampleId: exId,
-        exampleName: example.name,
-        exampleColor: example.color,
-        data: dataPoints,
-      };
-    });
+    const actionTypeId = carl.getActionTypesMap().find(t => t.name === actionType)?.typeId;
+    if (actionTypeId === undefined) return;
+
+    const exampleObjects = selectedExamples
+      .map(id => examples.find(ex => ex.id === id))
+      .filter(Boolean)
+      .map(r => carl.tryDeserializeExample(r.bytes))
+      .filter(Boolean);
+
+    const counterexampleObjects = selectedCounterexamples
+      .map(id => examples.find(ex => ex.id === id))
+      .filter(Boolean)
+      .map(r => carl.tryDeserializeExample(r.bytes))
+      .filter(Boolean);
+
+    const tempDefinition = carl.draftDefinition(actionTypeId, exampleObjects, counterexampleObjects);
+    tempDefinition.setDefaultSensitivity(sensitivity);
+
+    const testCarlExamples = testExamples
+      .map(id => examples.find(ex => ex.id === id))
+      .filter(Boolean)
+      .map(r => carl.tryDeserializeExample(r.bytes))
+      .filter(Boolean);
+
+    const rawResults = carl.testDefinition(tempDefinition, testCarlExamples, sensitivity);
+
+    const results = testExamples
+      .map((id, idx) => {
+        const example = examples.find(ex => ex.id === id);
+        return example ? {
+          exampleId: id,
+          exampleName: example.name,
+          exampleColor: example.color,
+          data: rawResults[idx] ?? [],
+        } : null;
+      })
+      .filter(Boolean);
 
     setTestResults(results);
+
+    [...exampleObjects, ...counterexampleObjects, ...testCarlExamples].forEach(e => e.dispose());
+    tempDefinition.dispose?.();
   };
 
   const handleTestExampleToggle = (exampleId) => {

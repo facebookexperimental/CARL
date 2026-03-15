@@ -306,6 +306,32 @@ class CarlIntegration {
         nativeBytes.delete();
         return nativeDefinition ? new CarlDefinition(nativeDefinition) : null;
     }
+
+    testDefinition(definition, testExamples, sensitivity) {
+        return testExamples.map(example => {
+            const tempSession = new this._carl.Session();
+            const tempRecognizer = new this._carl.Recognizer(tempSession, definition._nativeDefinition);
+            tempRecognizer.setSensitivity(sensitivity);
+
+            const inspector = example.getRecordingInspector();
+            const exStart = example.getStartTimestamp();
+            const exEnd = example.getEndTimestamp();
+            const STEPS = 50;
+            const dataPoints = [];
+
+            for (let i = 0; i <= STEPS; i++) {
+                const t = exStart + (i / STEPS) * (exEnd - exStart);
+                const sample = inspector.inspect(t);
+                tempSession.addInput(sample);
+                dataPoints.push({ time: t - exStart, response: tempRecognizer.currentScore() });
+            }
+
+            inspector.dispose();
+            tempRecognizer.delete();
+            tempSession.delete();
+            return dataPoints;
+        });
+    }
 }
 
 class SerializationsDB {
@@ -600,13 +626,7 @@ function App() {
 
     // Handler for unpacking a definition
     const unpackDefinition = (id) => {
-        // const definition = definitions.find(def => def.id === id);
-        // if (definition) {
-        //     console.log(`Unpacking definition: ${definition.name}`);
-        //     // Examples are already in the examples array, just remove the definition
-        //     deleteDefinition(id);
-        // }
-        console.error("TODO: Implement");
+        deleteDefinition(id);
     };
 
     const handleFilesDropped = async (files) => {
@@ -711,9 +731,35 @@ function App() {
 
     // Handler for creating a new definition
     const createDefinition = (newDefinition) => {
-        // const id = `${Date.now()}`;
-        // setDefinitions([...definitions, { ...newDefinition, id }]);
-        console.error("TODO: Implement");
+        if (!carlRef.current) return;
+
+        const actionTypeId = carlRef.current.getActionTypesMap().find(t => t.name === newDefinition.actionType)?.typeId;
+        if (actionTypeId === undefined) {
+            console.error(`Unknown action type: ${newDefinition.actionType}`);
+            return;
+        }
+
+        const exampleObjects = newDefinition.examples
+            .map(id => examples.find(ex => ex.id === id))
+            .filter(Boolean)
+            .map(r => carlRef.current.tryDeserializeExample(r.bytes))
+            .filter(Boolean);
+
+        const counterexampleObjects = newDefinition.counterexamples
+            .map(id => examples.find(ex => ex.id === id))
+            .filter(Boolean)
+            .map(r => carlRef.current.tryDeserializeExample(r.bytes))
+            .filter(Boolean);
+
+        const definition = carlRef.current.draftDefinition(actionTypeId, exampleObjects, counterexampleObjects);
+        definition.setDefaultSensitivity(newDefinition.defaultSensitivity);
+        carlRef.current.finalizeDefinition(definition, {
+            name: newDefinition.name,
+            color: newDefinition.color,
+            showInXR: newDefinition.showInXR,
+        });
+
+        [...exampleObjects, ...counterexampleObjects].forEach(e => e.dispose());
     };
 
     return (
@@ -758,6 +804,7 @@ function App() {
                                 examples={examples}
                                 definitions={definitions}
                                 onCreateDefinition={createDefinition}
+                                carl={carlRef.current}
                             /> :
                             <Navigate to="/library" replace />
                         }
