@@ -1,3 +1,11 @@
+/**
+ * Main library view showing all stored examples and definitions.
+ * Provides search/filter controls, drag-and-drop import of `.carl` files,
+ * and navigation to preview and definition-builder routes.
+ *
+ * @module components/LibraryView
+ */
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ExampleCard from './ExampleCard';
@@ -18,9 +26,13 @@ function LibraryView({
   onFilesDropped,
 }) {
   const navigate = useNavigate();
+
+  // --- Filtering ---
   const [searchQuery, setSearchQuery] = useState('');
   const [showArchived, setShowArchived] = useState(true);
   const [filterType, setFilterType] = useState('All Types');
+
+  // --- Drag and drop ---
   const [isDragging, setIsDragging] = useState(false);
 
   const handleDragOver = (e) => {
@@ -51,7 +63,8 @@ function LibraryView({
     navigate('/definition-builder');
   };
 
-  const filteredExamples = examples.filter(ex => 
+  // --- Render ---
+  const filteredExamples = examples.filter(ex =>
     ex.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 

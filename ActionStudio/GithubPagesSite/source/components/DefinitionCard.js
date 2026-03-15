@@ -1,3 +1,11 @@
+/**
+ * Card component for a single CARL Definition in the library grid.
+ * Displays action type, sensitivity, and example/counterexample counts.
+ * Supports inline rename, XR visibility toggle, download, unpack, and delete.
+ *
+ * @module components/DefinitionCard
+ */
+
 import React, { useState } from 'react';
 import '../styles/Card.css';
 

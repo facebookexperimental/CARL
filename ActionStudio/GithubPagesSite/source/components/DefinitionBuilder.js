@@ -1,11 +1,21 @@
+/**
+ * Full-page builder for creating a new CARL Definition from a set of
+ * examples and counterexamples.  Also provides an inline test runner that
+ * plots recognizer response curves using real CARL scoring.
+ *
+ * @module components/DefinitionBuilder
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { actionTypes } from '../data/mockData';
+import { formatDuration } from '../lib/utils.js';
 import '../styles/DefinitionBuilder.css';
 
 function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) {
   const navigate = useNavigate();
-  
+
+  // --- State ---
   const [name, setName] = useState('New Definition');
   const [actionType, setActionType] = useState(actionTypes[0]);
   const [sensitivity, setSensitivity] = useState(7.5);
@@ -15,6 +25,7 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
   const [testExamples, setTestExamples] = useState([]);
   const [testResults, setTestResults] = useState([]);
 
+  // --- Handlers ---
   const handleSave = () => {
     const definitionData = {
       name: name.trim(),
@@ -114,12 +125,7 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
     );
   };
 
-  const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
+  // --- Render ---
   return (
     <div className="definition-builder">
       <div className="builder-header">

@@ -1,4 +1,13 @@
+/**
+ * Card component for a single CARL example in the library grid.
+ * Supports inline rename, preview navigation, XR visibility toggle,
+ * download, and delete.
+ *
+ * @module components/ExampleCard
+ */
+
 import React, { useState } from 'react';
+import { formatDuration } from '../lib/utils.js';
 import '../styles/Card.css';
 
 function ExampleCard({ example, onPreview, onUpdate, onDownload, onDelete }) {
@@ -19,12 +28,6 @@ function ExampleCard({ example, onPreview, onUpdate, onDownload, onDelete }) {
       setName(example.name);
       setIsEditing(false);
     }
-  };
-
-  const formatDuration = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (

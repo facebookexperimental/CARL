@@ -1,3 +1,15 @@
+/**
+ * Full-page preview mode for inspecting and trimming a single CARL example.
+ * Renders a Babylon.js 3D scene that scrubs through the recorded hand-joint
+ * data.  The sidebar panel lets users rename, recolor, set XR visibility,
+ * and adjust start/end trim bounds.
+ *
+ * Note: `formatTime` is intentionally local — it uses a higher-precision
+ * MM:SS.ss format distinct from the MM:SS `formatDuration` used on cards.
+ *
+ * @module components/PreviewMode
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { initializePreviewExperienceAsync } from 'carl-actionstudio-immersiveexperience';
@@ -7,7 +19,8 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
   const { exampleId } = useParams();
   const navigate = useNavigate();
   const canvasRef = useRef(null);
-  
+
+  // --- State ---
   const [currentExample, setCurrentExample] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -21,6 +34,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
   const timelineRef = useRef(null);
   const experienceHandleRef = useRef(null);
 
+  // --- Effects ---
   useEffect(() => {
     if (exampleId) {
       const example = examples.find(ex => ex.id === Number.parseInt(exampleId));
@@ -65,6 +79,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
     }
   }, [currentTime, isPlaying]);
 
+  // --- Handlers ---
   const handleExampleSelect = (example) => {
     navigate(`/preview/${example.id}`);
   };
@@ -175,6 +190,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
     return `${mins.toString().padStart(2, '0')}:${parseFloat(secs).toFixed(2).padStart(5, '0')}`;
   };
 
+  // --- Render ---
   const filteredExamples = examples.filter(ex =>
     ex.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
