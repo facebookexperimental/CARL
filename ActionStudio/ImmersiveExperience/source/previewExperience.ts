@@ -7,6 +7,7 @@ const JOINT_RADII: number[] = new Array(26).fill(0.005);
 export interface IPreviewExperienceHandle {
     setTime(relativeTime: number): void;
     setPlaying(playing: boolean): void;
+    setTrimBounds(start: number, end: number): void;
     dispose(): void;
     readonly duration: number;
     readonly trimStart: number;
@@ -91,6 +92,8 @@ export async function initializePreviewExperienceAsync(canvas: HTMLCanvasElement
 
     let currentT = trimStart;
     let isPlaying = false;
+    let activeTrimStart = trimStart;
+    let activeTrimEnd = trimEnd;
     let onTimeUpdate: ((t: number) => void) | null = null;
     let onPlaybackEnd: (() => void) | null = null;
 
@@ -100,8 +103,8 @@ export async function initializePreviewExperienceAsync(canvas: HTMLCanvasElement
     scene.onBeforeRenderObservable.add(() => {
         if (!isPlaying) return;
         currentT += scene.deltaTime / 1000;
-        if (currentT >= trimEnd) {
-            currentT = trimEnd;
+        if (currentT >= activeTrimEnd) {
+            currentT = activeTrimEnd;
             isPlaying = false;
             positionJointMeshes(inspector.inspect(currentT + recordingStart));
             onTimeUpdate?.(currentT);
@@ -127,10 +130,14 @@ export async function initializePreviewExperienceAsync(canvas: HTMLCanvasElement
             positionJointMeshes(inspector.inspect(relativeTime + recordingStart));
         },
         setPlaying(playing: boolean) {
-            if (playing && currentT >= trimEnd) {
-                currentT = trimStart;
+            if (playing) {
+                currentT = activeTrimStart;
             }
             isPlaying = playing;
+        },
+        setTrimBounds(start: number, end: number) {
+            activeTrimStart = start;
+            activeTrimEnd = end;
         },
         dispose() {
             engine.stopRenderLoop();

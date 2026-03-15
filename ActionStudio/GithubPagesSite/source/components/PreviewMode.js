@@ -83,11 +83,23 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
   const handleStartTimeChange = (value) => {
     const newStart = Math.max(0, Math.min(value, endTime - 0.1));
     setStartTime(newStart);
+    setCurrentTime(newStart);
+    if (isPlaying) {
+      setIsPlaying(false);
+      experienceHandleRef.current?.setPlaying(false);
+    }
+    experienceHandleRef.current?.setTrimBounds(newStart, endTime);
   };
 
   const handleEndTimeChange = (value) => {
     const newEnd = Math.max(startTime + 0.1, Math.min(value, currentExample.duration));
     setEndTime(newEnd);
+    setCurrentTime(newEnd);
+    if (isPlaying) {
+      setIsPlaying(false);
+      experienceHandleRef.current?.setPlaying(false);
+    }
+    experienceHandleRef.current?.setTrimBounds(startTime, newEnd);
   };
 
   const handlePointerMove = (e) => {
