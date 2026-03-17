@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "GitHub Pages site for CARL Action Studio",
   "scripts": {
-    "build": "cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
+    "build": "cpx ../NativeIntegration/assets/* ./docs/assets && cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
     "start": "npm run server & npm run build -- --watch",
     "server": "servor docs index.html --reload --secure",
     "deploy": "gh-pages -d docs"
