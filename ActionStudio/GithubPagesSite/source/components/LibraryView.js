@@ -29,8 +29,6 @@ function LibraryView({
 
   // --- Filtering ---
   const [searchQuery, setSearchQuery] = useState('');
-  const [showArchived, setShowArchived] = useState(true);
-  const [filterType, setFilterType] = useState('All Types');
 
   // --- Drag and drop ---
   const [isDragging, setIsDragging] = useState(false);
@@ -70,8 +68,7 @@ function LibraryView({
 
   const filteredDefinitions = definitions.filter(def => {
     const matchesSearch = def.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = filterType === 'All Types' || def.actionType === filterType;
-    return matchesSearch && matchesType;
+    return matchesSearch;
   });
 
   return (
@@ -105,31 +102,6 @@ function LibraryView({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-
-          <label className="toggle-label">
-            <input
-              type="checkbox"
-              checked={showArchived}
-              onChange={(e) => setShowArchived(e.target.checked)}
-            />
-            <span>Show Archived</span>
-          </label>
-
-          <label className="filter-label">
-            Filter by Type
-            <select 
-              className="filter-select"
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-            >
-              <option>All Types</option>
-              <option>Strike</option>
-              <option>Grapple</option>
-              <option>Defense</option>
-              <option>Movement</option>
-              <option>Gesture</option>
-            </select>
-          </label>
         </div>
       </aside>
 

@@ -349,11 +349,6 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
               </div>
             )}
           </div>
-
-          <details className="test-history">
-            <summary>Test History</summary>
-            <p className="history-placeholder">Previous test results will appear here</p>
-          </details>
         </aside>
       </div>
     </div>
