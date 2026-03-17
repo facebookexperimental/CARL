@@ -87,33 +87,36 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
       .filter(Boolean)
       .map(r => carl.tryDeserializeExample(r.bytes))
       .filter(Boolean);
-
+      
     const tempDefinition = carl.draftDefinition(actionTypeId, exampleObjects, counterexampleObjects);
     tempDefinition.setDefaultSensitivity(sensitivity);
 
-    const testCarlExamples = testExamples
-      .map(id => examples.find(ex => ex.id === id))
-      .filter(Boolean)
-      .map(r => carl.tryDeserializeExample(r.bytes))
-      .filter(Boolean);
+    const testCarlEntries = testExamples
+      .map(id => ({ id, record: examples.find(ex => ex.id === id) }))
+      .filter(e => e.record)
+      .map(e => ({ ...e, carlExample: carl.tryDeserializeExample(e.record.bytes) }))
+      .filter(e => e.carlExample);
 
-    const rawResults = carl.testDefinition(tempDefinition, testCarlExamples, sensitivity);
+    let rawResults;
+    try {
+      rawResults = carl.testDefinition(tempDefinition, testCarlEntries.map(e => e.carlExample), sensitivity);
+    } catch (err) {
+      console.error('testDefinition failed:', err);
+      [...exampleObjects, ...counterexampleObjects, ...testCarlEntries.map(e => e.carlExample)].forEach(e => e.dispose());
+      tempDefinition.dispose?.();
+      return;
+    }
 
-    const results = testExamples
-      .map((id, idx) => {
-        const example = examples.find(ex => ex.id === id);
-        return example ? {
-          exampleId: id,
-          exampleName: example.name,
-          exampleColor: example.color,
-          data: rawResults[idx] ?? [],
-        } : null;
-      })
-      .filter(Boolean);
+    const results = testCarlEntries.map((entry, idx) => ({
+      exampleId:    entry.id,
+      exampleName:  entry.record.name,
+      exampleColor: entry.record.color,
+      data: rawResults[idx] ?? [],
+    }));
 
     setTestResults(results);
 
-    [...exampleObjects, ...counterexampleObjects, ...testCarlExamples].forEach(e => e.dispose());
+    [...exampleObjects, ...counterexampleObjects, ...testCarlEntries.map(e => e.carlExample)].forEach(e => e.dispose());
     tempDefinition.dispose?.();
   };
 
@@ -314,7 +317,7 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
                   {testResults.map((result, idx) => {
                     const points = result.data.map((point, i) => {
                       const x = 40 + (point.time / result.data[result.data.length - 1].time) * 340;
-                      const y = 180 - (point.response / 10) * 160;
+                      const y = 180 - (point.score / 10) * 160;
                       return `${x},${y}`;
                     }).join(' ');
                     

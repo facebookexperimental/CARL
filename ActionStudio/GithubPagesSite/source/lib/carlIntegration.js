@@ -336,16 +336,16 @@ export class CarlIntegration {
             tempRecognizer.setSensitivity(sensitivity);
 
             const inspector = example.getRecordingInspector();
-            const exStart = example.getStartTimestamp();
-            const exEnd = example.getEndTimestamp();
-            const STEPS = 50;
+            const recStart = inspector.getStartTimestamp();
+            const recEnd   = inspector.getEndTimestamp();
+            const STEPS = 60 * (recEnd - recStart);
             const dataPoints = [];
 
             for (let i = 0; i <= STEPS; i++) {
-                const t = exStart + (i / STEPS) * (exEnd - exStart);
+                const t = recStart + (i / STEPS) * (recEnd - recStart);
                 const sample = inspector.inspect(t);
                 tempSession.addInput(sample);
-                dataPoints.push({ time: t - exStart, response: tempRecognizer.currentScore() });
+                dataPoints.push({ time: t - recStart, score: tempRecognizer.currentScore() });
             }
 
             inspector.dispose();
