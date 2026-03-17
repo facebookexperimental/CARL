@@ -301,14 +301,14 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
                   
                   {/* X-axis label */}
                   <text x="200" y="195" fill="#888" fontSize="10" textAnchor="middle">Time (s)</text>
-                  <text x="20" y="100" fill="#888" fontSize="10" transform="rotate(-90 20 100)">Sensitivity</text>
+                  <text x="20" y="100" fill="#888" fontSize="10" transform="rotate(-90 20 100)">Score</text>
                   
-                  {/* Sensitivity threshold line */}
+                  {/* Half score line */}
                   <line 
                     x1="40" 
-                    y1={180 - (sensitivity / 10) * 160} 
+                    y1="100"
                     x2="380" 
-                    y2={180 - (sensitivity / 10) * 160} 
+                    y2="100" 
                     stroke="#FBBF24" 
                     strokeWidth="1" 
                     strokeDasharray="4"
