@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
 /**
  * Full-page preview mode for inspecting and trimming a single CARL example.
  * Renders a Babylon.js 3D scene that scrubs through the recorded hand-joint
