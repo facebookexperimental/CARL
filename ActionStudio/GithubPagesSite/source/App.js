@@ -235,8 +235,68 @@ function App() {
         }
     };
 
-    const unpackDefinition = (id) => {
-        deleteDefinition(id);
+    const unpackDefinition = async (id) => {
+        const record = definitions.find(d => d.id === id);
+        if (!record || !carlRef.current) return;
+
+        const definition = carlRef.current.tryDeserializeDefinition(record.bytes);
+        if (!definition) return;
+
+        const examplesCount = definition.getExamplesCount();
+        const counterexamplesCount = definition.getCounterexamplesCount();
+
+        for (let i = 0; i < examplesCount; i++) {
+            const example = definition.getExample(i);
+            const inspector = example.getRecordingInspector();
+            const recStart = inspector.getStartTimestamp();
+            const recEnd = inspector.getEndTimestamp();
+            inspector.dispose();
+            const start = example.getStartTimestamp();
+            const end = example.getEndTimestamp();
+            await dbRef.current.addAsync({
+                type: "example",
+                name: `${record.name}_example_${i}`,
+                recordingStart: recStart,
+                recordingEnd: recEnd,
+                exampleStart: start,
+                exampleEnd: end,
+                startTime: start - recStart,
+                endTime: end - recStart,
+                duration: recEnd - recStart,
+                color: record.color,
+                showInXR: record.showInXR,
+                bytes: example.serialize(),
+            });
+            example.dispose();
+        }
+
+        for (let i = 0; i < counterexamplesCount; i++) {
+            const example = definition.getCounterexample(i);
+            const inspector = example.getRecordingInspector();
+            const recStart = inspector.getStartTimestamp();
+            const recEnd = inspector.getEndTimestamp();
+            inspector.dispose();
+            const start = example.getStartTimestamp();
+            const end = example.getEndTimestamp();
+            await dbRef.current.addAsync({
+                type: "example",
+                name: `${record.name}_counterexample_${i}`,
+                recordingStart: recStart,
+                recordingEnd: recEnd,
+                exampleStart: start,
+                exampleEnd: end,
+                startTime: start - recStart,
+                endTime: end - recStart,
+                duration: recEnd - recStart,
+                color: record.color,
+                showInXR: record.showInXR,
+                bytes: example.serialize(),
+            });
+            example.dispose();
+        }
+
+        definition.dispose();
+        reloadFromDatabase();
     };
 
     const createDefinition = (newDefinition) => {

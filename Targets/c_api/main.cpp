@@ -752,6 +752,12 @@ struct carl_DefinitionWrapper
         return Definition.getExamples().size();
     }
 
+    carl_ExampleWrapper getExample(size_t idx) const
+    {
+        auto example{Definition.getExamples()[idx]};
+        return{std::move(example)};
+    }
+
     void addCounterexample(const carl_ExampleWrapper& counterexample)
     {
         Definition.addCounterexample(counterexample.Example);
@@ -760,6 +766,12 @@ struct carl_DefinitionWrapper
     size_t getCounterexamplesCount() const
     {
         return Definition.getCounterexamples().size();
+    }
+
+    carl_ExampleWrapper getCounterexample(size_t idx) const
+    {
+        auto counterexample{Definition.getCounterexamples()[idx]};
+        return{std::move(counterexample)};
     }
 
     auto getDefaultSensitivity() const
@@ -1004,8 +1016,10 @@ EMSCRIPTEN_BINDINGS(carl_bindings) {
         .function("getActionType", &carl_DefinitionWrapper::getActionType)
         .function("addExample", &carl_DefinitionWrapper::addExample)
         .function("getExamplesCount", &carl_DefinitionWrapper::getExamplesCount)
+        .function("getExample", &carl_DefinitionWrapper::getExample)
         .function("addCounterexample", &carl_DefinitionWrapper::addCounterexample)
         .function("getCounterexamplesCount", &carl_DefinitionWrapper::getCounterexamplesCount)
+        .function("getCounterexample", &carl_DefinitionWrapper::getCounterexample)
         .function("getDefaultSensitivity", &carl_DefinitionWrapper::getDefaultSensitivity)
         .function("setDefaultSensitivity", &carl_DefinitionWrapper::setDefaultSensitivity)
         .function("serialize", &carl_DefinitionWrapper::serialize)

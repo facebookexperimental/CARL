@@ -133,6 +133,14 @@ export class CarlDefinition {
         return this._nativeDefinition.getCounterexamplesCount();
     }
 
+    getExample(idx) {
+        return new CarlExample(this._nativeDefinition.getExample(idx));
+    }
+
+    getCounterexample(idx) {
+        return new CarlExample(this._nativeDefinition.getCounterexample(idx));
+    }
+
     getDefaultSensitivity() {
         return this._nativeDefinition.getDefaultSensitivity();
     }

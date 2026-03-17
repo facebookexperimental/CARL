@@ -30,7 +30,7 @@ function DefinitionCard({ definition, examples, onUpdate, onDownload, onDelete, 
   };
 
   const handleUnpack = () => {
-    if (window.confirm(`Unpack "${definition.name}"? This will extract all examples and delete the definition.`)) {
+    if (window.confirm(`Unpack "${definition.name}"? This will extract all examples and counterexamples as individual records.`)) {
       onUnpack();
     }
   };
