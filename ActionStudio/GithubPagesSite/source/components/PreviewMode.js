@@ -28,6 +28,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
   const [endTime, setEndTime] = useState(0);
   const [isEditingName, setIsEditingName] = useState(false);
   const [name, setName] = useState('');
+  const [color, setColor] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isDraggingStart, setIsDraggingStart] = useState(false);
   const [isDraggingEnd, setIsDraggingEnd] = useState(false);
@@ -41,9 +42,12 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
       if (example) {
         setCurrentExample(example);
         setName(example.name);
+        setColor(example.color);
         setStartTime(example.startTime);
         setEndTime(example.endTime);
         setCurrentTime(example.startTime);
+      } else if (examples.length > 0) {
+        navigate('/library', { replace: true });
       }
     } else if (examples.length > 0) {
       // Load first example if no ID specified
@@ -152,6 +156,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
     if (currentExample) {
       onUpdateExample(currentExample.id, {
         name: name.trim(),
+        color,
         startTime,
         endTime,
       });
@@ -170,12 +175,6 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
       onUpdateExample(currentExample.id, { name: name.trim() });
     }
     setIsEditingName(false);
-  };
-
-  const handleColorChange = (e) => {
-    if (currentExample) {
-      onUpdateExample(currentExample.id, { color: e.target.value });
-    }
   };
 
   const handleToggleXR = () => {
@@ -293,6 +292,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
               max={currentExample.duration}
               step="0.01"
               value={currentTime}
+              style={{ background: `linear-gradient(to right, #5B9FFF 0%, #5B9FFF ${(currentTime / currentExample.duration) * 100}%, #2a2a3e ${(currentTime / currentExample.duration) * 100}%, #2a2a3e 100%)` }}
               onChange={handleTimelineChange}
             />
             <div className="trim-handles">
@@ -342,8 +342,8 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
           <input
             type="color"
             className="color-picker"
-            value={currentExample.color}
-            onChange={handleColorChange}
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
           />
         </div>
 

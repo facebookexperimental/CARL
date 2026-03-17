@@ -252,7 +252,7 @@
   height: 8px;
   -webkit-appearance: none;
   appearance: none;
-  background: linear-gradient(to right, #5B9FFF 0%, #5B9FFF 50%, #2a2a3e 50%, #2a2a3e 100%);
+  background: #2a2a3e;
   border-radius: 4px;
   outline: none;
   cursor: pointer;

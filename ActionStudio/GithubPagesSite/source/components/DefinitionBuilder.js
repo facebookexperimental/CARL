@@ -174,6 +174,7 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
                 max="10"
                 step="0.1"
                 value={sensitivity}
+                style={{ background: `linear-gradient(to right, #5B9FFF 0%, #5B9FFF ${sensitivity * 10}%, #2a2a3e ${sensitivity * 10}%, #2a2a3e 100%)` }}
                 onChange={(e) => setSensitivity(parseFloat(e.target.value))}
               />
               <input

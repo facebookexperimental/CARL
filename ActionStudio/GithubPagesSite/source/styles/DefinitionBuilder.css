@@ -114,7 +114,7 @@
   -webkit-appearance: none;
   appearance: none;
   height: 6px;
-  background: linear-gradient(to right, #5B9FFF 0%, #5B9FFF 75%, #2a2a3e 75%, #2a2a3e 100%);
+  background: #2a2a3e;
   border-radius: 3px;
   outline: none;
 }
