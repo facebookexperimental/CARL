@@ -5,14 +5,13 @@
   "main": "main.js",
   "scripts": {
     "install": "npm-recursive-install --skip-root",
-    "start": "concurrently \"npm run start --prefix ./NativeIntegration\" \"npm run start --prefix ./ImmersiveExperience\" \"npm run start --prefix ./GithubPagesSite\" \"node main.js\"",
+    "start": "concurrently \"npm run start --prefix ./NativeIntegration\" \"npm run start --prefix ./ImmersiveExperience\" \"npm run start --prefix ./GithubPagesSite\"",
     "build": "npm run build --prefix ./NativeIntegration && npm run build --prefix ./ImmersiveExperience && npm run build --prefix ./GithubPagesSite"
   },
   "author": "syntheticmagus",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "express": "^5.2.1",
     "recursive-install": "^1.4.0"
   }
 }

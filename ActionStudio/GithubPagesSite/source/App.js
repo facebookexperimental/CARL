@@ -27,6 +27,7 @@ function App() {
     // --- State ---
     const [examples, setExamples] = useState([]);
     const [definitions, setDefinitions] = useState([]);
+    const [isLoaded, setIsLoaded] = useState(false);
 
     // --- Database bootstrap ---
     async function reloadFromDatabase() {
@@ -51,6 +52,7 @@ function App() {
 
         setExamples(xmpls);
         setDefinitions(defs);
+        setIsLoaded(true);
     }
 
     async function bootstrapAsync() {
@@ -396,7 +398,7 @@ function App() {
                     />
                     <Route
                         path="/preview/:exampleId?"
-                        element={ examples.length > 0 ?
+                        element={ !isLoaded ? null : examples.length > 0 ?
                             <PreviewMode
                                 examples={examples}
                                 onUpdateExample={updateExample}
@@ -408,7 +410,7 @@ function App() {
                     />
                     <Route
                         path="/definition-builder"
-                        element={ examples.length > 0 ?
+                        element={ !isLoaded ? null : examples.length > 0 ?
                             <DefinitionBuilder
                                 examples={examples}
                                 definitions={definitions}
