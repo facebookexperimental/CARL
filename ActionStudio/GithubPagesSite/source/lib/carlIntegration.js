@@ -346,8 +346,6 @@ export class CarlIntegration {
                 const t = recStart + (i / STEPS) * (recEnd - recStart);
                 const sample = inspector.inspect(t);
                 tempSession.addInput(sample);
-                console.log(sample);
-                console.log(1.0 * tempRecognizer.currentScore());
                 dataPoints.push({ time: t - recStart, score: tempRecognizer.currentScore() });
             }
 

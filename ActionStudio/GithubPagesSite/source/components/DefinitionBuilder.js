@@ -18,7 +18,7 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
   // --- State ---
   const [name, setName] = useState('New Definition');
   const [actionType, setActionType] = useState(actionTypes[0]);
-  const [sensitivity, setSensitivity] = useState(7.5);
+  const [sensitivity, setSensitivity] = useState(5);
   const [color, setColor] = useState('#5B9FFF');
   const [selectedExamples, setSelectedExamples] = useState([]);
   const [selectedCounterexamples, setSelectedCounterexamples] = useState([]);

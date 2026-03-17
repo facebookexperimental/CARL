@@ -10,7 +10,7 @@ import { ICarlExample, ICarlInputSample } from "./carlInterfaces";
 import { applyJointSampleToMeshes } from "./utils";
 
 // 26 entries (one per OPENXR_JOINT_MAPPINGS index), all 0.005 m (= 1 cm diameter).
-const JOINT_RADII: number[] = new Array(26).fill(0.005);
+const JOINT_RADII: number[] = new Array(26).fill(0.01);
 
 export interface IPreviewExperienceHandle {
     setTime(relativeTime: number): void;
@@ -27,12 +27,20 @@ export interface IPreviewExperienceHandle {
 export async function initializePreviewExperienceAsync(canvas: HTMLCanvasElement, example: ICarlExample): Promise<IPreviewExperienceHandle> {
     const engine = new Engine(canvas, true);
     const scene = new Scene(engine);
+    scene.useRightHandedSystem = true;
 
     const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
 
     const IMMITATION_ORIGIN = Vector3.RightHandedForwardReadOnly.scale(2);
-    const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 3, IMMITATION_ORIGIN, scene);
+    const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 3, 3, IMMITATION_ORIGIN.add(Vector3.UpReadOnly), scene);
+    camera.upperRadiusLimit = 3;
+    camera.lowerRadiusLimit = 1;
+    camera.wheelDeltaPercentage = 0.03;
+    camera.maxZ = 10;
+    camera.minZ = 0.05;
+    camera.lowerBetaLimit = Math.PI / 4;
+    camera.upperBetaLimit = 3 * Math.PI / 4;
     camera.attachControl(canvas, true);
 
     const leftMat = new StandardMaterial("leftMat", scene);
