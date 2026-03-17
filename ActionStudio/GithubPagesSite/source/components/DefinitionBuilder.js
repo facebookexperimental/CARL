@@ -294,8 +294,8 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
                   <line x1="40" y1="180" x2="380" y2="180" stroke="#444" strokeWidth="1" />
                   
                   {/* Y-axis labels */}
-                  <text x="25" y="25" fill="#888" fontSize="10">10</text>
-                  <text x="30" y="105" fill="#888" fontSize="10">5</text>
+                  <text x="30" y="25" fill="#888" fontSize="10">1</text>
+                  <text x="30" y="105" fill="#888" fontSize="10">.5</text>
                   <text x="30" y="185" fill="#888" fontSize="10">0</text>
                   
                   {/* X-axis label */}
@@ -317,7 +317,7 @@ function DefinitionBuilder({ examples, definitions, onCreateDefinition, carl }) 
                   {testResults.map((result, idx) => {
                     const points = result.data.map((point, i) => {
                       const x = 40 + (point.time / result.data[result.data.length - 1].time) * 340;
-                      const y = 180 - (point.score / 10) * 160;
+                      const y = 180 - point.score * 160;
                       return `${x},${y}`;
                     }).join(' ');
                     

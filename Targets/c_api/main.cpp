@@ -105,13 +105,12 @@ namespace
         sample.HmdPose = cvtOptional(input.HmdPose);
         sample.LeftWristPose = cvtOptional(input.LeftWristPose);
         sample.RightWristPose = cvtOptional(input.RightWristPose);
-        if (input.LeftHandJointPoses[0].Valid)
+        // TODO: Fix mismatched joint count mapping so that palms, etc. stop mapping to nothing and causing weirdness.
+        if (input.LeftHandJointPoses[2].Valid)
         {
             sample.LeftHandJointPoses.emplace();
             for (size_t idx = 0; idx < carl_InputSample::HAND_JOINT::COUNT; ++idx)
             {
-                // TODO: Contents should be replaced with the following once carl::InputSample uses the correct joints.
-                // cvt(input.LeftHandJointPoses[idx], sample.LeftHandJointPoses->at(idx));
                 auto found = openXrToCarlJointMap.find(static_cast<carl_InputSample::HAND_JOINT>(idx));
                 if (found != openXrToCarlJointMap.end())
                 {
@@ -119,13 +118,11 @@ namespace
                 }
             }
         }
-        if (input.RightHandJointPoses[0].Valid)
+        if (input.RightHandJointPoses[2].Valid)
         {
             sample.RightHandJointPoses.emplace();
             for (size_t idx = 0; idx < carl_InputSample::HAND_JOINT::COUNT; ++idx)
             {
-                // TODO: Contents should be replaced with the following once carl::InputSample uses the correct joints.
-                // cvt(input.RightHandJointPoses[idx], sample.RightHandJointPoses->at(idx));
                 auto found = openXrToCarlJointMap.find(static_cast<carl_InputSample::HAND_JOINT>(idx));
                 if (found != openXrToCarlJointMap.end())
                 {
@@ -172,6 +169,7 @@ namespace
         constexpr auto cvt = [](const carl::TransformT& inT, carl_InputSample::OptionalTransform& outT) {
             carl::VectorT position{ inT.translation() };
             carl::QuaternionT orientation{ inT.rotation() };
+            outT.Valid = true;
             outT.Position.X = position.x();
             outT.Position.Y = position.y();
             outT.Position.Z = position.z();
@@ -198,8 +196,6 @@ namespace
         {
             for (size_t idx = 0; idx < carl_InputSample::HAND_JOINT::COUNT; ++idx)
             {
-                // TODO: Contents should be replaced with the following once carl::InputSample uses the correct joints.
-                // cvt(input.LeftHandJointPoses[idx], sample.LeftHandJointPoses->at(idx));
                 auto found = openXrToCarlJointMap.find(static_cast<carl_InputSample::HAND_JOINT>(idx));
                 if (found != openXrToCarlJointMap.end())
                 {
@@ -211,8 +207,6 @@ namespace
         {
             for (size_t idx = 0; idx < carl_InputSample::HAND_JOINT::COUNT; ++idx)
             {
-                // TODO: Contents should be replaced with the following once carl::InputSample uses the correct joints.
-                // cvt(input.RightHandJointPoses[idx], sample.RightHandJointPoses->at(idx));
                 auto found = openXrToCarlJointMap.find(static_cast<carl_InputSample::HAND_JOINT>(idx));
                 if (found != openXrToCarlJointMap.end())
                 {
