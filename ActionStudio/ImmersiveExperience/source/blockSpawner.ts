@@ -1,3 +1,10 @@
+/**
+ * BlockSpawner — generic factory for physics-enabled "block" objects associated with data values.
+ *
+ * Clones a named template mesh from the scene, attaches a box physics aggregate, registers it
+ * as a grabbable, and maintains a Map from the cloned TransformNode to a caller-supplied value T.
+ * Blocks do NOT own their associated value and will not dispose it when removed.
+ */
 import { AbstractMesh, TransformNode, PhysicsAggregate, PhysicsShapeType, Quaternion, IDisposable } from "@babylonjs/core";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";

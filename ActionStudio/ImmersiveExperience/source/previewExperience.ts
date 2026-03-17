@@ -1,5 +1,13 @@
-import { ArcRotateCamera, Color3, Engine, HemisphericLight, Matrix, MeshBuilder, Quaternion, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+/**
+ * Standalone 2D preview experience rendered into a canvas element.
+ *
+ * Creates a minimal Babylon.js scene (no physics, no WebXR) that plays back a recorded
+ * ICarlExample as animated joint spheres.  Used by the `/preview/:id` React route so
+ * users can inspect, trim, and scrub through a gesture recording before saving it.
+ */
+import { ArcRotateCamera, Color3, Engine, HemisphericLight, MeshBuilder, Quaternion, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 import { ICarlExample, ICarlInputSample } from "./carlInterfaces";
+import { applyJointSampleToMeshes } from "./utils";
 
 // 26 entries (one per OPENXR_JOINT_MAPPINGS index), all 0.005 m (= 1 cm diameter).
 const JOINT_RADII: number[] = new Array(26).fill(0.005);
@@ -57,37 +65,9 @@ export async function initializePreviewExperienceAsync(canvas: HTMLCanvasElement
     const povPosition = IMMITATION_ORIGIN;
     const povForward = Vector3.RightHandedBackwardReadOnly;
 
-    const scratchVec = new Vector3();
-    const scratchQuat = new Quaternion();
-    const povMat = new Matrix();
-    const sampleMat = new Matrix();
-    const sampleToPovMat = new Matrix();
-    const jointMat = new Matrix();
-
     function positionJointMeshes(sample: ICarlInputSample): void {
-        povPosition.addToRef(povForward, scratchVec);
-        Matrix.LookAtRHToRef(povPosition, scratchVec, Vector3.UpReadOnly, povMat);
-        samplePosition.addToRef(sampleForward, scratchVec);
-        Matrix.LookAtRHToRef(samplePosition, scratchVec, Vector3.UpReadOnly, sampleMat);
-
-        povMat.invertToRef(povMat);
-        sampleMat.multiplyToRef(povMat, sampleToPovMat);
-
-        for (let idx = 0; idx < 26; ++idx) {
-            let pose = sample.leftHandJointPoses[idx];
-            scratchQuat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-            Matrix.FromQuaternionToRef(scratchQuat, jointMat);
-            jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
-            jointMat.multiplyToRef(sampleToPovMat, jointMat);
-            jointMat.decompose(undefined, leftMeshes[idx].rotationQuaternion!, leftMeshes[idx].position);
-
-            pose = sample.rightHandJointPoses[idx];
-            scratchQuat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-            Matrix.FromQuaternionToRef(scratchQuat, jointMat);
-            jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
-            jointMat.multiplyToRef(sampleToPovMat, jointMat);
-            jointMat.decompose(undefined, rightMeshes[idx].rotationQuaternion!, rightMeshes[idx].position);
-        }
+        applyJointSampleToMeshes(sample, leftMeshes, rightMeshes,
+            samplePosition, sampleForward, povPosition, povForward);
     }
 
     let currentT = trimStart;

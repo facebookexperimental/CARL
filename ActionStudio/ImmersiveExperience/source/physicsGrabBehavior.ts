@@ -1,3 +1,11 @@
+/**
+ * PhysicsGrabBehavior — attaches grab-and-follow physics behaviour to a TransformNode.
+ *
+ * Instances are created lazily via `PhysicsGrabBehavior.get(node)` and stored in a
+ * static Map keyed by node uniqueId.  When a grabber pinches, `handleGrab` finds the
+ * nearest grabbable (by bounding-box proximity score) and transfers the node to ANIMATED
+ * motion, tracking the grabber's world matrix each frame via an offset matrix.
+ */
 import { IDisposable, Matrix, Node, Observable, Observer, PhysicsMotionType, TransformNode, Vector3 } from "@babylonjs/core";
 import { IGrabber, IProposal } from "./handPinchGrabber";
 

@@ -1,3 +1,11 @@
+/**
+ * Entry point for the 3D immersive XR experience.
+ *
+ * `initializeImmersiveExperienceAsync` bootstraps the full Babylon.js / WebXR session:
+ * loads the glTF scene, enables Havok physics, sets up hand tracking, wires up all
+ * interactive UI elements (sliders, poke buttons, block spawners, recognition graph),
+ * and starts the per-frame input-sample loop that feeds hand poses into CARL.
+ */
 import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, TransformNode, Color3, StandardMaterial, Mesh } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
@@ -28,6 +36,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const initialDefinitions = options?.initialDefinitions ?? [];
     const onSessionEnded = options?.onSessionEnded;
 
+    // --- Engine and scene ---
     const engine = new Engine(canvas, true);
     engine.displayLoadingUI = () => {};
     engine.hideLoadingUI();
@@ -63,9 +72,11 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const light = new HemisphericLight("light", new Vector3(0, 1, 0), scene);
     light.intensity = 0.7;
 
+    // --- UI state ---
     const exampleSpawner = new BlockSpawner<ICarlExample>(scene, "example_block");
     const definitionSpawner = new BlockSpawner<ICarlDefinition>(scene, "definition_block");
 
+    // --- WebXR session ---
     const xr = await scene.createDefaultXRExperienceAsync({
         uiOptions: {
             sessionMode: "immersive-ar",
@@ -91,6 +102,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
+    // --- Hand tracking ---
     handTracking.onHandAddedObservable.add((hand) => {
         switch (hand.xrController.inputSource.handedness) {
             case "left":
@@ -132,6 +144,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         return {...cachedInputSample};
     }
 
+    // --- Preview and recognition state ---
     const previewer = new ExamplePreviewer(scene);
     let previewStopper: any = null;
 
@@ -142,6 +155,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     let currentActionType = 10;
 
+    // --- Color and sensitivity sliders ---
     const rMesh = scene.getMeshByName("r_slider")!;
     const rSlider = SliderBehavior.GetForNode(rMesh)!;
     const gMesh = scene.getMeshByName("g_slider")!;
@@ -163,6 +177,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const sensitivitySlider = SliderBehavior.GetForNode(sensitivityMesh)!;
     const sensitivityGrabbable = PhysicsGrabBehavior.get(sensitivityMesh)!;
 
+    // --- Definition regeneration ---
     let draftDefinition: ICarlDefinition | undefined = undefined;
     let currentSensitivity = 5;
     const regenerateDefinition = () => {
@@ -193,12 +208,14 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         sensitivitySlider.value = currentSensitivity / 10;
     };
 
+    // --- Spatial volume matrices ---
     const isDiscardedMatrix = scene.getMeshByName("discard_volume")!.computeWorldMatrix(true).clone().invert();
     const inEditorMatrix = scene.getMeshByName("editor_volume")!.computeWorldMatrix(true).clone().invert();
     const isExampleMatrix = scene.getMeshByName("examples_volume")!.computeWorldMatrix(true).clone().invert();
     const isCounterexampleMatrix = scene.getMeshByName("counterexamples_volume")!.computeWorldMatrix(true).clone().invert();
     const isDemoMatrix = scene.getMeshByName("demo_volume")!.computeWorldMatrix(true).clone().invert();
 
+    // --- Block placement detection ---
     const scratchVec = new Vector3();
     const addExampleBlockPlacementDetection = (block: AbstractMesh) => {
         const blockState = {
@@ -285,6 +302,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         });
     }
 
+    // --- Poke buttons ---
     sensitivityGrabbable.onGrabEndedObservable.add(() => {
         currentSensitivity = 10 * sensitivitySlider.value;
         regenerateDefinition();
@@ -354,6 +372,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         }
     });
 
+    // --- Input sample loop ---
     xr.input.xrSessionManager.onXRFrameObservable.add((frame) => {
         let sample = createInputSample();
         populateInputSample(xr.input.xrCamera, scene.leftHand, scene.rightHand, sample);

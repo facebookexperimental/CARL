@@ -1,3 +1,10 @@
+/**
+ * PokeButton — detects when a hand fingertip enters a mesh's proximity and fires an observable.
+ *
+ * Uses two distance thresholds (enter < exit) and a cooldown period to debounce rapid pokes.
+ * Optionally accepts a second mesh name (`offButtonName`) that is swapped visible/invisible
+ * to provide toggle-button feedback.  Monitors both hands each before-render tick.
+ */
 import { IDisposable, AbstractMesh, Observer, Scene, Observable, WebXRHandJoint, Vector3 } from "@babylonjs/core";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 

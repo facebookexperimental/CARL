@@ -1,3 +1,10 @@
+/**
+ * RecognitionGraph — visualises a CARL recognizer's current score as a particle stream.
+ *
+ * A particle emitter floats at a height proportional to `recognizer.currentScore()`, painting
+ * a scrolling bar graph in 3D space.  Multiple RecognitionGraph instances share a single
+ * white DynamicTexture (ref-counted) to avoid redundant GPU allocations.
+ */
 import { IDisposable, AbstractMesh, ParticleSystem, DynamicTexture, Observer, Scene, Color4, MeshBuilder, Vector3 } from "@babylonjs/core";
 import { ICarlRecognizer } from "./carlInterfaces";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";

@@ -1,3 +1,11 @@
+/**
+ * PhysicsEnabledScene — a Babylon.js Scene subclass that bootstraps physics from a glTF asset.
+ *
+ * Physics configuration is metadata-driven: mesh names encode shape type (`physics_*`),
+ * mass (`mass:N`), grabbability (`grabbable`), and slider endpoints (`slider`).  This lets
+ * Blender serve as the scene editor — mesh naming replaces a traditional inspector UI.
+ * See CLAUDE.md for the full mesh-naming spec; modifying this mechanism is a human task.
+ */
 import { AbstractMesh, AppendSceneAsync, Engine, HavokPlugin, PhysicsAggregate, PhysicsShapeType, Quaternion, Scene, TransformNode, Vector3, WebXRHand } from "@babylonjs/core";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 import { HandPinchGrabber } from "./handPinchGrabber";

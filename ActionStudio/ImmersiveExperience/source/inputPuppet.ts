@@ -1,16 +1,17 @@
-import { AbstractMesh, Vector3, Quaternion, Matrix, WebXRHand } from "@babylonjs/core";
+/**
+ * InputPuppet renders a ghost copy of recorded hand-joint poses alongside the live hands.
+ *
+ * It clones the live hand joint meshes at construction time and re-positions them each
+ * frame by delegating to `applyJointSampleToMeshes` in `utils.ts`.  The puppet is used
+ * by ExamplePreviewer to visualise a stored example while the user edits its trim bounds.
+ */
+import { AbstractMesh, Vector3, WebXRHand } from "@babylonjs/core";
 import { ICarlInputSample } from "./carlInterfaces";
-import { OPENXR_JOINT_MAPPINGS } from "./utils";
+import { OPENXR_JOINT_MAPPINGS, applyJointSampleToMeshes } from "./utils";
 
 export class InputPuppet {
     private _leftHandMeshes: AbstractMesh[];
     private _rightHandMeshes: AbstractMesh[];
-    private _scratchVec: Vector3 = new Vector3();
-    private _scratchQuat: Quaternion = new Quaternion();
-    private _povMat: Matrix = new Matrix();
-    private _sampleMat: Matrix = new Matrix();
-    private _sampleToPovMat: Matrix = new Matrix();
-    private _jointMat: Matrix = new Matrix();
 
     public constructor(leftHand: WebXRHand, rightHand: WebXRHand) {
         this._leftHandMeshes = OPENXR_JOINT_MAPPINGS.map(joint => {
@@ -26,29 +27,8 @@ export class InputPuppet {
     }
 
     public immitateInputSample(sample: ICarlInputSample, samplePosition: Vector3, sampleForward: Vector3, povPosition: Vector3, povForward: Vector3) {
-        povPosition.addToRef(povForward, this._scratchVec);
-        Matrix.LookAtRHToRef(povPosition, this._scratchVec, Vector3.UpReadOnly, this._povMat);
-        samplePosition.addToRef(sampleForward, this._scratchVec);
-        Matrix.LookAtRHToRef(samplePosition, this._scratchVec, Vector3.UpReadOnly, this._sampleMat);
-
-        this._povMat.invertToRef(this._povMat);
-        this._sampleMat.multiplyToRef(this._povMat, this._sampleToPovMat);
-
-        for (let idx = 0; idx < OPENXR_JOINT_MAPPINGS.length; ++idx) {
-            let pose = sample.leftHandJointPoses[idx];
-            this._scratchQuat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-            Matrix.FromQuaternionToRef(this._scratchQuat, this._jointMat);
-            this._jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
-            this._jointMat.multiplyToRef(this._sampleToPovMat, this._jointMat);
-            this._jointMat.decompose(undefined, this._leftHandMeshes[idx].rotationQuaternion!, this._leftHandMeshes[idx].position);
-            
-            pose = sample.rightHandJointPoses[idx];
-            this._scratchQuat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
-            Matrix.FromQuaternionToRef(this._scratchQuat, this._jointMat);
-            this._jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
-            this._jointMat.multiplyToRef(this._sampleToPovMat, this._jointMat);
-            this._jointMat.decompose(undefined, this._rightHandMeshes[idx].rotationQuaternion!, this._rightHandMeshes[idx].position);
-        }
+        applyJointSampleToMeshes(sample, this._leftHandMeshes, this._rightHandMeshes,
+            samplePosition, sampleForward, povPosition, povForward);
     }
 
     public setEnabled(enabled: boolean): void {

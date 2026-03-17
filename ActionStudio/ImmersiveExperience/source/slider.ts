@@ -1,3 +1,10 @@
+/**
+ * SliderBehavior — constrains a grabbable physics node to a 1-D line segment.
+ *
+ * `SliderConstraints` defines the two endpoint positions (a, b) in world space.
+ * While grabbed, the node's position is projected onto the a→b segment and clamped
+ * to [0, 1], yielding a normalised `value`.  Gravity is suppressed by zeroing inertia.
+ */
 import { Observable, Observer, PhysicsMotionType, TransformNode, Vector3 } from "@babylonjs/core";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 

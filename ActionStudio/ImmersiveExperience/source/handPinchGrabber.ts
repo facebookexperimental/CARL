@@ -1,3 +1,10 @@
+/**
+ * HandPinchGrabber — detects a pinch gesture on a WebXR hand and emits grab events.
+ *
+ * Tracks the distance between the index fingertip and thumb tip each XR frame.
+ * Uses hysteresis (separate enter/exit thresholds) and a 4-frame confirmation window
+ * to avoid spurious grab transitions caused by tracking jitter.
+ */
 import { Observable, Observer, Quaternion, Scene, TransformNode, Vector3, WebXRHand, WebXRHandJoint, WebXRSessionManager } from "@babylonjs/core";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 

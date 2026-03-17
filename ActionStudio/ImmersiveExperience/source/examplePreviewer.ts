@@ -1,3 +1,11 @@
+/**
+ * ExamplePreviewer — drives the InputPuppet to animate a stored example inside the XR scene.
+ *
+ * When an example block is dropped into the editor volume, `previewExample` runs a coroutine
+ * that scrubs through the recording in sync with two in-scene slider meshes (trim start/end).
+ * Calling `play()` triggers a real-time playback pass from minT to maxT.  On exit the updated
+ * trim bounds are written back to the example via `setStartTimestamp` / `setEndTimestamp`.
+ */
 import { Vector3, Observer } from "@babylonjs/core";
 import { ICarlExample } from "./carlInterfaces";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";

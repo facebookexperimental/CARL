@@ -1,5 +1,14 @@
-import { WebXRHandJoint, Quaternion, WebXRCamera, WebXRHand, AbstractMesh } from "@babylonjs/core";
-import { ICarlInputSample } from "./carlInterfaces";
+/**
+ * Shared utility functions and constants for the ImmersiveExperience layer.
+ *
+ * Responsibilities:
+ *  - OPENXR_JOINT_MAPPINGS: maps CARL joint indices to Babylon.js WebXRHandJoint values.
+ *  - populateInputSample: fills an ICarlInputSample from live WebXR camera and hand data.
+ *  - applyJointSampleToMeshes: applies a recorded/live input sample to arrays of meshes,
+ *    re-orienting joint poses from the sample's coordinate frame into the point-of-view frame.
+ */
+import { WebXRHandJoint, Quaternion, Matrix, Vector3, WebXRCamera, WebXRHand, AbstractMesh } from "@babylonjs/core";
+import { ICarlInputSample, ICarlOptionalTransform } from "./carlInterfaces";
 
 export const OPENXR_JOINT_MAPPINGS = [
     WebXRHandJoint.WRIST,                               // XR_HAND_JOINT_PALM_EXT
@@ -33,6 +42,43 @@ export const OPENXR_JOINT_MAPPINGS = [
 export const START_T: number  = Date.now() / 1000;
 const WEBXR_TO_OPENXR_ROTATION_CONVERSION = Quaternion.Identity(); // TODO: I don't think this is necessary as the rotation conventions SEEM to be the same. Remove when confirmed.
 const convertedQuaternion = Quaternion.Identity();
+
+function populateHandPoses(
+    hand: WebXRHand | undefined,
+    wristPose: ICarlOptionalTransform,
+    jointPoses: ICarlOptionalTransform[]
+): void {
+    if (!hand) {
+        wristPose.valid = false;
+        for (let idx = 0; idx < jointPoses.length; ++idx) {
+            jointPoses[idx].valid = false;
+        }
+        return;
+    }
+    const wristJoint = hand.getJointMesh(WebXRHandJoint.WRIST);
+    wristPose.valid = true;
+    wristPose.position.x = wristJoint.position.x;
+    wristPose.position.y = wristJoint.position.y;
+    wristPose.position.z = wristJoint.position.z;
+    wristJoint.rotationQuaternion!.multiplyToRef(WEBXR_TO_OPENXR_ROTATION_CONVERSION, convertedQuaternion);
+    wristPose.orientation.w = convertedQuaternion.w;
+    wristPose.orientation.x = convertedQuaternion.x;
+    wristPose.orientation.y = convertedQuaternion.y;
+    wristPose.orientation.z = convertedQuaternion.z;
+    for (let idx = 0; idx < jointPoses.length; ++idx) {
+        const joint = hand.getJointMesh(OPENXR_JOINT_MAPPINGS[idx]);
+        jointPoses[idx].valid = true;
+        jointPoses[idx].position.x = joint.position.x;
+        jointPoses[idx].position.y = joint.position.y;
+        jointPoses[idx].position.z = joint.position.z;
+        joint.rotationQuaternion!.multiplyToRef(WEBXR_TO_OPENXR_ROTATION_CONVERSION, convertedQuaternion);
+        jointPoses[idx].orientation.w = convertedQuaternion.w;
+        jointPoses[idx].orientation.x = convertedQuaternion.x;
+        jointPoses[idx].orientation.y = convertedQuaternion.y;
+        jointPoses[idx].orientation.z = convertedQuaternion.z;
+    }
+}
+
 export function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | undefined, rightHand: WebXRHand | undefined, sample: ICarlInputSample): void {
     sample.timestamp = (Date.now() / 1000) - START_T;
 
@@ -46,66 +92,50 @@ export function populateInputSample(hmd: WebXRCamera, leftHand: WebXRHand | unde
     sample.hmdPose.orientation.y = convertedQuaternion.y;
     sample.hmdPose.orientation.z = convertedQuaternion.z;
 
-    let joint: AbstractMesh;
-    if (!leftHand) {
-        sample.leftWristPose.valid = false;
-        for (let idx = 0; idx < sample.leftHandJointPoses.length; ++idx) {
-            sample.leftHandJointPoses[idx].valid = false;
-        }
-    } else {
-        joint = leftHand.getJointMesh(WebXRHandJoint.WRIST);
-        sample.leftWristPose.valid = true;
-        sample.leftWristPose.position.x = joint.position.x;
-        sample.leftWristPose.position.y = joint.position.y;
-        sample.leftWristPose.position.z = joint.position.z;
-        joint.rotationQuaternion!.multiplyToRef(WEBXR_TO_OPENXR_ROTATION_CONVERSION, convertedQuaternion);
-        sample.leftWristPose.orientation.w = convertedQuaternion.w;
-        sample.leftWristPose.orientation.x = convertedQuaternion.x;
-        sample.leftWristPose.orientation.y = convertedQuaternion.y;
-        sample.leftWristPose.orientation.z = convertedQuaternion.z;
+    populateHandPoses(leftHand, sample.leftWristPose, sample.leftHandJointPoses);
+    populateHandPoses(rightHand, sample.rightWristPose, sample.rightHandJointPoses);
+}
 
-        for (let idx = 0; idx < sample.leftHandJointPoses.length; ++idx) {
-            joint = leftHand.getJointMesh(OPENXR_JOINT_MAPPINGS[idx]);
-            sample.leftHandJointPoses[idx].valid = true;
-            sample.leftHandJointPoses[idx].position.x = joint.position.x;
-            sample.leftHandJointPoses[idx].position.y = joint.position.y;
-            sample.leftHandJointPoses[idx].position.z = joint.position.z;
-            joint.rotationQuaternion!.multiplyToRef(WEBXR_TO_OPENXR_ROTATION_CONVERSION, convertedQuaternion);
-            sample.leftHandJointPoses[idx].orientation.w = convertedQuaternion.w;
-            sample.leftHandJointPoses[idx].orientation.x = convertedQuaternion.x;
-            sample.leftHandJointPoses[idx].orientation.y = convertedQuaternion.y;
-            sample.leftHandJointPoses[idx].orientation.z = convertedQuaternion.z;
-        }
-    }
+// Module-level scratch objects reused by applyJointSampleToMeshes to avoid per-frame allocation.
+const _scratch = {
+    vec: new Vector3(),
+    quat: new Quaternion(),
+    povMat: new Matrix(),
+    sampleMat: new Matrix(),
+    sampleToPovMat: new Matrix(),
+    jointMat: new Matrix(),
+};
 
-    if (!rightHand) {
-        sample.rightWristPose.valid = false;
-        for (let idx = 0; idx < sample.rightHandJointPoses.length; ++idx) {
-            sample.rightHandJointPoses[idx].valid = false;
-        }
-    } else {
-        joint = rightHand.getJointMesh(WebXRHandJoint.WRIST);
-        sample.rightWristPose.valid = true;
-        sample.rightWristPose.position.x = joint.position.x;
-        sample.rightWristPose.position.y = joint.position.y;
-        sample.rightWristPose.position.z = joint.position.z;
-        joint.rotationQuaternion!.multiplyToRef(WEBXR_TO_OPENXR_ROTATION_CONVERSION, convertedQuaternion);
-        sample.rightWristPose.orientation.w = convertedQuaternion.w;
-        sample.rightWristPose.orientation.x = convertedQuaternion.x;
-        sample.rightWristPose.orientation.y = convertedQuaternion.y;
-        sample.rightWristPose.orientation.z = convertedQuaternion.z;
+export function applyJointSampleToMeshes(
+    sample: ICarlInputSample,
+    leftMeshes: AbstractMesh[],
+    rightMeshes: AbstractMesh[],
+    samplePosition: Vector3,
+    sampleForward: Vector3,
+    povPosition: Vector3,
+    povForward: Vector3,
+): void {
+    povPosition.addToRef(povForward, _scratch.vec);
+    Matrix.LookAtRHToRef(povPosition, _scratch.vec, Vector3.UpReadOnly, _scratch.povMat);
+    samplePosition.addToRef(sampleForward, _scratch.vec);
+    Matrix.LookAtRHToRef(samplePosition, _scratch.vec, Vector3.UpReadOnly, _scratch.sampleMat);
 
-        for (let idx = 0; idx < sample.rightHandJointPoses.length; ++idx) {
-            joint = rightHand.getJointMesh(OPENXR_JOINT_MAPPINGS[idx]);
-            sample.rightHandJointPoses[idx].valid = true;
-            sample.rightHandJointPoses[idx].position.x = joint.position.x;
-            sample.rightHandJointPoses[idx].position.y = joint.position.y;
-            sample.rightHandJointPoses[idx].position.z = joint.position.z;
-            joint.rotationQuaternion!.multiplyToRef(WEBXR_TO_OPENXR_ROTATION_CONVERSION, convertedQuaternion);
-            sample.rightHandJointPoses[idx].orientation.w = convertedQuaternion.w;
-            sample.rightHandJointPoses[idx].orientation.x = convertedQuaternion.x;
-            sample.rightHandJointPoses[idx].orientation.y = convertedQuaternion.y;
-            sample.rightHandJointPoses[idx].orientation.z = convertedQuaternion.z;
-        }
+    _scratch.povMat.invertToRef(_scratch.povMat);
+    _scratch.sampleMat.multiplyToRef(_scratch.povMat, _scratch.sampleToPovMat);
+
+    for (let idx = 0; idx < OPENXR_JOINT_MAPPINGS.length; ++idx) {
+        let pose = sample.leftHandJointPoses[idx];
+        _scratch.quat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
+        Matrix.FromQuaternionToRef(_scratch.quat, _scratch.jointMat);
+        _scratch.jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
+        _scratch.jointMat.multiplyToRef(_scratch.sampleToPovMat, _scratch.jointMat);
+        _scratch.jointMat.decompose(undefined, leftMeshes[idx].rotationQuaternion!, leftMeshes[idx].position);
+
+        pose = sample.rightHandJointPoses[idx];
+        _scratch.quat.copyFromFloats(pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w);
+        Matrix.FromQuaternionToRef(_scratch.quat, _scratch.jointMat);
+        _scratch.jointMat.setTranslationFromFloats(pose.position.x, pose.position.y, pose.position.z);
+        _scratch.jointMat.multiplyToRef(_scratch.sampleToPovMat, _scratch.jointMat);
+        _scratch.jointMat.decompose(undefined, rightMeshes[idx].rotationQuaternion!, rightMeshes[idx].position);
     }
 }

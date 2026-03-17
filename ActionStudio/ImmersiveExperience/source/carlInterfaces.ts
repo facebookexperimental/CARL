@@ -1,3 +1,10 @@
+/**
+ * TypeScript interfaces mirroring the CARL WASM bindings exposed by NativeIntegration.
+ *
+ * These types are the contract between the Babylon.js ImmersiveExperience layer and the
+ * Emscripten-generated C++ library.  The shapes must stay in sync with the native API;
+ * if the native API changes, update these interfaces and the NativeIntegration wrapper.
+ */
 export interface ICarlPosition {
     x: number;
     y: number;
