@@ -82,6 +82,7 @@ function App() {
                 ...metadata,
             }).then(id => {
                 reloadFromDatabase();
+                immersiveExperienceRef.current?.notifyExampleSaved(example, id);
                 example.onDisposed = () => {
                     dbRef.current.deleteAsync(id);
                     reloadFromDatabase();
@@ -123,7 +124,7 @@ function App() {
             if (!record.showInXR) continue;
             const deserialized = carlRef.current.tryDeserializeExample(record.bytes);
             if (deserialized) {
-                initialExamples.push({ value: deserialized, color: record.color });
+                initialExamples.push({ value: deserialized, color: record.color, id: record.id });
             }
         }
 
@@ -141,10 +142,26 @@ function App() {
             reloadFromDatabase();
         };
 
+        const onExampleUpdated = (id, example) => {
+            if (!dbRef.current) return;
+            const inspector = example.getRecordingInspector();
+            const recordingStart = inspector.getStartTimestamp();
+            inspector.dispose();
+            const newStart = example.getStartTimestamp();
+            const newEnd = example.getEndTimestamp();
+            dbRef.current.updateAsync(id, {
+                exampleStart: newStart,
+                exampleEnd: newEnd,
+                startTime: newStart - recordingStart,
+                endTime: newEnd - recordingStart,
+                bytes: example.serialize(),
+            }).then(() => reloadFromDatabase());
+        };
+
         immersiveExperienceRef.current = await initializeImmersiveExperienceAsync(
             canvasRef.current,
             carlRef.current,
-            { initialExamples, initialDefinitions, onSessionEnded },
+            { initialExamples, initialDefinitions, onSessionEnded, onExampleUpdated },
         );
     };
 

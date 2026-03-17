@@ -90,4 +90,5 @@ export interface ICarl {
 export interface IInitialBlock<T> {
     value: T;
     color: string;
+    id?: number;   // DB record id — used to persist trim edits
 }

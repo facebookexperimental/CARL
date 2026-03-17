@@ -23,12 +23,14 @@ import { BlockSpawner } from "./blockSpawner";
 
 export interface IImmersiveExperience {
     dispose(): void;
+    notifyExampleSaved(example: ICarlExample, id: number): void;
 }
 
 export interface IImmersiveExperienceOptions {
     initialExamples?: IInitialBlock<ICarlExample>[];
     initialDefinitions?: IInitialBlock<ICarlDefinition>[];
     onSessionEnded?: () => void;
+    onExampleUpdated?: (id: number, example: ICarlExample) => void;
 }
 
 export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasElement, carl: ICarl, options?: IImmersiveExperienceOptions): Promise<IImmersiveExperience> {
@@ -147,6 +149,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     // --- Preview and recognition state ---
     const previewer = new ExamplePreviewer(scene);
     let previewStopper: any = null;
+    const exampleIds = new Map<ICarlExample, number>();
 
     const exampleBlocks = new Set<TransformNode>();
     const counterexampleBlocks = new Set<TransformNode>();
@@ -235,7 +238,12 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
             Vector3.TransformCoordinatesToRef(block.position, inEditorMatrix, scratchVec);
             inBounds = Math.abs(scratchVec.x) < 1 && Math.abs(scratchVec.y) < 1 && Math.abs(scratchVec.z) < 1;
             if (!blockState.inEditor && inBounds) {
-                previewStopper = previewer.previewExample(exampleSpawner.getValueFromBlock(block)!);
+                const example = exampleSpawner.getValueFromBlock(block)!;
+                const id = exampleIds.get(example);
+                previewStopper = previewer.previewExample(
+                    example,
+                    id !== undefined ? (ex) => options?.onExampleUpdated?.(id, ex) : undefined
+                );
                 blockState.inEditor = true;
                 return;
             } else if (blockState.inEditor && !inBounds) {
@@ -412,6 +420,7 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
         mat.diffuseColor = Color3.FromHexString(initial.color);
         const block = exampleSpawner.spawnNewBlock(initial.value);
         block.material = mat;
+        if (initial.id !== undefined) exampleIds.set(initial.value, initial.id);
         addExampleBlockPlacementDetection(block);
     }
 
@@ -429,5 +438,8 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
 
     return {
         dispose: () => { shutdown(); },
+        notifyExampleSaved: (example: ICarlExample, id: number) => {
+            exampleIds.set(example, id);
+        },
     };
 }

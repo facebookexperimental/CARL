@@ -28,9 +28,9 @@ export class ExamplePreviewer {
         });
     }
 
-    public previewExample(example: ICarlExample): () => void {
+    public previewExample(example: ICarlExample, onStopped?: (example: ICarlExample) => void): () => void {
         this.previewing = true;
-        this.scene.onBeforeRenderObservable.runCoroutineAsync(this.previewExampleCoroutine(example));
+        this.scene.onBeforeRenderObservable.runCoroutineAsync(this.previewExampleCoroutine(example, onStopped));
         return () => {
             this.previewing = false;
         }
@@ -40,7 +40,7 @@ export class ExamplePreviewer {
         this.shouldPlay = this.previewing;
     }
 
-    private *previewExampleCoroutine(example: ICarlExample) {
+    private *previewExampleCoroutine(example: ICarlExample, onStopped?: (example: ICarlExample) => void) {
         const IMMITATION_ORIGIN = Vector3.RightHandedForwardReadOnly.scale(2);
         const inspector = example.getRecordingInspector();
         const duration = inspector.getEndTimestamp() - inspector.getStartTimestamp();
@@ -104,6 +104,7 @@ export class ExamplePreviewer {
         example.setStartTimestamp(minT);
         example.setEndTimestamp(maxT);
         inspector.dispose();
+        onStopped?.(example);
         this.scene.inputPuppet?.setEnabled(false);
     }
 }
