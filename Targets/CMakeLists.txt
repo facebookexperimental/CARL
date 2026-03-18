@@ -7,30 +7,63 @@ if(ANDROID)
     find_library(android_logging log)
 endif()
 
-add_library(carl_static_library 
-    "c_api/main.cpp"
+set(C_API_SOURCES
+    "c_api/c_api.cpp"
+    "c_api/InputSampleConversion.h"
+    "c_api/InputSampleConversion.cpp"
     "c_api/include/carl.h")
-target_link_libraries(carl_static_library PUBLIC carl_core carl_utilities)
-if(EMSCRIPTEN)
-    target_link_options(carl_static_library PUBLIC -s EXPORTED_FUNCTIONS=["_getBytes","_startRecording","_recordInputSample","_finishRecording","_serializeRecording","_deserializeRecording","_disposeRecording","_getRecordingInspector","_inspect","_getStartTimestamp","_getEndTimestamp","_disposeRecordingInspector","_createdDefinition","_addExample","_getDefaultSensitivity","_setDefaultSensitivity","_serializeDefinition","_deserializeDefinition","_getExamplesCount","_getRecordingFromExampleAtIdx","_getStartTimestampFromExampleAtIdx","_getEndTimestampFromExampleAtIdx","_disposeDefinition","_createSession","_addInputSample","_disposeSession","_createRecognizer","_getCurrentScore","_setSensitivity","_getCanonicalRecordingInspector","_disposeRecognizer","_malloc","_free"])
-elseif(WIN32 OR WINDOWS_STORE)
-    target_compile_definitions(carl_static_library PRIVATE CARL_PLATFORM_WINDOWS)
-elseif(ANDROID)
-    target_compile_definitions(carl_static_library PRIVATE CARL_PLATFORM_ANDROID)
-    target_link_libraries(carl_static_library PRIVATE ${android_logging})
-endif()
-set_property(TARGET carl_static_library PROPERTY FOLDER "Targets")
+
+set(C_API_EMSCRIPTEN_SOURCES
+    "c_api/emscripten_bindings.cpp")
 
 if(NOT EMSCRIPTEN)
-    add_library(carl_shared_library SHARED "c_api/main.cpp")
-    target_link_libraries(carl_shared_library PUBLIC carl_core carl_utilities)
-    set_property(TARGET carl_shared_library PROPERTY FOLDER "Targets")
+    add_library(carl_static ${C_API_SOURCES})
+    target_link_libraries(carl_static PUBLIC carl_core carl_utilities)
     if(WIN32 OR WINDOWS_STORE)
-        target_compile_definitions(carl_shared_library PRIVATE CARL_PLATFORM_WINDOWS)
+        target_compile_definitions(carl_static PRIVATE CARL_PLATFORM_WINDOWS)
     elseif(ANDROID)
-        target_compile_definitions(carl_shared_library PRIVATE CARL_PLATFORM_ANDROID)
-        target_link_libraries(carl_shared_library PRIVATE ${android_logging})
-        set_property(TARGET carl_shared_library PROPERTY POSITION_INDEPENDENT_CODE ON)
+        target_compile_definitions(carl_static PRIVATE CARL_PLATFORM_ANDROID)
+        target_link_libraries(carl_static PRIVATE ${android_logging})
+    endif()
+    set_property(TARGET carl_static PROPERTY FOLDER "Targets")
+endif()
+
+if(EMSCRIPTEN)
+    #set(OPTIMIZATION_LEVEL -sNO_DISABLE_EXCEPTION_CATCHING)
+    set(OPTIMIZATION_LEVEL -O3)
+    add_executable(carl ${C_API_SOURCES} ${C_API_EMSCRIPTEN_SOURCES})
+    target_compile_definitions(carl PRIVATE CARL_PLATFORM_EMSCRIPTEN)
+    target_link_libraries(carl PRIVATE PUBLIC carl_core carl_utilities)
+    target_link_options(carl PRIVATE -sMODULARIZE=1)
+    target_link_options(carl PRIVATE -sEXPORT_NAME="CARL")
+    target_link_options(carl PRIVATE -sALLOW_MEMORY_GROWTH=1)
+    target_link_options(carl PRIVATE --bind)
+
+    # Compile optimizations
+    target_compile_options(carl_input_sample PRIVATE ${OPTIMIZATION_LEVEL})
+    target_compile_options(carl_core PRIVATE ${OPTIMIZATION_LEVEL})
+    target_compile_options(carl_utilities PRIVATE ${OPTIMIZATION_LEVEL})
+    target_compile_options(carl PRIVATE ${OPTIMIZATION_LEVEL})
+
+    # Link optimizatins
+    target_link_options(carl_input_sample PRIVATE ${OPTIMIZATION_LEVEL})
+    target_link_options(carl_core PRIVATE ${OPTIMIZATION_LEVEL})
+    target_link_options(carl_utilities PRIVATE ${OPTIMIZATION_LEVEL})
+    target_link_options(carl PRIVATE ${OPTIMIZATION_LEVEL})
+    target_link_options(carl_input_sample PRIVATE -flto)
+    target_link_options(carl_core PRIVATE -flto)
+    target_link_options(carl_utilities PRIVATE -flto)
+    target_link_options(carl PRIVATE -flto)
+else()
+    add_library(carl SHARED ${C_API_SOURCES})
+    target_link_libraries(carl PUBLIC carl_core carl_utilities)
+    set_property(TARGET carl PROPERTY FOLDER "Targets")
+    if(WIN32 OR WINDOWS_STORE)
+        target_compile_definitions(carl PRIVATE CARL_PLATFORM_WINDOWS)
+    elseif(ANDROID)
+        target_compile_definitions(carl PRIVATE CARL_PLATFORM_ANDROID)
+        target_link_libraries(carl PRIVATE ${android_logging})
+        set_property(TARGET carl PROPERTY POSITION_INDEPENDENT_CODE ON)
     endif()
 endif()
 

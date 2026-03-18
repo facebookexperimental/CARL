@@ -1,0 +1,124 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+/**
+ * PhysicsGrabBehavior — attaches grab-and-follow physics behaviour to a TransformNode.
+ *
+ * Instances are created lazily via `PhysicsGrabBehavior.get(node)` and stored in a
+ * static Map keyed by node uniqueId.  When a grabber pinches, `handleGrab` finds the
+ * nearest grabbable (by bounding-box proximity score) and transfers the node to ANIMATED
+ * motion, tracking the grabber's world matrix each frame via an offset matrix.
+ */
+import { IDisposable, Matrix, Node, Observable, Observer, PhysicsMotionType, TransformNode, Vector3 } from "@babylonjs/core";
+import { IGrabber, IProposal } from "./handPinchGrabber";
+
+export class PhysicsGrabBehavior implements IDisposable {
+    private readonly _node: TransformNode;
+    private readonly _offsetMatrix = Matrix.Identity();
+    private readonly _worldMatrix = Matrix.Identity();
+    private _grabberObserver: Observer<TransformNode> | null = null;
+    private _currentGrabber: IGrabber | null = null;
+    private _currentGrabberDisposeObserver: Observer<Node> | null = null;
+    private _disposeObserver: Observer<Node>;
+
+    public onGrabStartedObservable: Observable<TransformNode> = new Observable<TransformNode>();
+    public onGrabMovedObservable: Observable<TransformNode> = new Observable<TransformNode>();
+    public onGrabEndedObservable: Observable<TransformNode> = new Observable<TransformNode>();
+
+    private constructor(node: TransformNode) {
+        this._node = node;
+        this._disposeObserver = node.onDisposeObservable.add(() => this.dispose());
+        node.onDisposeObservable.addOnce(() => this.dispose());
+    }
+
+    private static _behaviors = new Map<number, PhysicsGrabBehavior>();
+
+    public static get(node: TransformNode): PhysicsGrabBehavior {
+        if (!PhysicsGrabBehavior._behaviors.has(node.uniqueId)) {
+            const behavior = new PhysicsGrabBehavior(node);
+            PhysicsGrabBehavior._behaviors.set(node.uniqueId, behavior);
+        }
+        return PhysicsGrabBehavior._behaviors.get(node.uniqueId)!;
+    }
+
+    public static handleGrab(grabber: IGrabber) {
+        let bestProposal: IProposal | null = null;
+        PhysicsGrabBehavior._behaviors.forEach((grabbable) => {
+            const p = grabbable.proposeGrab(grabber);
+            if (bestProposal === null || p.score > bestProposal.score) {
+                bestProposal = p;
+            }
+        });
+        if (bestProposal && (bestProposal as IProposal).score > 0) {
+            (bestProposal as IProposal).accept();
+        }
+    }
+
+    private _pausePhysics(): void {
+        this._node.physicsBody!.setMotionType(PhysicsMotionType.ANIMATED);
+        this._node.physicsBody!.disablePreStep = false;
+    }
+
+    private _resumePhysics(): void {
+        this._currentGrabber = null;
+        this._node.physicsBody!.disablePreStep = true;
+        this._node.physicsBody!.setMotionType(PhysicsMotionType.DYNAMIC);
+        this._grabberObserver?.remove();
+        this._grabberObserver = null;
+        this._currentGrabberDisposeObserver?.remove();
+        this._currentGrabberDisposeObserver = null;
+
+        this.onGrabEndedObservable.notifyObservers(this._node);
+    }
+
+    public proposeGrab(grabber: IGrabber): IProposal {
+        if (grabber.isGrabbing) {
+            const k = 1.2 * this._node.physicsBody!.getBoundingBox().extendSizeWorld!.length();
+            const score = Math.min(Math.max((k - Vector3.Distance(grabber.position, this._node.position)) / k, 0), 1);
+            return {
+                score: score,
+                accept: () => {
+                    if (this._currentGrabber !== null) {
+                        // If we're already being grabbed, we need to stop observing that grab, but we're already set up for animated physics.
+                        this._grabberObserver?.remove();
+                        this.onGrabEndedObservable.notifyObservers(this._node);
+                    } else {
+                        // Otherwise, we need to change our physics mode from to permit animation.
+                        this._pausePhysics();
+                    }
+                    this._currentGrabber = grabber;
+                    this._node.getWorldMatrix().multiplyToRef(grabber.getWorldMatrix().invert(), this._offsetMatrix);
+                    this._grabberObserver = this._currentGrabber.onAfterWorldMatrixUpdateObservable.add(() => {
+                        this._offsetMatrix.multiplyToRef(grabber.getWorldMatrix(), this._worldMatrix);
+                        this._worldMatrix.decompose(undefined, this._node.physicsBody!.transformNode.rotationQuaternion!, this._node.physicsBody!.transformNode.position);
+                        this.onGrabMovedObservable.notifyObservers(this._node.physicsBody!.transformNode);
+                    this.onGrabStartedObservable.notifyObservers(this._node);
+                    });
+                    this._currentGrabberDisposeObserver = this._currentGrabber.onDisposeObservable.add(() => {
+                        this._resumePhysics();
+                    });
+                }
+            }
+        } else if (this._currentGrabber === grabber && !grabber.isGrabbing) {
+            return {
+                score: 1,
+                accept: () => this._resumePhysics()
+            };
+        } else {
+            return { score: 0, accept: () => { } };
+        }
+    }
+
+    public dispose(): void {
+        PhysicsGrabBehavior._behaviors.delete(this._node.uniqueId);
+        this.onGrabMovedObservable.clear();
+        this.onGrabEndedObservable.clear();
+        this._grabberObserver?.remove();
+        this._currentGrabberDisposeObserver?.remove();
+        this._disposeObserver?.remove();
+    }
+}

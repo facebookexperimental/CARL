@@ -36,9 +36,19 @@ namespace carl::action
             return m_startTimestamp;
         }
 
+        void setStartTimestamp(double timestamp)
+        {
+            m_startTimestamp = timestamp;
+        }
+
         double getEndTimestamp() const
         {
             return m_endTimestamp;
+        }
+
+        void setEndTimestamp(double timestamp)
+        {
+            m_endTimestamp = timestamp;
         }
 
     private:

@@ -6,6 +6,7 @@
  */
 
 #include "include/carl.h"
+#include "InputSampleConversion.h"
 
 #include <carl/Carl.h>
 #include <carl/utilities/FileSerialization.h>
@@ -14,14 +15,6 @@
 
 #ifdef CARL_PLATFORM_ANDROID
 #include <android/log.h>
-#endif
-
-#ifdef CARL_PLATFORM_WINDOWS
-#define C_API_EXPORT(ReturnT) __declspec(dllexport) ReturnT __cdecl
-#define C_API_CALLBACK(ReturnT) ReturnT __cdecl
-#else
-#define C_API_EXPORT(ReturnT) ReturnT __cdecl
-#define C_API_CALLBACK(ReturnT) ReturnT __cdecl
 #endif
 
 namespace
@@ -34,130 +27,10 @@ namespace
         });
     }
 #else
-    void setUpSession(carl::Session& session)
+    void setUpSession(carl::Session&)
     {
     }
 #endif
-
-    static const std::map<carl_InputSample::HAND_JOINT, carl::InputSample::Joint> openXrToCarlJointMap
-    {
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_METACARPAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_METACARPAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_PROXIMAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_DISTAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_THUMB_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_THUMB_TIP_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_PROXIMAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_INTERMEDIATE_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_DISTAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_INDEX_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_INDEX_TIP_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_PROXIMAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_INTERMEDIATE_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_DISTAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_MIDDLE_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_MIDDLE_TIP_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_PROXIMAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_INTERMEDIATE_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_DISTAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_RING_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_RING_TIP_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_METACARPAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_METACARPAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_PROXIMAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_PROXIMAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_INTERMEDIATE_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_DISTAL_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_DISTAL_EXT},
-        {carl_InputSample::HAND_JOINT::XR_HAND_JOINT_LITTLE_TIP_EXT, carl::InputSample::Joint::XR_HAND_JOINT_LITTLE_TIP_EXT},
-    };
-
-    carl::InputSample convert(const carl_InputSample& input)
-    {
-        carl::InputSample sample{};
-
-        sample.Timestamp = input.Timestamp;
-
-        constexpr auto cvt = [](const carl_InputSample::OptionalTransform& inT, carl::TransformT& outT) {
-            outT.fromPositionOrientationScale(
-                carl::VectorT
-                {
-                    static_cast<carl::NumberT>(inT.Position.X),
-                    static_cast<carl::NumberT>(inT.Position.Y),
-                    static_cast<carl::NumberT>(inT.Position.Z)
-                },
-                carl::QuaternionT
-                {
-                    static_cast<carl::NumberT>(inT.Orientation.W),
-                    static_cast<carl::NumberT>(inT.Orientation.X),
-                    static_cast<carl::NumberT>(inT.Orientation.Y),
-                    static_cast<carl::NumberT>(inT.Orientation.Z)
-                },
-                carl::UNIT_SCALE);
-        };
-
-        constexpr auto cvtOptional = [cvt](const carl_InputSample::OptionalTransform& inT) {
-            std::optional<carl::TransformT> outT{};
-            if (inT.Valid)
-            {
-                outT.emplace();
-                cvt(inT, *outT);
-            }
-            return outT;
-        };
-
-        sample.HmdPose = cvtOptional(input.HmdPose);
-        sample.LeftWristPose = cvtOptional(input.LeftWristPose);
-        sample.RightWristPose = cvtOptional(input.RightWristPose);
-        if (input.LeftHandJointPoses[0].Valid)
-        {
-            sample.LeftHandJointPoses.emplace();
-            for (size_t idx = 0; idx < carl_InputSample::HAND_JOINT::COUNT; ++idx)
-            {
-                // TODO: Contents should be replaced with the following once carl::InputSample uses the correct joints.
-                // cvt(input.LeftHandJointPoses[idx], sample.LeftHandJointPoses->at(idx));
-                auto found = openXrToCarlJointMap.find(static_cast<carl_InputSample::HAND_JOINT>(idx));
-                if (found != openXrToCarlJointMap.end())
-                {
-                    cvt(input.LeftHandJointPoses[idx], sample.LeftHandJointPoses->at(static_cast<size_t>(found->second)));
-                }
-            }
-        }
-        if (input.RightHandJointPoses[0].Valid)
-        {
-            sample.RightHandJointPoses.emplace();
-            for (size_t idx = 0; idx < carl_InputSample::HAND_JOINT::COUNT; ++idx)
-            {
-                // TODO: Contents should be replaced with the following once carl::InputSample uses the correct joints.
-                // cvt(input.RightHandJointPoses[idx], sample.RightHandJointPoses->at(idx));
-                auto found = openXrToCarlJointMap.find(static_cast<carl_InputSample::HAND_JOINT>(idx));
-                if (found != openXrToCarlJointMap.end())
-                {
-                    cvt(input.RightHandJointPoses[idx], sample.RightHandJointPoses->at(static_cast<size_t>(found->second)));
-                }
-            }
-        }
-        if (input.LeftControllerState.Valid)
-        {
-            sample.LeftControllerInput = 
-                std::array<carl::NumberT, static_cast<size_t>(carl::InputSample::ControllerInput::COUNT)>{
-                static_cast<carl::NumberT>(input.LeftControllerState.PrimaryClick),
-                static_cast<carl::NumberT>(input.LeftControllerState.SecondaryClick),
-                static_cast<carl::NumberT>(input.LeftControllerState.ThumbstickX),
-                static_cast<carl::NumberT>(input.LeftControllerState.ThumbstickY),
-                static_cast<carl::NumberT>(input.LeftControllerState.ThumbstickClick),
-                static_cast<carl::NumberT>(input.LeftControllerState.SqueezeValue),
-                static_cast<carl::NumberT>(input.LeftControllerState.TriggerValue),
-            };
-        }
-        if (input.RightControllerState.Valid)
-        {
-            sample.RightControllerInput =
-                std::array<carl::NumberT, static_cast<size_t>(carl::InputSample::ControllerInput::COUNT)>{
-                static_cast<carl::NumberT>(input.RightControllerState.PrimaryClick),
-                static_cast<carl::NumberT>(input.RightControllerState.SecondaryClick),
-                static_cast<carl::NumberT>(input.RightControllerState.ThumbstickX),
-                static_cast<carl::NumberT>(input.RightControllerState.ThumbstickY),
-                static_cast<carl::NumberT>(input.RightControllerState.ThumbstickClick),
-                static_cast<carl::NumberT>(input.RightControllerState.SqueezeValue),
-                static_cast<carl::NumberT>(input.RightControllerState.TriggerValue),
-            };
-        }
-        
-        return sample;
-    }
 }
 
 uint64_t carl_getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
@@ -169,7 +42,7 @@ uint64_t carl_getBytes(uint64_t bytesPtr, uint8_t* destination, uint64_t size)
     }
     else
     {
-        std::memcpy(destination, bytes.data(), size);
+        std::memcpy(destination, bytes.data(), static_cast<size_t>(size));
         delete& bytes;
         return size;
     }
@@ -184,13 +57,13 @@ uint64_t carl_startRecording(uint64_t maxSeconds)
 void carl_recordObjectInputSample(uint64_t inProgressRecordingPtr, carl_InputSample* sample)
 {
     auto& inProgressRecording = *reinterpret_cast<carl::action::InProgressRecording*>(inProgressRecordingPtr);
-    inProgressRecording.addSample(convert(*sample));
+    inProgressRecording.addSample(carl::capi::convert(*sample));
 }
 
 void carl_recordInputSample(uint64_t inProgressRecordingPtr, uint8_t* bytes, uint64_t size)
 {
     auto& inProgressRecording = *reinterpret_cast<carl::action::InProgressRecording*>(inProgressRecordingPtr);
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     inProgressRecording.addSample({ deserialization });
 }
 
@@ -212,7 +85,7 @@ uint64_t carl_serializeRecording(uint64_t recordingPtr)
 
 uint64_t carl_deserializeRecording(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     auto* ptr = new carl::action::Recording(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
@@ -348,7 +221,7 @@ uint64_t carl_serializeDefinition(uint64_t definitionPtr)
 
 uint64_t carl_deserializeDefinition(uint8_t* bytes, uint64_t size)
 {
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     auto* ptr = new carl::action::Definition(deserialization);
     return reinterpret_cast<uint64_t>(ptr);
 }
@@ -386,7 +259,6 @@ void carl_saveDefinitionToFile(uint64_t definitionPtr, const char* path)
     const auto& example = *reinterpret_cast<carl::action::Definition*>(definitionPtr);
     carl::utilities::SerializeToFile<carl::action::Definition>(example, path);
 }
-
 
 uint64_t carl_getExamplesCount(uint64_t definitionPtr)
 {
@@ -450,7 +322,7 @@ void carl_tickCallbacks(uint64_t sessionPtr)
 void carl_addSerializedInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t size)
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    carl::Deserialization deserialization{ bytes, size };
+    carl::Deserialization deserialization{ bytes, static_cast<size_t>(size) };
     carl::InputSample sample{ deserialization };
     session.addInput(sample);
 }
@@ -458,7 +330,7 @@ void carl_addSerializedInputSample(uint64_t sessionPtr, uint8_t* bytes, uint64_t
 void carl_addInputSample(uint64_t sessionPtr, carl_InputSample* input)
 {
     auto& session = *reinterpret_cast<carl::Session*>(sessionPtr);
-    auto sample = convert(*input);
+    auto sample = carl::capi::convert(*input);
     session.addInput(sample);
 }
 

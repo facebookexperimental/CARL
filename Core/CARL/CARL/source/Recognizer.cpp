@@ -590,7 +590,7 @@ namespace carl::action
     {
     }
 
-    double action::Recognizer::currentScore()
+    double action::Recognizer::currentScore() const
     {
         return static_cast<NumberT>(m_impl->m_currentScore);
     }
@@ -598,6 +598,11 @@ namespace carl::action
     RecordingInspector Recognizer::getCanonicalRecordingInspector() const
     {
         return m_impl->m_canonicalRecording->getInspector();
+    }
+
+    double Recognizer::getSensitivity() const
+    {
+        return static_cast<double>(m_impl->m_sensitivity);
     }
 
     void Recognizer::setSensitivity(double sensitivity)

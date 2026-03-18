@@ -1,0 +1,27 @@
+{
+  "name": "carl-actionstudio-ghpages",
+  "version": "1.0.0",
+  "description": "GitHub Pages site for CARL Action Studio",
+  "homepage": "https://facebookexperimental.github.io/CARL",
+  "scripts": {
+    "build": "cpx ../NativeIntegration/assets/* ./docs/assets && cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
+    "start": "npm run server & npm run build -- --watch",
+    "server": "servor docs index.html --reload --secure",
+    "deploy": "gh-pages -d docs"
+  },
+  "author": "syntheticmagus",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.13.0"
+  },
+  "devDependencies": {
+    "carl-actionstudio-immersiveexperience": "file:../ImmersiveExperience",
+    "carl-actionstudio-nativeintegration": "file:../NativeIntegration",
+    "cpx2": "^8.0.0",
+    "esbuild": "^0.27.2",
+    "gh-pages": "^3.2.3",
+    "servor": "^4.0.2"
+  }
+}

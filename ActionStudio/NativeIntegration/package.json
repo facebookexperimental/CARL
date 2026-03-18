@@ -1,0 +1,12 @@
+{
+  "name": "carl-actionstudio-nativeintegration",
+  "version": "1.0.0",
+  "description": "Integration with CARL C++ library.",
+  "main": "index.js",
+  "scripts": {
+    "build": "echo Building NativeIntegration...",
+    "start": "echo Starting NativeIntegration..."
+  },
+  "author": "syntheticmagus",
+  "license": "MIT"
+}

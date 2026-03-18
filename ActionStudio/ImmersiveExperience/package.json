@@ -1,0 +1,23 @@
+{
+  "name": "carl-actionstudio-immersiveexperience",
+  "version": "1.0.0",
+  "description": "Immersive experience for the CARL Action Studio",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc -p .",
+    "start": "tsc --watch -p ."
+  },
+  "author": "syntheticmagus",
+  "license": "MIT",
+  "dependencies": {
+    "@babylonjs/core": "^8.45.5",
+    "@babylonjs/gui": "^8.45.5",
+    "@babylonjs/havok": "^1.3.11",
+    "@babylonjs/loaders": "^8.45.5",
+    "@babylonjs/materials": "^8.45.5"
+  },
+  "devDependencies": {
+    "@types/webxr": "^0.5.24",
+    "typescript": "^5.9.3"
+  }
+}
