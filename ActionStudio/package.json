@@ -9,7 +9,7 @@
     "NativeIntegration"
   ],
   "scripts": {
-    "start": "concurrently \"npm run start --prefix ./NativeIntegration\" \"npm run start --prefix ./ImmersiveExperience\" \"npm run start --prefix ./GithubPagesSite\"",
+    "start": "npm run server --prefix ./GithubPagesSite",
     "build": "npm run build --prefix ./NativeIntegration && npm run build --prefix ./ImmersiveExperience && npm run build --prefix ./GithubPagesSite"
   },
   "author": "syntheticmagus",

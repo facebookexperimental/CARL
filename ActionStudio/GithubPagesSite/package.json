@@ -4,7 +4,7 @@
   "description": "GitHub Pages site for CARL Action Studio",
   "homepage": "https://facebookexperimental.github.io/CARL",
   "scripts": {
-    "build": "mkdir -p docs/assets && cpx \"../NativeIntegration/assets/**/*\" docs/assets --clean && cpx \"../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm\" docs && cpx \"../ImmersiveExperience/assets/**/*\" docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
+    "build": "node -e \"require('fs').mkdirSync('docs/assets', {recursive: true})\" && cpx \"../NativeIntegration/assets/**/*\" docs/assets --clean && cpx \"../node_modules/@babylonjs/havok/lib/esm/*.wasm\" docs && cpx \"../ImmersiveExperience/assets/**/*\" docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
     "start": "npm run server & npm run build -- --watch",
     "server": "servor docs index.html --reload --secure",
     "deploy": "echo 'Deployment is handled by GitHub Actions (deploy-pages.yml)'"
