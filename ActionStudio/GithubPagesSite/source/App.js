@@ -13,7 +13,7 @@
  */
 
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navigation from './components/Navigation';
 import LibraryView from './components/LibraryView';
 import PreviewMode from './components/PreviewMode';

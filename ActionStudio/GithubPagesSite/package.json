@@ -2,6 +2,7 @@
   "name": "carl-actionstudio-ghpages",
   "version": "1.0.0",
   "description": "GitHub Pages site for CARL Action Studio",
+  "homepage": "https://facebookexperimental.github.io/CARL",
   "scripts": {
     "build": "cpx ../NativeIntegration/assets/* ./docs/assets && cpx ../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm ./docs && cpx ../ImmersiveExperience/assets/* ./docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
     "start": "npm run server & npm run build -- --watch",
