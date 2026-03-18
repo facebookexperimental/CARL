@@ -7,7 +7,7 @@
     "build": "mkdir -p docs/assets && cpx \"../NativeIntegration/assets/**/*\" docs/assets --clean && cpx \"../ImmersiveExperience/node_modules/@babylonjs/havok/lib/esm/*.wasm\" docs && cpx \"../ImmersiveExperience/assets/**/*\" docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
     "start": "npm run server & npm run build -- --watch",
     "server": "servor docs index.html --reload --secure",
-    "deploy": "gh-pages -d docs"
+    "deploy": "echo 'Deployment is handled by GitHub Actions (deploy-pages.yml)'"
   },
   "author": "syntheticmagus",
   "license": "MIT",
@@ -21,7 +21,6 @@
     "carl-actionstudio-nativeintegration": "file:../NativeIntegration",
     "cpx2": "^8.0.0",
     "esbuild": "^0.27.2",
-    "gh-pages": "^5.0.0",
     "servor": "^4.0.2"
   }
 }
