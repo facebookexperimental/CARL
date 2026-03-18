@@ -21,7 +21,7 @@
     "carl-actionstudio-nativeintegration": "file:../NativeIntegration",
     "cpx2": "^8.0.0",
     "esbuild": "^0.27.2",
-    "gh-pages": "^3.2.3",
+    "gh-pages": "^5.0.0",
     "servor": "^4.0.2"
   }
 }
