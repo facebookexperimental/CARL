@@ -3,16 +3,18 @@
   "version": "1.0.0",
   "description": "Parent package for easy Action Studio development.",
   "main": "main.js",
+  "workspaces": [
+    "GithubPagesSite",
+    "ImmersiveExperience",
+    "NativeIntegration"
+  ],
   "scripts": {
-    "install": "npm-recursive-install --skip-root",
-    "start": "concurrently \"npm run start --prefix ./NativeIntegration\" \"npm run start --prefix ./ImmersiveExperience\" \"npm run start --prefix ./GithubPagesSite\"",
-    "build": "npm run build --prefix ./NativeIntegration && npm run build --prefix ./ImmersiveExperience && npm run build --prefix ./GithubPagesSite",
-    "deploy": "npm run build && npm run deploy --prefix ./GithubPagesSite"
+    "start": "npm run server --prefix ./GithubPagesSite",
+    "build": "npm run build --prefix ./NativeIntegration && npm run build --prefix ./ImmersiveExperience && npm run build --prefix ./GithubPagesSite"
   },
   "author": "syntheticmagus",
   "license": "MIT",
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "recursive-install": "^1.4.0"
+    "concurrently": "^9.2.1"
   }
 }
