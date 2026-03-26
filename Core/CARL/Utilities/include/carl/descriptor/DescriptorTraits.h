@@ -12,7 +12,6 @@ namespace carl::descriptor
     template<typename T>
     class DescriptorTraits
     {
-
         template<typename C>
         static char absoluteDistanceTest(decltype(&C::AbsoluteDistance));
 

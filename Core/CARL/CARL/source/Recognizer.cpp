@@ -205,7 +205,7 @@ namespace carl::action
                     }
                     else
                     {
-                        return 0;
+                        return NumberT{0};
                     }
                 };
                 auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
@@ -215,7 +215,7 @@ namespace carl::action
                     }
                     else
                     {
-                        return 0;
+                        return NumberT{0};
                     }
                 };
                 auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], absDist, deltaDist);
@@ -454,7 +454,7 @@ namespace carl::action
                     }
                     else
                     {
-                        return 0;
+                        return NumberT{0};
                     }
                 };
                 auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
@@ -464,7 +464,7 @@ namespace carl::action
                     }
                     else
                     {
-                        return 0;
+                        return NumberT{0};
                     }
                 };
                 auto result = DynamicTimeWarping::Match(target, query, absDist, deltaDist, minimumImageEndIdx);
