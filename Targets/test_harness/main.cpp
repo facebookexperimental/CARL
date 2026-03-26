@@ -111,7 +111,7 @@ PerformanceMetrics computePerformanceMetrics(std::vector<double>& frameTimes)
 
 std::string makeRelativePath(const fs::path& filePath, const fs::path& baseDir)
 {
-    auto rel = fs::relative(filePath, baseDir.parent_path());
+    auto rel = filePath.lexically_relative(baseDir);
     return rel.generic_string();
 }
 
