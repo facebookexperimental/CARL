@@ -442,13 +442,20 @@ namespace carl::action
 
                 gsl::span<const DescriptorT> trimmedSequence{ &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
 
-                // Early-out if no template's end is scored as appearing in the sequence
+                // Early-out if no template's end is scored as appearing in the sequence.
                 NumberT score = std::numeric_limits<NumberT>::lowest();
                 for (const auto& t : m_templates)
                 {
-                    auto endSpan = gsl::make_span<const DescriptorT>(&t.back(), 1);
-                    auto distance = calculateMatchDistance(trimmedSequence, endSpan);
-                    score = std::max(m_scoringFunction(distance), score);
+                    const auto& templateEnd = t.back();
+                    NumberT minEndDist = std::numeric_limits<NumberT>::max();
+                    for (size_t i = 0; i < trimmedSequence.size(); ++i)
+                    {
+                        NumberT d = DescriptorT::Distance(
+                            trimmedSequence[i], trimmedSequence[i],
+                            templateEnd, templateEnd, m_tuning);
+                        minEndDist = std::min(minEndDist, d);
+                    }
+                    score = std::max(m_scoringFunction(minEndDist), score);
                 }
                 if (score < std::numeric_limits<NumberT>::epsilon())
                 {
@@ -470,12 +477,23 @@ namespace carl::action
                 // Clamp score to [0, 1] range.
                 score = std::clamp<NumberT>(score, 0, 1);
 
+                // Skip counterexample DTW when score is already negligible.
+                if (score < std::numeric_limits<NumberT>::epsilon())
+                {
+                    return 0;
+                }
+
                 // Penalize score based on relative proximity to countertemplates
                 NumberT minCounterDistance = std::numeric_limits<NumberT>::max();
                 for (const auto& t : m_countertemplates)
                 {
                     NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx);
                     minCounterDistance = std::min(distance, minCounterDistance);
+                    // Early-exit once counter is closer than template — minCounterDistance can only decrease, so penalty is already maximized.
+                    if (minCounterDistance <= minDistance)
+                    {
+                        break;
+                    }
                 }
                 if (minDistance >= minCounterDistance)
                 {
