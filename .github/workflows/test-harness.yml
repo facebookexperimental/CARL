@@ -14,8 +14,6 @@ on:
 jobs:
   test-harness:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
 
     steps:
       - name: Checkout PR branch
@@ -84,11 +82,17 @@ jobs:
             pr/current_results.json \
             --output report.md
 
-      - name: Post PR comment
+      - name: Print comparison report
         if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
+        run: cat report.md
+
+      - name: Upload comparison report
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
         with:
+          name: test-harness-comparison
           path: report.md
+          retention-days: 90
 
       - name: Upload results artifact
         if: github.event_name == 'push'
