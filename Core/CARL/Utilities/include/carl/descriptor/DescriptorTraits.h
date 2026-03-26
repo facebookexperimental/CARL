@@ -12,14 +12,21 @@ namespace carl::descriptor
     template<typename T>
     class DescriptorTraits
     {
-        template<typename C>
-        static char test(decltype(&C::DeltaDistance));
 
         template<typename C>
-        static char (&test(...))[2];
+        static char absoluteDistanceTest(decltype(&C::AbsoluteDistance));
+
+        template<typename C>
+        static char (&absoluteDistanceTest(...))[2];
+
+        template<typename C>
+        static char deltaDistanceTest(decltype(&C::DeltaDistance));
+
+        template<typename C>
+        static char (&deltaDistanceTest(...))[2];
 
     public:
-        static constexpr bool IS_DELTA = sizeof(test<T>(0)) == sizeof(char);
-        static constexpr bool HAS_DELTA = IS_DELTA;
+        static constexpr bool HAS_ABSOLUTE_DISTANCE = sizeof(absoluteDistanceTest<T>(0)) == sizeof(char);
+        static constexpr bool HAS_DELTA_DISTANCE = sizeof(deltaDistanceTest<T>(0)) == sizeof(char);
     };
 }

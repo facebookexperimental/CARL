@@ -199,17 +199,17 @@ namespace carl::action
                 }
 
                 auto absDist = [this](const DescriptorT& a, const DescriptorT& b) {
-                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::IS_DELTA)
-                    {
-                        return 0;
-                    }
-                    else
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_ABSOLUTE_DISTANCE)
                     {
                         return DescriptorT::AbsoluteDistance(a, b, m_tuning);
                     }
+                    else
+                    {
+                        return 0;
+                    }
                 };
                 auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
-                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::IS_DELTA)
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_DELTA_DISTANCE)
                     {
                         return DescriptorT::DeltaDistance(a, a0, b, b0, m_tuning);
                     }
@@ -448,17 +448,17 @@ namespace carl::action
                 size_t minimumImageEndIdx = 0) const
             {
                 auto absDist = [this](const DescriptorT& a, const DescriptorT& b) {
-                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::IS_DELTA)
-                    {
-                        return 0;
-                    }
-                    else
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_ABSOLUTE_DISTANCE)
                     {
                         return DescriptorT::AbsoluteDistance(a, b, m_tuning);
                     }
+                    else
+                    {
+                        return 0;
+                    }
                 };
                 auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
-                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::IS_DELTA)
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_DELTA_DISTANCE)
                     {
                         return DescriptorT::DeltaDistance(a, a0, b, b0, m_tuning);
                     }

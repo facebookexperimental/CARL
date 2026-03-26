@@ -38,9 +38,6 @@ namespace carl::descriptor
             }
         }
 
-        static constexpr bool IS_DELTA = (DescriptorTraits<Ts>::IS_DELTA && ...);
-        static constexpr bool HAS_DELTA = (DescriptorTraits<Ts>::HAS_DELTA || ...);
-
         static NumberT AbsoluteDistance(
             const CombinedDescriptor& a,
             const CombinedDescriptor& b,
@@ -144,7 +141,7 @@ namespace carl::descriptor
             gsl::span<const NumberT> tuning)
         {
             NumberT distance = 0;
-            if constexpr (!DescriptorTraits<T>::IS_DELTA)
+            if constexpr (DescriptorTraits<T>::HAS_ABSOLUTE_DISTANCE)
             {
                 const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
                 const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
@@ -166,7 +163,7 @@ namespace carl::descriptor
             gsl::span<const NumberT> tuning)
         {
             NumberT distance = 0;
-            if constexpr (DescriptorTraits<T>::HAS_DELTA)
+            if constexpr (DescriptorTraits<T>::HAS_DELTA_DISTANCE)
             {
                 const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
                 const T& a0Desc = a0.m_underlyingDescriptors.template get<Idx>();
