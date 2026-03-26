@@ -31,7 +31,8 @@ namespace carl::descriptor
             // Iteratively create new mostRecentSamples and descriptors until the most recent descriptor is sufficiently close to that of newSample.
             // TODO: Figure out if delta descriptors (rotation, translation, etc.) will play correctly with this, since lerping inputs should not 
             //       change them. Might be necessary to mute such descriptors with tuning.
-            while (true)
+            constexpr size_t MAX_FILL_ITERATIONS = 12;
+            for (size_t fillIter = 0; fillIter < MAX_FILL_ITERATIONS; ++fillIter)
             {
                 auto sampleDesc = tryCreate(newSample, mostRecentSample);
 
@@ -51,7 +52,8 @@ namespace carl::descriptor
                 NumberT upper = 1;
                 NumberT lower = 0;
                 NumberT mid{};
-                while (true)
+                constexpr size_t MAX_BISECT_ITERATIONS = 20;
+                for (size_t bisectIter = 0; bisectIter < MAX_BISECT_ITERATIONS; ++bisectIter)
                 {
                     mid = (upper + lower) / NumberT{ 2 };
                     auto intermediateDesc = DescriptorT::Lerp(sequence.back(), *sampleDesc, mid);
