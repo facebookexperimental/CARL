@@ -158,13 +158,9 @@ namespace carl::descriptor
             const CombinedDescriptor& b,
             gsl::span<const NumberT> tuning)
         {
-            NumberT distance = 0;
-            if constexpr (T::ANCHOR_INDEPENDENT)
-            {
-                const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
-                const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
-                distance = T::AnchorFreeDistance(aDesc, bDesc, TuningT::template getTuning<T>(tuning));
-            }
+            const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+            const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
+            NumberT distance = T::AnchorFreeDistance(aDesc, bDesc, TuningT::template getTuning<T>(tuning));
             if constexpr (sizeof...(RemainderT) > 0)
             {
                 distance += InternalAnchorFreeDistance<Idx + 1, RemainderT...>(a, b, tuning);
@@ -180,15 +176,11 @@ namespace carl::descriptor
             const CombinedDescriptor& b0,
             gsl::span<const NumberT> tuning)
         {
-            NumberT distance = 0;
-            if constexpr (!T::ANCHOR_INDEPENDENT)
-            {
-                const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
-                const T& a0Desc = a0.m_underlyingDescriptors.template get<Idx>();
-                const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
-                const T& b0Desc = b0.m_underlyingDescriptors.template get<Idx>();
-                distance = T::AnchorDependentDistance(aDesc, a0Desc, bDesc, b0Desc, TuningT::template getTuning<T>(tuning));
-            }
+            const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+            const T& a0Desc = a0.m_underlyingDescriptors.template get<Idx>();
+            const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
+            const T& b0Desc = b0.m_underlyingDescriptors.template get<Idx>();
+            NumberT distance = T::AnchorDependentDistance(aDesc, a0Desc, bDesc, b0Desc, TuningT::template getTuning<T>(tuning));
             if constexpr (sizeof...(RemainderT) > 0)
             {
                 distance += InternalAnchorDependentDistance<Idx + 1, RemainderT...>(a, a0, b, b0, tuning);
