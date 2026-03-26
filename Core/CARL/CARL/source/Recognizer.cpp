@@ -428,7 +428,13 @@ namespace carl::action
                 gsl::span<const DescriptorT> query,
                 size_t minimumImageEndIdx = 0) const
             {
-                auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction, minimumImageEndIdx);
+                auto afDist = [this](const DescriptorT& a, const DescriptorT& b) {
+                    return DescriptorT::AnchorFreeDistance(a, b, m_tuning);
+                };
+                auto adDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
+                    return DescriptorT::AnchorDependentDistance(a, a0, b, b0, m_tuning);
+                };
+                auto result = DynamicTimeWarping::Match(target, query, afDist, adDist, minimumImageEndIdx);
                 return result.MatchCost / result.Connections;
             }
 

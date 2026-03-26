@@ -45,6 +45,21 @@ namespace carl::descriptor
             return a.m_operations.Distance(a.m_descriptor, a0.m_descriptor, b.m_descriptor, b0.m_descriptor, tuning);
         }
 
+        static constexpr bool ANCHOR_INDEPENDENT = false;
+
+        static NumberT AnchorFreeDistance(
+            const Custom&,
+            const Custom&,
+            gsl::span<const NumberT>)
+        {
+            return 0;
+        }
+
+        static NumberT AnchorDependentDistance(const Custom& a, const Custom& a0, const Custom& b, const Custom& b0, gsl::span<const NumberT> tuning)
+        {
+            return Distance(a, a0, b, b0, tuning);
+        }
+
         static Custom Lerp(const Custom& a, const Custom& b, NumberT t)
         {
             assert(&a.m_operations == &b.m_operations);

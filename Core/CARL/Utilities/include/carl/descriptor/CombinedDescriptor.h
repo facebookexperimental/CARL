@@ -37,7 +37,7 @@ namespace carl::descriptor
             }
         }
 
-        static NumberT Distance(
+          static NumberT Distance(
             const CombinedDescriptor& a,
             const CombinedDescriptor& a0,
             const CombinedDescriptor& b,
@@ -45,6 +45,26 @@ namespace carl::descriptor
             gsl::span<const NumberT> tuning)
         {
             return InternalDistance<0, Ts...>(a, a0, b, b0, tuning);
+        }
+
+        static constexpr bool ANCHOR_INDEPENDENT = (Ts::ANCHOR_INDEPENDENT && ...);
+
+        static NumberT AnchorFreeDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& b,
+            gsl::span<const NumberT> tuning)
+        {
+            return InternalAnchorFreeDistance<0, Ts...>(a, b, tuning);
+        }
+
+        static NumberT AnchorDependentDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& a0,
+            const CombinedDescriptor& b,
+            const CombinedDescriptor& b0,
+            gsl::span<const NumberT> tuning)
+        {
+            return InternalAnchorDependentDistance<0, Ts...>(a, a0, b, b0, tuning);
         }
 
         static CombinedDescriptor Lerp(const CombinedDescriptor& a, const CombinedDescriptor& b, NumberT t)
@@ -128,6 +148,50 @@ namespace carl::descriptor
             if constexpr (sizeof...(RemainderT) > 0)
             {
                 distance += InternalDistance<Idx + 1, RemainderT...>(a, a0, b, b0, tuning);
+            }
+            return distance;
+        }
+
+        template<size_t Idx, typename T, typename... RemainderT>
+        static NumberT InternalAnchorFreeDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& b,
+            gsl::span<const NumberT> tuning)
+        {
+            NumberT distance = 0;
+            if constexpr (T::ANCHOR_INDEPENDENT)
+            {
+                const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+                const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
+                distance = T::AnchorFreeDistance(aDesc, bDesc, TuningT::template getTuning<T>(tuning));
+            }
+            if constexpr (sizeof...(RemainderT) > 0)
+            {
+                distance += InternalAnchorFreeDistance<Idx + 1, RemainderT...>(a, b, tuning);
+            }
+            return distance;
+        }
+
+        template<size_t Idx, typename T, typename... RemainderT>
+        static NumberT InternalAnchorDependentDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& a0,
+            const CombinedDescriptor& b,
+            const CombinedDescriptor& b0,
+            gsl::span<const NumberT> tuning)
+        {
+            NumberT distance = 0;
+            if constexpr (!T::ANCHOR_INDEPENDENT)
+            {
+                const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+                const T& a0Desc = a0.m_underlyingDescriptors.template get<Idx>();
+                const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
+                const T& b0Desc = b0.m_underlyingDescriptors.template get<Idx>();
+                distance = T::AnchorDependentDistance(aDesc, a0Desc, bDesc, b0Desc, TuningT::template getTuning<T>(tuning));
+            }
+            if constexpr (sizeof...(RemainderT) > 0)
+            {
+                distance += InternalAnchorDependentDistance<Idx + 1, RemainderT...>(a, a0, b, b0, tuning);
             }
             return distance;
         }

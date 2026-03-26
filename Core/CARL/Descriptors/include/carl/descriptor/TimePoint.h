@@ -17,7 +17,26 @@ namespace carl::descriptor
         static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "TimePoint";
 
     public:
+        static constexpr bool ANCHOR_INDEPENDENT = false;
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
+
+        static NumberT AnchorFreeDistance(
+            const TimePoint&,
+            const TimePoint&,
+            gsl::span<const NumberT>)
+        {
+            return 0;
+        }
+
+        static NumberT AnchorDependentDistance(
+            const TimePoint& a,
+            const TimePoint& a0,
+            const TimePoint& b,
+            const TimePoint& b0,
+            gsl::span<const NumberT> tuning)
+        {
+            return Distance(a, a0, b, b0, tuning);
+        }
 
         static std::optional<TimePoint> TryCreate(
             const InputSample& sample,

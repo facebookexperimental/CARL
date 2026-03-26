@@ -20,7 +20,26 @@ namespace carl::descriptor
         static inline constexpr const char* ANALYSIS_DIMENSION_NAME = "Egocentric Wrist Displacement";
 
     public:
+        static constexpr bool ANCHOR_INDEPENDENT = false;
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
+
+        static NumberT AnchorFreeDistance(
+            const EgocentricWristDisplacement&,
+            const EgocentricWristDisplacement&,
+            gsl::span<const NumberT>)
+        {
+            return 0;
+        }
+
+        static NumberT AnchorDependentDistance(
+            const EgocentricWristDisplacement& a,
+            const EgocentricWristDisplacement& a0,
+            const EgocentricWristDisplacement& b,
+            const EgocentricWristDisplacement& b0,
+            gsl::span<const NumberT> tuning)
+        {
+            return Distance(a, a0, b, b0, tuning);
+        }
 
         static std::optional<EgocentricWristDisplacement> TryCreate(
             const InputSample& sample,

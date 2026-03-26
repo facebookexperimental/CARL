@@ -270,4 +270,85 @@ namespace carl::DynamicTimeWarping
             matchIdx - match.StartIdx,
         };
     }
+
+    template <typename VectorT, typename AnchorFreeCallableT, typename AnchorDependentCallableT, typename NumberT = double>
+    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, AnchorFreeCallableT& anchorFreeDistance, AnchorDependentCallableT& anchorDependentDistance, size_t minimumImageIdx)
+    {
+        struct Entry
+        {
+            NumberT Cost{};
+            size_t Connections{};
+            NumberT MaxConnectionCost{};
+            size_t StartIdx{};
+        };
+
+        thread_local std::vector<Entry> priorRow{};
+        thread_local std::vector<Entry> currentRow{};
+        priorRow.resize(target.size() + 1);
+        currentRow.resize(priorRow.size());
+
+        NumberT cost{};
+
+        constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
+        priorRow[0] = sentinel;
+        currentRow[0] = sentinel;
+
+        for (size_t i = 0; i < target.size(); ++i)
+        {
+            cost = anchorFreeDistance(target[i], query[0]) + anchorDependentDistance(target[i], target[i], query[0], query[0]);
+            currentRow[i + 1] = { cost, 1, cost, i };
+        }
+
+        for (size_t j = 1; j < query.size(); ++j)
+        {
+            priorRow.swap(currentRow);
+
+            for (size_t i = 0; i < target.size(); ++i)
+            {
+                const auto& ul = priorRow[i];
+                const auto& u = priorRow[i + 1];
+                const auto& l = currentRow[i];
+
+                NumberT afCost = anchorFreeDistance(target[i], query[j]);
+
+                NumberT ulCost = afCost + anchorDependentDistance(target[i], target[ul.StartIdx], query[j], query[0]);
+                NumberT uCost = afCost + anchorDependentDistance(target[i], target[u.StartIdx], query[j], query[0]);
+                NumberT lCost = afCost + anchorDependentDistance(target[i], target[l.StartIdx], query[j], query[0]);
+
+                auto ancestor = ul;
+                cost = ulCost;
+                if (uCost + u.Cost < cost + ancestor.Cost)
+                {
+                    ancestor = u;
+                    cost = uCost;
+                }
+                if (lCost + l.Cost < cost + ancestor.Cost)
+                {
+                    ancestor = l;
+                    cost = lCost;
+                }
+                currentRow[i + 1] = { cost + ancestor.Cost, ancestor.Connections + 1, std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx };
+            }
+        }
+
+        NumberT matchCost = std::numeric_limits<NumberT>::max();
+        size_t matchIdx = minimumImageIdx;
+        for (size_t idx = minimumImageIdx; idx < currentRow.size(); ++idx)
+        {
+            if (currentRow[idx].Cost < matchCost)
+            {
+                matchIdx = idx;
+                matchCost = currentRow[matchIdx].Cost;
+            }
+        }
+
+        const auto& match = currentRow[matchIdx];
+        return MatchResult<NumberT>{
+            match.Cost,
+            match.Connections,
+            match.MaxConnectionCost,
+            match.StartIdx,
+            matchIdx - match.StartIdx,
+        };
+    }
 }

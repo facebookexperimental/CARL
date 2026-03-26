@@ -34,7 +34,26 @@ namespace carl::descriptor
             static_cast<size_t>(InputSample::Joint::XR_HAND_JOINT_INDEX_PROXIMAL_EXT) };
 
     public:
+        static constexpr bool ANCHOR_INDEPENDENT = true;
         static constexpr std::array<NumberT, JOINTS.size()> DEFAULT_TUNING{ 1., 1., 1., 1., 1. };
+
+        static NumberT AnchorFreeDistance(
+            const HandShape& a,
+            const HandShape& b,
+            gsl::span<const NumberT> tuning)
+        {
+            return Distance(a, a, b, b, tuning);
+        }
+
+        static NumberT AnchorDependentDistance(
+            const HandShape&,
+            const HandShape&,
+            const HandShape&,
+            const HandShape&,
+            gsl::span<const NumberT>)
+        {
+            return 0;
+        }
 
         static std::optional<HandShape> TryCreate(
             const InputSample& sample,
