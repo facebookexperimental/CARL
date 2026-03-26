@@ -26,25 +26,14 @@ namespace carl::descriptor
         };
 
     public:
-        static constexpr bool ANCHOR_INDEPENDENT = true;
         static constexpr std::array<NumberT, ANALYSIS_DIMENSION_NAMES.size()> DEFAULT_TUNING{ 1., 1., 1., 1., 1., 1., 1. };
 
-        static NumberT AnchorFreeDistance(
+        static NumberT AbsoluteDistance(
             const ControllerState& a,
             const ControllerState& b,
             gsl::span<const NumberT> tuning)
         {
             return Distance(a, a, b, b, tuning);
-        }
-
-        static NumberT AnchorDependentDistance(
-            const ControllerState&,
-            const ControllerState&,
-            const ControllerState&,
-            const ControllerState&,
-            gsl::span<const NumberT>)
-        {
-            return 0;
         }
 
         static std::optional<ControllerState> TryCreate(
@@ -113,10 +102,13 @@ namespace carl::descriptor
                 {
                     for (const auto& sequence : sequences)
                     {
-                        auto distanceFunction = [idx](const auto& a, const auto&, const auto& b, const auto&) {
+                        auto absoluteDistFn = [idx](const auto& a, const auto& b) {
                             return InternalRawDistance(idx, a, b);
                             };
-                        auto result = DynamicTimeWarping::Match<const ControllerState<Handedness>>(extendedSequence, sequence, distanceFunction);
+                        auto deltaDistFn = [](const auto&, const auto&, const auto&, const auto&) -> NumberT {
+                            return 0;
+                            };
+                        auto result = DynamicTimeWarping::Match<const ControllerState<Handedness>>(extendedSequence, sequence, absoluteDistFn, deltaDistFn);
                         maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                     }
                 }
@@ -136,7 +128,7 @@ namespace carl::descriptor
             {
                 results[idx] = { ANALYSIS_DIMENSION_NAMES[idx], IDENTICALITY_THRESHOLD, tuning[idx], {} };
                 auto& rows = std::get<3>(results[idx]);
-                auto distanceFunction = [idx, tuning](const auto& a, const auto&, const auto& b, const auto&) {
+                auto absoluteDistFn = [idx, tuning](const auto& a, const auto& b) {
                     if constexpr (NormalizeDistance)
                     {
                         return InternalNormalizedDistance(idx, a, b, tuning);
@@ -146,8 +138,11 @@ namespace carl::descriptor
                         return InternalRawDistance(idx, a, b);
                     }
                     };
+                auto deltaDistFn = [](const auto&, const auto&, const auto&, const auto&) -> NumberT {
+                    return 0;
+                    };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const ControllerState<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
+                DynamicTimeWarping::Match<const ControllerState<Handedness>, decltype(absoluteDistFn), decltype(deltaDistFn), NumberT, true, decltype(rowsCallback)>(target, query, absoluteDistFn, deltaDistFn, 0, rowsCallback);
             }
             return results;
         }

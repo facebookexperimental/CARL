@@ -20,6 +20,7 @@ namespace carl::descriptor
 
     public:
         static constexpr std::array<NumberT, 32> DEFAULT_TUNING{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        static constexpr bool IS_DELTA{ true };
 
         Custom(std::shared_ptr<void> descriptor, const internal::CustomActionTypeOperations& operations)
             : m_descriptor{ std::move(descriptor) }
@@ -45,17 +46,7 @@ namespace carl::descriptor
             return a.m_operations.Distance(a.m_descriptor, a0.m_descriptor, b.m_descriptor, b0.m_descriptor, tuning);
         }
 
-        static constexpr bool ANCHOR_INDEPENDENT = false;
-
-        static NumberT AnchorFreeDistance(
-            const Custom&,
-            const Custom&,
-            gsl::span<const NumberT>)
-        {
-            return 0;
-        }
-
-        static NumberT AnchorDependentDistance(const Custom& a, const Custom& a0, const Custom& b, const Custom& b0, gsl::span<const NumberT> tuning)
+        static NumberT DeltaDistance(const Custom& a, const Custom& a0, const Custom& b, const Custom& b0, gsl::span<const NumberT> tuning)
         {
             return Distance(a, a0, b, b0, tuning);
         }
