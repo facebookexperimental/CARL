@@ -1,0 +1,99 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
+name: Test Harness
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test-harness:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          path: pr
+
+      - name: Checkout main branch (baseline)
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          submodules: recursive
+          path: baseline
+
+      - name: Get commit hashes
+        id: commits
+        run: |
+          echo "pr_commit=$(cd pr && git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          if [ -d baseline ]; then
+            echo "baseline_commit=$(cd baseline && git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build baseline
+        if: github.event_name == 'pull_request'
+        run: |
+          cd baseline
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target carl_test_harness --parallel
+
+      - name: Run baseline harness
+        if: github.event_name == 'pull_request'
+        run: |
+          cd baseline
+          if [ -d TestData ] && [ "$(find TestData -name '*.carl' 2>/dev/null | head -1)" ]; then
+            ./build/Targets/carl_test_harness TestData \
+              --output baseline_results.json \
+              --commit ${{ steps.commits.outputs.baseline_commit }}
+          else
+            echo '{"version":"1.0","timestamp":"","commitHash":"${{ steps.commits.outputs.baseline_commit }}","truePositiveWindowToleranceSeconds":1.0,"results":[]}' > baseline_results.json
+          fi
+
+      - name: Build PR
+        run: |
+          cd pr
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target carl_test_harness --parallel
+
+      - name: Run PR harness
+        run: |
+          cd pr
+          if [ -d TestData ] && [ "$(find TestData -name '*.carl' 2>/dev/null | head -1)" ]; then
+            ./build/Targets/carl_test_harness TestData \
+              --output current_results.json \
+              --commit ${{ steps.commits.outputs.pr_commit }}
+          else
+            echo '{"version":"1.0","timestamp":"","commitHash":"${{ steps.commits.outputs.pr_commit }}","truePositiveWindowToleranceSeconds":1.0,"results":[]}' > current_results.json
+          fi
+
+      - name: Compare results
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 pr/Scripts/compare_results.py \
+            baseline/baseline_results.json \
+            pr/current_results.json \
+            --output report.md
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: report.md
+
+      - name: Upload results artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-harness-results
+          path: pr/current_results.json
+          retention-days: 90
