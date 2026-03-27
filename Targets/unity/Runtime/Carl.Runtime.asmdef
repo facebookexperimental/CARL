@@ -1,0 +1,16 @@
+{
+  "name": "Carl.Runtime",
+  "rootNamespace": "Carl",
+  "references": [
+    "Unity.XR.Hands"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
