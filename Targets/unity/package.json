@@ -1,0 +1,30 @@
+{
+  "name": "com.meta.carl",
+  "version": "0.1.0",
+  "displayName": "CARL - Classical Action Recognition Library",
+  "description": "Unity integration for the CARL gesture recognition library. Provides managed C# wrappers and MonoBehaviour components for XR gesture recognition using Dynamic Time Warping.",
+  "unity": "2021.3",
+  "documentationUrl": "https://github.com/meta/carl",
+  "dependencies": {
+    "com.unity.xr.hands": "1.3.0"
+  },
+  "keywords": [
+    "xr",
+    "gesture",
+    "recognition",
+    "hand-tracking",
+    "quest"
+  ],
+  "author": {
+    "name": "Meta Platforms, Inc.",
+    "url": "https://meta.com"
+  },
+  "license": "MIT",
+  "samples": [
+    {
+      "displayName": "Basic Gesture Recognition",
+      "description": "A minimal example showing how to set up CARL gesture recognition in a Unity scene.",
+      "path": "Samples~/BasicGestureRecognition"
+    }
+  ]
+}
