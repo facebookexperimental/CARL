@@ -268,4 +268,208 @@ namespace carl::DynamicTimeWarping
             matchIdx - match.StartIdx,
         };
     }
+
+    // --- Incremental DTW ---
+
+    template<typename NumberT = double>
+    struct IncrementalMatchState
+    {
+        struct Entry
+        {
+            NumberT Cost{ std::numeric_limits<NumberT>::max() };
+            size_t Connections{ std::numeric_limits<size_t>::max() };
+            NumberT MaxConnectionCost{ std::numeric_limits<NumberT>::max() };
+            size_t StartIdx{};
+        };
+
+        std::vector<Entry> bottomRow;
+        std::vector<Entry> rightColumn;
+        size_t pendingShift{};
+        size_t processedTargetWidth{};
+
+        void blackout()
+        {
+            Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
+            for (auto& e : rightColumn) { e = sentinel; }
+            bottomRow.clear();
+            processedTargetWidth = 0;
+        }
+
+        void accumulate(size_t newDescriptors)
+        {
+            pendingShift += newDescriptors;
+        }
+    };
+
+    template<typename NumberT = double>
+    IncrementalMatchState<NumberT> createIncrementalMatchState(size_t queryLength)
+    {
+        IncrementalMatchState<NumberT> state;
+        typename IncrementalMatchState<NumberT>::Entry sentinel{
+            std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(),
+            std::numeric_limits<NumberT>::max(), 0 };
+        state.rightColumn.resize(queryLength, sentinel);
+        return state;
+    }
+
+    template <typename VectorT, typename AbsoluteDistanceCallableT, typename DeltaDistanceCallableT, typename NumberT = double>
+    MatchResult<NumberT> IncrementalMatch(
+        gsl::span<VectorT> target,
+        gsl::span<VectorT> query,
+        AbsoluteDistanceCallableT& absoluteDistance,
+        DeltaDistanceCallableT& deltaDistance,
+        IncrementalMatchState<NumberT>& state,
+        size_t newDescriptors,
+        size_t minimumImageIdx = 0)
+    {
+        using Entry = typename IncrementalMatchState<NumberT>::Entry;
+        constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
+
+        size_t totalShift = state.pendingShift + newDescriptors;
+        state.pendingShift = 0;
+
+        // Degenerate cases: full recompute needed
+        if (totalShift >= state.processedTargetWidth || state.processedTargetWidth == 0 ||
+            target.size() != state.processedTargetWidth)
+        {
+            state.blackout();
+            totalShift = target.size();
+        }
+
+        // Shift persisted bottom row: drop leftmost entries, adjust StartIdx
+        if (totalShift > 0 && !state.bottomRow.empty())
+        {
+            if (totalShift >= state.bottomRow.size())
+            {
+                state.bottomRow.clear();
+            }
+            else
+            {
+                state.bottomRow.erase(state.bottomRow.begin(),
+                                      state.bottomRow.begin() + static_cast<ptrdiff_t>(totalShift));
+                for (auto& e : state.bottomRow)
+                {
+                    if (e.StartIdx < totalShift)
+                    {
+                        e = sentinel;
+                    }
+                    else
+                    {
+                        e.StartIdx -= totalShift;
+                    }
+                }
+            }
+        }
+
+        // Shift persisted right column: adjust StartIdx
+        for (auto& e : state.rightColumn)
+        {
+            if (e.Cost < std::numeric_limits<NumberT>::max())
+            {
+                if (e.StartIdx < totalShift)
+                {
+                    e = sentinel;
+                }
+                else
+                {
+                    e.StartIdx -= totalShift;
+                }
+            }
+        }
+
+        // Compute new columns (column-by-column, inner loop over query rows)
+        std::vector<Entry> previousColumn = state.rightColumn;
+        std::vector<Entry> currentColumn(query.size());
+
+        size_t firstNewCol = target.size() - totalShift;
+
+        for (size_t i = firstNewCol; i < target.size(); ++i)
+        {
+            // Row 0 (j=0): always compute fresh
+            NumberT cost = absoluteDistance(target[i], query[0]) + deltaDistance(target[i], target[i], query[0], query[0]);
+            currentColumn[0] = { cost, 1, cost, i };
+
+            // Rows 1..query.size()-1
+            for (size_t j = 1; j < query.size(); ++j)
+            {
+                const auto& diag = previousColumn[j - 1];
+                const auto& up = currentColumn[j - 1];
+                const auto& left = previousColumn[j];
+
+                NumberT absCost = absoluteDistance(target[i], query[j]);
+
+                auto ancestor = diag;
+                cost = (diag.Cost < std::numeric_limits<NumberT>::max())
+                    ? absCost + deltaDistance(target[i], target[diag.StartIdx], query[j], query[0])
+                    : std::numeric_limits<NumberT>::max();
+
+                if (up.Cost < std::numeric_limits<NumberT>::max())
+                {
+                    NumberT uCost = absCost + deltaDistance(target[i], target[up.StartIdx], query[j], query[0]);
+                    if (uCost + up.Cost < cost + ancestor.Cost)
+                    {
+                        ancestor = up;
+                        cost = uCost;
+                    }
+                }
+
+                if (left.Cost < std::numeric_limits<NumberT>::max())
+                {
+                    NumberT lCost = absCost + deltaDistance(target[i], target[left.StartIdx], query[j], query[0]);
+                    if (lCost + left.Cost < cost + ancestor.Cost)
+                    {
+                        ancestor = left;
+                        cost = lCost;
+                    }
+                }
+
+                if (ancestor.Cost < std::numeric_limits<NumberT>::max())
+                {
+                    currentColumn[j] = { cost + ancestor.Cost, ancestor.Connections + 1,
+                                         std::max(cost, ancestor.MaxConnectionCost), ancestor.StartIdx };
+                }
+                else
+                {
+                    currentColumn[j] = sentinel;
+                }
+            }
+
+            // Append last-row entry to bottom row
+            state.bottomRow.push_back(currentColumn.back());
+
+            std::swap(previousColumn, currentColumn);
+        }
+
+        // Update persisted state
+        state.rightColumn = previousColumn;
+        state.processedTargetWidth = target.size();
+
+        // Extract result from bottom row (same as original Match)
+        NumberT matchCost = std::numeric_limits<NumberT>::max();
+        size_t matchIdx = 0;
+
+        for (size_t idx = 0; idx < state.bottomRow.size(); ++idx)
+        {
+            // Bottom row indices correspond to target indices: idx maps to target column idx
+            if (idx >= minimumImageIdx && state.bottomRow[idx].Cost < matchCost)
+            {
+                matchIdx = idx;
+                matchCost = state.bottomRow[idx].Cost;
+            }
+        }
+
+        if (matchCost >= std::numeric_limits<NumberT>::max())
+        {
+            return MatchResult<NumberT>{ std::numeric_limits<NumberT>::max(), 1, std::numeric_limits<NumberT>::max(), 0, 0 };
+        }
+
+        const auto& match = state.bottomRow[matchIdx];
+        return MatchResult<NumberT>{
+            match.Cost,
+            match.Connections,
+            match.MaxConnectionCost,
+            match.StartIdx,
+            matchIdx - match.StartIdx,
+        };
+    }
 }
