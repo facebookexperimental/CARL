@@ -282,17 +282,15 @@ namespace carl::DynamicTimeWarping
             size_t StartIdx{};
         };
 
-        std::vector<Entry> bottomRow;
-        std::vector<Entry> rightColumn;
+        std::vector<Entry> bottomRow{};
+        std::vector<Entry> rightColumn{};
         size_t pendingShift{};
-        size_t processedTargetWidth{};
 
         void blackout()
         {
             Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
             for (auto& e : rightColumn) { e = sentinel; }
-            bottomRow.clear();
-            processedTargetWidth = 0;
+            for (auto& e : bottomRow) { e = sentinel; }
         }
 
         void accumulate(size_t newDescriptors)
@@ -304,7 +302,7 @@ namespace carl::DynamicTimeWarping
     template<typename NumberT = double>
     IncrementalMatchState<NumberT> createIncrementalMatchState(size_t queryLength)
     {
-        IncrementalMatchState<NumberT> state;
+        IncrementalMatchState<NumberT> state{};
         typename IncrementalMatchState<NumberT>::Entry sentinel{
             std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(),
             std::numeric_limits<NumberT>::max(), 0 };
@@ -325,16 +323,8 @@ namespace carl::DynamicTimeWarping
         using Entry = typename IncrementalMatchState<NumberT>::Entry;
         constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
 
-        size_t totalShift = state.pendingShift + newDescriptors;
+        size_t totalShift{ state.pendingShift + newDescriptors };
         state.pendingShift = 0;
-
-        // Degenerate cases: full recompute needed
-        if (totalShift >= state.processedTargetWidth || state.processedTargetWidth == 0 ||
-            target.size() != state.processedTargetWidth)
-        {
-            state.blackout();
-            totalShift = target.size();
-        }
 
         // Shift persisted bottom row: drop leftmost entries, adjust StartIdx
         if (totalShift > 0 && !state.bottomRow.empty())
@@ -347,16 +337,21 @@ namespace carl::DynamicTimeWarping
             {
                 state.bottomRow.erase(state.bottomRow.begin(),
                                       state.bottomRow.begin() + static_cast<ptrdiff_t>(totalShift));
-                for (auto& e : state.bottomRow)
+            }
+        }
+
+        // Adjust StartIdx in bottom row for the shift
+        for (auto& e : state.bottomRow)
+        {
+            if (e.Cost < std::numeric_limits<NumberT>::max())
+            {
+                if (e.StartIdx < totalShift)
                 {
-                    if (e.StartIdx < totalShift)
-                    {
-                        e = sentinel;
-                    }
-                    else
-                    {
-                        e.StartIdx -= totalShift;
-                    }
+                    e = sentinel;
+                }
+                else
+                {
+                    e.StartIdx -= totalShift;
                 }
             }
         }
@@ -378,15 +373,27 @@ namespace carl::DynamicTimeWarping
         }
 
         // Compute new columns (column-by-column, inner loop over query rows)
-        std::vector<Entry> previousColumn = state.rightColumn;
+        std::vector<Entry> previousColumn{ state.rightColumn };
         std::vector<Entry> currentColumn(query.size());
 
-        size_t firstNewCol = target.size() - totalShift;
+        size_t newColumnsCount{ totalShift };
+        // If the target grew beyond what we've tracked, compute extra columns
+        if (target.size() > state.bottomRow.size() + newColumnsCount)
+        {
+            newColumnsCount = target.size() - state.bottomRow.size();
+        }
+        // Clamp to target size
+        if (newColumnsCount > target.size())
+        {
+            newColumnsCount = target.size();
+        }
+
+        size_t firstNewCol{ target.size() - newColumnsCount };
 
         for (size_t i = firstNewCol; i < target.size(); ++i)
         {
             // Row 0 (j=0): always compute fresh
-            NumberT cost = absoluteDistance(target[i], query[0]) + deltaDistance(target[i], target[i], query[0], query[0]);
+            NumberT cost{ absoluteDistance(target[i], query[0]) + deltaDistance(target[i], target[i], query[0], query[0]) };
             currentColumn[0] = { cost, 1, cost, i };
 
             // Rows 1..query.size()-1
@@ -442,11 +449,10 @@ namespace carl::DynamicTimeWarping
 
         // Update persisted state
         state.rightColumn = previousColumn;
-        state.processedTargetWidth = target.size();
 
         // Extract result from bottom row (same as original Match)
-        NumberT matchCost = std::numeric_limits<NumberT>::max();
-        size_t matchIdx = 0;
+        NumberT matchCost{ std::numeric_limits<NumberT>::max() };
+        size_t matchIdx{ 0 };
 
         for (size_t idx = 0; idx < state.bottomRow.size(); ++idx)
         {

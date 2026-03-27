@@ -351,14 +351,13 @@ namespace carl::action
                     m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning, tryCreate);
                 }
 
-                // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
                 for (const auto& t : m_templates)
                 {
-                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * t.size()) / 4);
+                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, 2 * t.size());
                 }
                 for (const auto& ct : m_countertemplates)
                 {
-                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * ct.size()) / 4);
+                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, 2 * ct.size());
                 }
 
                 if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
@@ -527,20 +526,20 @@ namespace carl::action
 
                 gsl::span<const DescriptorT> trimmedSequence{ &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
 
-                // Early-out if no template's end is scored as appearing in the sequence.
-                NumberT score = std::numeric_limits<NumberT>::lowest();
+                // Early-out if no template's start is scored as appearing in the sequence.
+                NumberT score{ std::numeric_limits<NumberT>::lowest() };
                 for (const auto& t : m_templates)
                 {
-                    const auto& templateEnd = t.back();
-                    NumberT minEndDist = std::numeric_limits<NumberT>::max();
+                    const auto& templateStart = t.front();
+                    NumberT minStartDist{ std::numeric_limits<NumberT>::max() };
                     for (size_t i = 0; i < trimmedSequence.size(); ++i)
                     {
                         NumberT d = DescriptorT::Distance(
                             trimmedSequence[i], trimmedSequence[i],
-                            templateEnd, templateEnd, m_tuning);
-                        minEndDist = std::min(minEndDist, d);
+                            templateStart, templateStart, m_tuning);
+                        minStartDist = std::min(minStartDist, d);
                     }
-                    score = std::max(m_scoringFunction(minEndDist), score);
+                    score = std::max(m_scoringFunction(minStartDist), score);
                 }
                 if (score < std::numeric_limits<NumberT>::epsilon())
                 {
@@ -549,11 +548,11 @@ namespace carl::action
                     return 0;
                 }
 
-                const size_t firstNewDescriptorIdx = newDescriptorsCount <= trimmedSequence.size() ? trimmedSequence.size() - newDescriptorsCount : 0;
+                const size_t firstNewDescriptorIdx{ newDescriptorsCount <= trimmedSequence.size() ? trimmedSequence.size() - newDescriptorsCount : 0 };
 
                 // Calculate the base score based on proximity to templates
                 score = std::numeric_limits<NumberT>::lowest();
-                NumberT minDistance = std::numeric_limits<NumberT>::max();
+                NumberT minDistance{ std::numeric_limits<NumberT>::max() };
                 for (size_t i = 0; i < m_templates.size(); ++i)
                 {
                     NumberT distance = calculateMatchDistanceIncremental(trimmedSequence, m_templates[i], m_templateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
@@ -572,7 +571,7 @@ namespace carl::action
                 }
 
                 // Penalize score based on relative proximity to countertemplates
-                NumberT minCounterDistance = std::numeric_limits<NumberT>::max();
+                NumberT minCounterDistance{ std::numeric_limits<NumberT>::max() };
                 for (size_t i = 0; i < m_countertemplates.size(); ++i)
                 {
                     NumberT distance = calculateMatchDistanceIncremental(trimmedSequence, m_countertemplates[i], m_countertemplateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
