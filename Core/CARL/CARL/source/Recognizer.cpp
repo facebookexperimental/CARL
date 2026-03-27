@@ -353,11 +353,11 @@ namespace carl::action
 
                 for (const auto& t : m_templates)
                 {
-                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, 2 * t.size());
+                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * t.size()) / 4);
                 }
                 for (const auto& ct : m_countertemplates)
                 {
-                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, 2 * ct.size());
+                    m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * ct.size()) / 4);
                 }
 
                 if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
@@ -543,8 +543,8 @@ namespace carl::action
                 }
                 if (score < std::numeric_limits<NumberT>::epsilon())
                 {
-                    for (auto& s : m_templateStates) { s.blackout(); s.accumulate(newDescriptorsCount); }
-                    for (auto& s : m_countertemplateStates) { s.blackout(); s.accumulate(newDescriptorsCount); }
+                    for (auto& s : m_templateStates) { s.blackout(); }
+                    for (auto& s : m_countertemplateStates) { s.blackout(); }
                     return 0;
                 }
 
