@@ -322,6 +322,8 @@ namespace carl::action
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
             std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
+            std::vector<DynamicTimeWarping::IncrementalMatchState<NumberT>> m_templateStates{};
+            std::vector<DynamicTimeWarping::IncrementalMatchState<NumberT>> m_countertemplateStates{};
 
             void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
@@ -349,7 +351,6 @@ namespace carl::action
                     m_countertemplates = descriptor::createDescriptorSequencesFromExamples<DescriptorT>(counterexamples, m_tuning, tryCreate);
                 }
 
-                // TODO: Parameterize this calculation, instead of hard-coding 5/4ths?
                 for (const auto& t : m_templates)
                 {
                     m_trimmedSequenceLength = std::max(m_trimmedSequenceLength, (5 * t.size()) / 4);
@@ -366,6 +367,17 @@ namespace carl::action
                 else
                 {
                     m_sessionImpl.supportSequenceOfLength<DescriptorT>(2 * m_trimmedSequenceLength);
+                }
+
+                m_templateStates.clear();
+                for (const auto& t : m_templates)
+                {
+                    m_templateStates.push_back(DynamicTimeWarping::createIncrementalMatchState<NumberT>(t.size()));
+                }
+                m_countertemplateStates.clear();
+                for (const auto& ct : m_countertemplates)
+                {
+                    m_countertemplateStates.push_back(DynamicTimeWarping::createIncrementalMatchState<NumberT>(ct.size()));
                 }
             }
 
@@ -471,44 +483,79 @@ namespace carl::action
                 return result.MatchCost / result.Connections;
             }
 
-            NumberT calculateScore(gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) const
+            NumberT calculateMatchDistanceIncremental(
+                gsl::span<const DescriptorT> target,
+                gsl::span<const DescriptorT> query,
+                DynamicTimeWarping::IncrementalMatchState<NumberT>& state,
+                size_t newDescriptors,
+                size_t minimumImageEndIdx = 0)
+            {
+                auto absDist = [this](const DescriptorT& a, const DescriptorT& b) {
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_ABSOLUTE_DISTANCE)
+                    {
+                        return DescriptorT::AbsoluteDistance(a, b, m_tuning);
+                    }
+                    else
+                    {
+                        return NumberT{0};
+                    }
+                };
+                auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_DELTA_DISTANCE)
+                    {
+                        return DescriptorT::DeltaDistance(a, a0, b, b0, m_tuning);
+                    }
+                    else
+                    {
+                        return NumberT{0};
+                    }
+                };
+                auto result = DynamicTimeWarping::IncrementalMatch(target, query, absDist, deltaDist, state, newDescriptors, minimumImageEndIdx);
+                return result.MatchCost / result.Connections;
+            }
+
+            NumberT calculateScore(gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount)
             {
                 // Early-out if the provided sequence is too short.
                 if (sequence.size() < m_trimmedSequenceLength)
                 {
+                    for (auto& s : m_templateStates) { s.accumulate(newDescriptorsCount); }
+                    for (auto& s : m_countertemplateStates) { s.accumulate(newDescriptorsCount); }
                     return 0;
                 }
 
                 gsl::span<const DescriptorT> trimmedSequence{ &sequence[sequence.size() - m_trimmedSequenceLength], m_trimmedSequenceLength };
 
-                // Early-out if no template's end is scored as appearing in the sequence.
-                NumberT score = std::numeric_limits<NumberT>::lowest();
+                // Early-out if no template's start is scored as appearing in the sequence.
+                NumberT score{ std::numeric_limits<NumberT>::lowest() };
                 for (const auto& t : m_templates)
                 {
-                    const auto& templateEnd = t.back();
-                    NumberT minEndDist = std::numeric_limits<NumberT>::max();
+                    const auto& templateStart = t.front();
+                    NumberT minStartDist{ std::numeric_limits<NumberT>::max() };
                     for (size_t i = 0; i < trimmedSequence.size(); ++i)
                     {
                         NumberT d = DescriptorT::Distance(
                             trimmedSequence[i], trimmedSequence[i],
-                            templateEnd, templateEnd, m_tuning);
-                        minEndDist = std::min(minEndDist, d);
+                            templateStart, templateStart, m_tuning);
+                        minStartDist = std::min(minStartDist, d);
                     }
-                    score = std::max(m_scoringFunction(minEndDist), score);
+                    score = std::max(m_scoringFunction(minStartDist), score);
                 }
                 if (score < std::numeric_limits<NumberT>::epsilon())
                 {
+                    for (auto& s : m_templateStates) { s.blackout(); }
+                    for (auto& s : m_countertemplateStates) { s.blackout(); }
                     return 0;
                 }
 
-                const size_t firstNewDescriptorIdx = newDescriptorsCount <= trimmedSequence.size() ? trimmedSequence.size() - newDescriptorsCount : 0;
+                const size_t firstNewDescriptorIdx{ newDescriptorsCount <= trimmedSequence.size() ? trimmedSequence.size() - newDescriptorsCount : 0 };
 
                 // Calculate the base score based on proximity to templates
                 score = std::numeric_limits<NumberT>::lowest();
-                NumberT minDistance = std::numeric_limits<NumberT>::max();
-                for (const auto& t : m_templates)
+                NumberT minDistance{ std::numeric_limits<NumberT>::max() };
+                for (size_t i = 0; i < m_templates.size(); ++i)
                 {
-                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx);
+                    NumberT distance = calculateMatchDistanceIncremental(trimmedSequence, m_templates[i], m_templateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
                     score = std::max(m_scoringFunction(distance), score);
                     minDistance = std::min(distance, minDistance);
                 }
@@ -519,18 +566,24 @@ namespace carl::action
                 // Skip counterexample DTW when score is already negligible.
                 if (score < std::numeric_limits<NumberT>::epsilon())
                 {
+                    for (auto& s : m_countertemplateStates) { s.accumulate(newDescriptorsCount); }
                     return 0;
                 }
 
                 // Penalize score based on relative proximity to countertemplates
-                NumberT minCounterDistance = std::numeric_limits<NumberT>::max();
-                for (const auto& t : m_countertemplates)
+                NumberT minCounterDistance{ std::numeric_limits<NumberT>::max() };
+                for (size_t i = 0; i < m_countertemplates.size(); ++i)
                 {
-                    NumberT distance = calculateMatchDistance(trimmedSequence, t, firstNewDescriptorIdx);
+                    NumberT distance = calculateMatchDistanceIncremental(trimmedSequence, m_countertemplates[i], m_countertemplateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
                     minCounterDistance = std::min(distance, minCounterDistance);
                     // Early-exit once counter is closer than template — minCounterDistance can only decrease, so penalty is already maximized.
                     if (minCounterDistance <= minDistance)
                     {
+                        // Accumulate for remaining unevaluated countertemplates
+                        for (size_t j = i + 1; j < m_countertemplates.size(); ++j)
+                        {
+                            m_countertemplateStates[j].accumulate(newDescriptorsCount);
+                        }
                         break;
                     }
                 }
