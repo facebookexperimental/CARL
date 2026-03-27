@@ -160,8 +160,8 @@ namespace carl::DynamicTimeWarping
         size_t ImageSize{};
     };
 
-    template <typename VectorT, typename CallableT, typename NumberT = double, bool ReturnAllResults = false, typename... Ts>
-    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, CallableT& distance, size_t minimumImageIdx = 0, Ts&... ts)
+    template <typename VectorT, typename AbsoluteDistanceCallableT, typename DeltaDistanceCallableT, typename NumberT = double, bool ReturnAllResults = false, typename... Ts>
+    MatchResult<NumberT> Match(gsl::span<VectorT> target, gsl::span<VectorT> query, AbsoluteDistanceCallableT& absoluteDistance, DeltaDistanceCallableT& deltaDistance, size_t minimumImageIdx = 0, Ts&... ts)
     {
         struct Entry
         {
@@ -194,10 +194,6 @@ namespace carl::DynamicTimeWarping
         priorRow.resize(target.size() + 1);
         currentRow.resize(priorRow.size());
 
-        NumberT ulCost{};
-        NumberT uCost{};
-        NumberT lCost{};
-
         NumberT cost{};
 
         constexpr Entry sentinel{ std::numeric_limits<NumberT>::max(), std::numeric_limits<size_t>::max(), std::numeric_limits<NumberT>::max(), 0 };
@@ -206,7 +202,7 @@ namespace carl::DynamicTimeWarping
 
         for (size_t i = 0; i < target.size(); ++i)
         {
-            cost = distance(target[i], target[i], query[0], query[0]);
+            cost = absoluteDistance(target[i], query[0]) + deltaDistance(target[i], target[i], query[0], query[0]);
             currentRow[i + 1] = { cost, 1, cost, i };
         }
 
@@ -225,9 +221,11 @@ namespace carl::DynamicTimeWarping
                 const auto& u = priorRow[i + 1];
                 const auto& l = currentRow[i];
 
-                ulCost = distance(target[i], target[ul.StartIdx],  query[j], query[0]);
-                uCost = distance(target[i], target[u.StartIdx], query[j], query[0]);
-                lCost = distance(target[i], target[l.StartIdx], query[j], query[0]);
+                NumberT absCost = absoluteDistance(target[i], query[j]);
+
+                NumberT ulCost = absCost + deltaDistance(target[i], target[ul.StartIdx], query[j], query[0]);
+                NumberT uCost = absCost + deltaDistance(target[i], target[u.StartIdx], query[j], query[0]);
+                NumberT lCost = absCost + deltaDistance(target[i], target[l.StartIdx], query[j], query[0]);
 
                 auto ancestor = ul;
                 cost = ulCost;

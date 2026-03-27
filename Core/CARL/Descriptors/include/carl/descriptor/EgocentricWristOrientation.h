@@ -22,6 +22,14 @@ namespace carl::descriptor
     public:
         static constexpr std::array<NumberT, 1> DEFAULT_TUNING{ 1. };
 
+        static NumberT AbsoluteDistance(
+            const EgocentricWristOrientation& a,
+            const EgocentricWristOrientation& b,
+            gsl::span<const NumberT> tuning)
+        {
+            return Distance(a, a, b, b, tuning);
+        }
+
         static std::optional<EgocentricWristOrientation> TryCreate(
             const InputSample& sample,
             const InputSample& priorSample)
@@ -90,10 +98,13 @@ namespace carl::descriptor
             {
                 for (const auto& sequence : sequences)
                 {
-                    auto distanceFunction = [](const auto& a, const auto&, const auto& b, const auto&) {
+                    auto absoluteDistFn = [](const auto& a, const auto& b) {
                         return InternalRawDistance(a, b);
                         };
-                    auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, distanceFunction);
+                    auto deltaDistFn = [](const auto&, const auto&, const auto&, const auto&) -> NumberT {
+                        return 0;
+                        };
+                    auto result = DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>>(extendedSequence, sequence, absoluteDistFn, deltaDistFn);
                     maxAverageConnectionCost = std::max<NumberT>(result.MaxConnectionCost / result.Connections, maxAverageConnectionCost);
                 }
             }
@@ -110,7 +121,7 @@ namespace carl::descriptor
             std::array<AnalysisT, DEFAULT_TUNING.size()> results{};
             results[0] = { ANALYSIS_DIMENSION_NAME, IDENTICALITY_THRESHOLD, tuning.front(), {} };
             auto& rows = std::get<3>(results[0]);
-            auto distanceFunction = [tuning](const auto& a, const auto&, const auto& b, const auto&) {
+            auto absoluteDistFn = [tuning](const auto& a, const auto& b) {
                 if constexpr (NormalizeDistance)
                 {
                     return InternalNormalizedDistance(a, b, tuning);
@@ -120,8 +131,11 @@ namespace carl::descriptor
                     return InternalRawDistance(a, b);
                 }
                 };
+            auto deltaDistFn = [](const auto&, const auto&, const auto&, const auto&) -> NumberT {
+                return 0;
+                };
             auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
+            DynamicTimeWarping::Match<const EgocentricWristOrientation<Handedness>, decltype(absoluteDistFn), decltype(deltaDistFn), NumberT, true, decltype(rowsCallback)>(target, query, absoluteDistFn, deltaDistFn, 0, rowsCallback);
             return results;
         }
 

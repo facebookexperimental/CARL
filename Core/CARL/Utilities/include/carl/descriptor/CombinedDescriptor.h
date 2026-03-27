@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <carl/descriptor/DescriptorTraits.h>
 #include <carl/descriptor/DescriptorUtils.h>
 #include <carl/descriptor/Trivial.h>
 #include <carl/descriptor/Tuning.h>
@@ -37,6 +38,24 @@ namespace carl::descriptor
             }
         }
 
+        static NumberT AbsoluteDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& b,
+            gsl::span<const NumberT> tuning)
+        {
+            return InternalAbsoluteDistance<0, Ts...>(a, b, tuning);
+        }
+
+        static NumberT DeltaDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& a0,
+            const CombinedDescriptor& b,
+            const CombinedDescriptor& b0,
+            gsl::span<const NumberT> tuning)
+        {
+            return InternalDeltaDistance<0, Ts...>(a, a0, b, b0, tuning);
+        }
+
         static NumberT Distance(
             const CombinedDescriptor& a,
             const CombinedDescriptor& a0,
@@ -44,7 +63,7 @@ namespace carl::descriptor
             const CombinedDescriptor& b0,
             gsl::span<const NumberT> tuning)
         {
-            return InternalDistance<0, Ts...>(a, a0, b, b0, tuning);
+            return AbsoluteDistance(a, b, tuning) + DeltaDistance(a, a0, b, b0, tuning);
         }
 
         static CombinedDescriptor Lerp(const CombinedDescriptor& a, const CombinedDescriptor& b, NumberT t)
@@ -72,11 +91,14 @@ namespace carl::descriptor
                 std::array<AnalysisT, 1> results{};
                 results[0] = { ANALYSIS_DIMENSION_NAME, -1, -1, {} };
                 auto& rows = std::get<3>(results[0]);
-                auto distanceFunction = [tuning](const auto& a, const auto& a0, const auto& b, const auto& b0) {
-                    return Distance(a, a0, b, b0, tuning);
+                auto absoluteDistFn = [tuning](const auto& a, const auto& b) {
+                    return AbsoluteDistance(a, b, tuning);
+                    };
+                auto deltaDistFn = [tuning](const auto& a, const auto& a0, const auto& b, const auto& b0) {
+                    return DeltaDistance(a, a0, b, b0, tuning);
                     };
                 auto rowsCallback = [&rows](std::vector<DynamicTimeWarping::MatchResult<NumberT>> row) { rows.push_back(std::move(row)); };
-                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(distanceFunction), NumberT, true, decltype(rowsCallback)>(target, query, distanceFunction, 0, rowsCallback);
+                DynamicTimeWarping::Match<const CombinedDescriptor, decltype(absoluteDistFn), decltype(deltaDistFn), NumberT, true, decltype(rowsCallback)>(target, query, absoluteDistFn, deltaDistFn, 0, rowsCallback);
                 return arrayConcat(underlyingAnalysis, results);
             }
             else
@@ -113,21 +135,45 @@ namespace carl::descriptor
         }
 
         template<size_t Idx, typename T, typename... RemainderT>
-        static NumberT InternalDistance(
+        static NumberT InternalAbsoluteDistance(
+            const CombinedDescriptor& a,
+            const CombinedDescriptor& b,
+            gsl::span<const NumberT> tuning)
+        {
+            NumberT distance = 0;
+            if constexpr (DescriptorTraits<T>::HAS_ABSOLUTE_DISTANCE)
+            {
+                const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+                const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
+                distance = T::AbsoluteDistance(aDesc, bDesc, TuningT::template getTuning<T>(tuning));
+            }
+            if constexpr (sizeof...(RemainderT) > 0)
+            {
+                distance += InternalAbsoluteDistance<Idx + 1, RemainderT...>(a, b, tuning);
+            }
+            return distance;
+        }
+
+        template<size_t Idx, typename T, typename... RemainderT>
+        static NumberT InternalDeltaDistance(
             const CombinedDescriptor& a,
             const CombinedDescriptor& a0,
             const CombinedDescriptor& b,
             const CombinedDescriptor& b0,
             gsl::span<const NumberT> tuning)
         {
-            const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
-            const T& a0Desc = a0.m_underlyingDescriptors.template get<Idx>();
-            const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
-            const T& b0Desc = b0.m_underlyingDescriptors.template get<Idx>();
-            auto distance = T::Distance(aDesc, a0Desc, bDesc, b0Desc, TuningT::template getTuning<T>(tuning));
+            NumberT distance = 0;
+            if constexpr (DescriptorTraits<T>::HAS_DELTA_DISTANCE)
+            {
+                const T& aDesc = a.m_underlyingDescriptors.template get<Idx>();
+                const T& a0Desc = a0.m_underlyingDescriptors.template get<Idx>();
+                const T& bDesc = b.m_underlyingDescriptors.template get<Idx>();
+                const T& b0Desc = b0.m_underlyingDescriptors.template get<Idx>();
+                distance = T::DeltaDistance(aDesc, a0Desc, bDesc, b0Desc, TuningT::template getTuning<T>(tuning));
+            }
             if constexpr (sizeof...(RemainderT) > 0)
             {
-                distance += InternalDistance<Idx + 1, RemainderT...>(a, a0, b, b0, tuning);
+                distance += InternalDeltaDistance<Idx + 1, RemainderT...>(a, a0, b, b0, tuning);
             }
             return distance;
         }

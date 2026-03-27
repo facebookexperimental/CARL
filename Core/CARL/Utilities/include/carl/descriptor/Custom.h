@@ -20,6 +20,7 @@ namespace carl::descriptor
 
     public:
         static constexpr std::array<NumberT, 32> DEFAULT_TUNING{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
+        static constexpr bool IS_DELTA{ true };
 
         Custom(std::shared_ptr<void> descriptor, const internal::CustomActionTypeOperations& operations)
             : m_descriptor{ std::move(descriptor) }
@@ -43,6 +44,11 @@ namespace carl::descriptor
         static NumberT Distance(const Custom& a, const Custom& a0, const Custom& b, const Custom& b0, gsl::span<const NumberT> tuning)
         {
             return a.m_operations.Distance(a.m_descriptor, a0.m_descriptor, b.m_descriptor, b0.m_descriptor, tuning);
+        }
+
+        static NumberT DeltaDistance(const Custom& a, const Custom& a0, const Custom& b, const Custom& b0, gsl::span<const NumberT> tuning)
+        {
+            return Distance(a, a0, b, b0, tuning);
         }
 
         static Custom Lerp(const Custom& a, const Custom& b, NumberT t)

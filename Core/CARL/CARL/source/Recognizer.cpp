@@ -14,6 +14,7 @@
 #include <carl/descriptor/SequenceOperations.h>
 #include <carl/descriptor/TimestampedDescriptor.h>
 #include <carl/DynamicTimeWarping.h>
+#include <carl/descriptor/DescriptorTraits.h>
 
 #include <atomic>
 
@@ -160,7 +161,6 @@ namespace carl::action
             RecognizerImpl(Session& session, gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples, NumberT sensitivity, ContractId<>::IdT customContractId = ContractId<>::INVALID_ID)
                 : Recognizer::Impl{ session, sensitivity, customContractId }
                 , m_ticket{ addHandlerToSession<DescriptorT>(session, [this](gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount) { handleSequence(sequence, newDescriptorsCount); }, customContractId) }
-                , m_distanceFunction{ [this](const auto& a, const auto& a0, const auto& b, const auto& b0) { return DescriptorT::Distance(a, a0, b, b0, m_tuning); } }
             {
                 m_tuning = DescriptorT::DEFAULT_TUNING;
                 initializeTemplates(examples, counterexamples);
@@ -198,10 +198,30 @@ namespace carl::action
                     sequence.push_back(desc.getUnderlyingDescriptor());
                 }
 
-                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], m_distanceFunction);
+                auto absDist = [this](const DescriptorT& a, const DescriptorT& b) {
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_ABSOLUTE_DISTANCE)
+                    {
+                        return DescriptorT::AbsoluteDistance(a, b, m_tuning);
+                    }
+                    else
+                    {
+                        return NumberT{0};
+                    }
+                };
+                auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_DELTA_DISTANCE)
+                    {
+                        return DescriptorT::DeltaDistance(a, a0, b, b0, m_tuning);
+                    }
+                    else
+                    {
+                        return NumberT{0};
+                    }
+                };
+                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], absDist, deltaDist);
                 for (size_t idx = 1; idx < m_templates.size(); ++idx)
                 {
-                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], m_distanceFunction);
+                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], absDist, deltaDist);
                     if (matchResult.MatchCost < bestMatchResult.MatchCost)
                     {
                         bestMatchResult = matchResult;
@@ -300,7 +320,6 @@ namespace carl::action
             std::vector<std::vector<DescriptorT>> m_countertemplates{};
             size_t m_trimmedSequenceLength{};
             std::array<NumberT, DescriptorT::DEFAULT_TUNING.size()> m_tuning{};
-            std::function<NumberT(const DescriptorT&, const DescriptorT&, const DescriptorT&, const DescriptorT&)> m_distanceFunction{};
             std::function<NumberT(NumberT)> m_scoringFunction{};
             bool m_recognition{ false };
 
@@ -428,7 +447,27 @@ namespace carl::action
                 gsl::span<const DescriptorT> query,
                 size_t minimumImageEndIdx = 0) const
             {
-                auto result = DynamicTimeWarping::Match(target, query, m_distanceFunction, minimumImageEndIdx);
+                auto absDist = [this](const DescriptorT& a, const DescriptorT& b) {
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_ABSOLUTE_DISTANCE)
+                    {
+                        return DescriptorT::AbsoluteDistance(a, b, m_tuning);
+                    }
+                    else
+                    {
+                        return NumberT{0};
+                    }
+                };
+                auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
+                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_DELTA_DISTANCE)
+                    {
+                        return DescriptorT::DeltaDistance(a, a0, b, b0, m_tuning);
+                    }
+                    else
+                    {
+                        return NumberT{0};
+                    }
+                };
+                auto result = DynamicTimeWarping::Match(target, query, absDist, deltaDist, minimumImageEndIdx);
                 return result.MatchCost / result.Connections;
             }
 
