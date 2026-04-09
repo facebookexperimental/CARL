@@ -12,7 +12,7 @@
 namespace carl::descriptor
 {
     template<typename DescriptorT, typename CallableT>
-    void extendSequence(const InputSample& newSample, std::vector<DescriptorT>& sequence, InputSample& mostRecentSample, gsl::span<const NumberT> tuning, const CallableT& tryCreate)
+    void extendSequence(const InputSample& newSample, std::vector<DescriptorT>& sequence, InputSample& mostRecentSample, gsl::span<const NumberT> tuning, const CallableT& tryCreate, std::vector<double>& timestamps)
     {
         constexpr NumberT THRESHOLD{ 0.5 };
 
@@ -24,6 +24,7 @@ namespace carl::descriptor
             {
                 sequence.emplace_back(std::move(*descriptor));
                 mostRecentSample = newSample;
+                timestamps.push_back(newSample.Timestamp);
             }
         }
         else
@@ -73,6 +74,7 @@ namespace carl::descriptor
                         // intermediate sample is satisfactory, stop searching
                         sequence.push_back(intermediateDesc);
                         mostRecentSample = InputSample::Lerp(mostRecentSample, newSample, mid);
+                        timestamps.push_back(mostRecentSample.Timestamp);
                         break;
                     }
                 }
@@ -84,6 +86,7 @@ namespace carl::descriptor
     std::vector<DescriptorT> createDescriptorSequenceFromRecording(const RecordingT& recording, double startTimestamp, double endTimestamp, gsl::span<const NumberT> tuning, const CallableT& tryCreate)
     {
         std::vector<DescriptorT> sequence{};
+        std::vector<double> timestamps{};
 
         auto samples = recording.getSamples();
         InputSample mostRecentSample{};
@@ -95,7 +98,7 @@ namespace carl::descriptor
         }
         do
         {
-            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning, tryCreate);
+            descriptor::extendSequence(samples[idx], sequence, mostRecentSample, tuning, tryCreate, timestamps);
             ++idx;
         } while (idx < samples.size() && samples[idx].Timestamp < endTimestamp);
 

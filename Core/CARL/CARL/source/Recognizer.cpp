@@ -8,6 +8,7 @@
 #include <carl/Recognizer.h>
 
 #include "SessionImpl.h"
+#include "ActionAttemptEstimator.h"
 
 #include <carl/ActionTypeDefinitions.h>
 #include <carl/descriptor/Custom.h>
@@ -129,10 +130,12 @@ namespace carl::action
     protected:
         virtual Example createAutoTrimmedExample(const Recording&) const = 0;
         virtual void analyzeRecording(const Recording& recording, std::ostream& output) const = 0;
+        virtual void enableActionAttemptEstimation(ActionAttemptEstimationSettings) = 0;
 
     protected:
         Session::Impl& m_sessionImpl;
         arcana::weak_table<Signal<bool>::HandlerT> m_whenRecognitionChangedHandlers{};
+        arcana::weak_table<Signal<AttemptCluster>::HandlerT> m_whenAttemptClusterDetectedHandlers{};
         std::atomic<NumberT> m_currentScore{};
         std::unique_ptr<Recording> m_canonicalRecording{};
         NumberT m_sensitivity{};
@@ -186,8 +189,9 @@ namespace carl::action
                     }
                     else
                     {
-                        constexpr auto tryCreate = [](const InputSample& newSample, const InputSample& priorSample) { return descriptor::TimestampedDescriptor<DescriptorT>::TryCreate(newSample, priorSample); };
-                        descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning, tryCreate);
+                    constexpr auto tryCreate = [](const InputSample& newSample, const InputSample& priorSample) { return descriptor::TimestampedDescriptor<DescriptorT>::TryCreate(newSample, priorSample); };
+                        std::vector<double> discardedTimestamps{};
+                        descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning, tryCreate, discardedTimestamps);
                     }
                 }
 
@@ -324,6 +328,10 @@ namespace carl::action
             bool m_recognition{ false };
             std::vector<DynamicTimeWarping::IncrementalMatchState<NumberT>> m_templateStates{};
             std::vector<DynamicTimeWarping::IncrementalMatchState<NumberT>> m_countertemplateStates{};
+            DynamicTimeWarping::MatchResult<NumberT> m_lastBestMatchResult{};
+            size_t m_lastBestTemplateIdx{};
+            NumberT m_lastMinDistance{};
+            std::unique_ptr<ActionAttemptEstimator<DescriptorT>> m_estimator{};
 
             void initializeTemplates(gsl::span<const action::Example> examples, gsl::span<const action::Example> counterexamples)
             {
@@ -454,7 +462,7 @@ namespace carl::action
                 m_canonicalRecording = std::make_unique<Recording>(std::move(recording));
             }
 
-            NumberT calculateMatchDistance(
+            DynamicTimeWarping::MatchResult<NumberT> calculateMatchDistance(
                 gsl::span<const DescriptorT> target,
                 gsl::span<const DescriptorT> query,
                 size_t minimumImageEndIdx = 0) const
@@ -479,11 +487,10 @@ namespace carl::action
                         return NumberT{0};
                     }
                 };
-                auto result = DynamicTimeWarping::Match(target, query, absDist, deltaDist, minimumImageEndIdx);
-                return result.MatchCost / result.Connections;
+                return DynamicTimeWarping::Match(target, query, absDist, deltaDist, minimumImageEndIdx);
             }
 
-            NumberT calculateMatchDistanceIncremental(
+            DynamicTimeWarping::MatchResult<NumberT> calculateMatchDistanceIncremental(
                 gsl::span<const DescriptorT> target,
                 gsl::span<const DescriptorT> query,
                 DynamicTimeWarping::IncrementalMatchState<NumberT>& state,
@@ -510,8 +517,7 @@ namespace carl::action
                         return NumberT{0};
                     }
                 };
-                auto result = DynamicTimeWarping::IncrementalMatch(target, query, absDist, deltaDist, state, newDescriptors, minimumImageEndIdx);
-                return result.MatchCost / result.Connections;
+                return DynamicTimeWarping::IncrementalMatch(target, query, absDist, deltaDist, state, newDescriptors, minimumImageEndIdx);
             }
 
             NumberT calculateScore(gsl::span<const DescriptorT> sequence, size_t newDescriptorsCount)
@@ -555,10 +561,17 @@ namespace carl::action
                 NumberT minDistance{ std::numeric_limits<NumberT>::max() };
                 for (size_t i = 0; i < m_templates.size(); ++i)
                 {
-                    NumberT distance = calculateMatchDistanceIncremental(trimmedSequence, m_templates[i], m_templateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
+                    auto matchResult = calculateMatchDistanceIncremental(trimmedSequence, m_templates[i], m_templateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
+                    NumberT distance = matchResult.MatchCost / matchResult.Connections;
                     score = std::max(m_scoringFunction(distance), score);
-                    minDistance = std::min(distance, minDistance);
+                    if (distance < minDistance)
+                    {
+                        minDistance = distance;
+                        m_lastBestMatchResult = matchResult;
+                        m_lastBestTemplateIdx = i;
+                    }
                 }
+                m_lastMinDistance = minDistance;
 
                 // Clamp score to [0, 1] range.
                 score = std::clamp<NumberT>(score, 0, 1);
@@ -574,7 +587,8 @@ namespace carl::action
                 NumberT minCounterDistance{ std::numeric_limits<NumberT>::max() };
                 for (size_t i = 0; i < m_countertemplates.size(); ++i)
                 {
-                    NumberT distance = calculateMatchDistanceIncremental(trimmedSequence, m_countertemplates[i], m_countertemplateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
+                    auto counterResult = calculateMatchDistanceIncremental(trimmedSequence, m_countertemplates[i], m_countertemplateStates[i], newDescriptorsCount, firstNewDescriptorIdx);
+                    NumberT distance = counterResult.MatchCost / counterResult.Connections;
                     minCounterDistance = std::min(distance, minCounterDistance);
                     // Early-exit once counter is closer than template — minCounterDistance can only decrease, so penalty is already maximized.
                     if (minCounterDistance <= minDistance)
@@ -609,6 +623,51 @@ namespace carl::action
                     m_whenRecognitionChangedHandlers.apply_to_all([this](auto& callable) { callable(m_recognition); });
                 }
                 m_currentScore.store(score);
+
+                if (m_estimator)
+                {
+                    auto providerTimestamps = [this]() {
+                        if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                        {
+                            return m_sessionImpl.getProviderTimestamps(m_customContractId);
+                        }
+                        else
+                        {
+                            return m_sessionImpl.getProviderTimestamps<DescriptorT>();
+                        }
+                    }();
+
+                    auto adjustedResult = m_lastBestMatchResult;
+                    if (sequence.size() >= m_trimmedSequenceLength)
+                    {
+                        size_t trimOffset = sequence.size() - m_trimmedSequenceLength;
+                        adjustedResult.ImageStartIdx += trimOffset;
+                    }
+
+                    double currentTimestamp = !providerTimestamps.empty() ? providerTimestamps[providerTimestamps.size() - 1] : 0.0;
+
+                    m_estimator->update(currentTimestamp, adjustedResult, m_lastBestTemplateIdx, sequence, providerTimestamps, m_sessionImpl, score);
+                    m_estimator->expireSnapshots(currentTimestamp);
+
+                    auto cluster = m_estimator->checkForCluster();
+                    if (cluster.has_value())
+                    {
+                        m_whenAttemptClusterDetectedHandlers.apply_to_all([&cluster](auto& callable) { callable(*cluster); });
+                    }
+                }
+            }
+
+            void enableActionAttemptEstimation(ActionAttemptEstimationSettings settings) override
+            {
+                m_estimator = std::make_unique<ActionAttemptEstimator<DescriptorT>>(std::move(settings), m_tuning);
+                if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
+                {
+                    m_sessionImpl.enableSampleRetention(m_trimmedSequenceLength, m_customContractId);
+                }
+                else
+                {
+                    m_sessionImpl.enableSampleRetention<DescriptorT>(m_trimmedSequenceLength);
+                }
             }
         };
 
@@ -687,12 +746,14 @@ namespace carl::action
     action::Recognizer::Recognizer(Session& session, const action::Definition& definition)
         : m_impl{ createImpl(session, definition) }
         , whenRecognitionChangedSignal{ m_impl->m_whenRecognitionChangedHandlers }
+        , whenAttemptClusterDetectedSignal{ m_impl->m_whenAttemptClusterDetectedHandlers }
     {
     }
 
     action::Recognizer::Recognizer(Session& session, const action::Definition& definition, ContractId<>::IdT customActionTypeId)
         : m_impl{ createImpl(session, definition, customActionTypeId) }
         , whenRecognitionChangedSignal{ m_impl->m_whenRecognitionChangedHandlers }
+        , whenAttemptClusterDetectedSignal{ m_impl->m_whenAttemptClusterDetectedHandlers }
     {
     }
 
@@ -728,5 +789,10 @@ namespace carl::action
     void Recognizer::analyzeRecording(const Recording& recording, std::ostream& output) const
     {
         return m_impl->analyzeRecording(recording, output);
+    }
+
+    void Recognizer::enableActionAttemptEstimation(ActionAttemptEstimationSettings settings)
+    {
+        m_impl->enableActionAttemptEstimation(std::move(settings));
     }
 }

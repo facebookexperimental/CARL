@@ -86,6 +86,7 @@ namespace carl
         void setLogger(std::function<void(std::string)> logger);
         void log(std::string message);
         void tickCallbacks(arcana::cancellation& token);
+        void enableSampleRetention(size_t capacity);
 
         template<typename T>
         ContractId<>::IdT enableCustomActionType(TemplatedCustomActionTypeOperations<T> operations)
