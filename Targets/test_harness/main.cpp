@@ -6,6 +6,7 @@
  */
 
 #include <carl/Definition.h>
+#include <carl/DefinitionBuilder.h>
 #include <carl/Example.h>
 #include <carl/Recognizer.h>
 #include <carl/Recording.h>
@@ -328,6 +329,7 @@ struct ParsedArgs
     std::string outputPath = "test_results.json";
     double tolerance = 0.2;
     std::string commitHash = "unknown";
+    uint64_t buildActionType = 3; // RightHandGesture
 };
 
 std::optional<ParsedArgs> parseArgs(int argc, char* argv[])
@@ -338,7 +340,8 @@ std::optional<ParsedArgs> parseArgs(int argc, char* argv[])
                   << "Options:\n"
                   << "  --output <path>      Output JSON path (default: test_results.json)\n"
                   << "  --tolerance <sec>    True positive window tolerance in seconds (default: 1.0)\n"
-                  << "  --commit <hash>      Commit hash to include in output (default: unknown)\n";
+                  << "  --commit <hash>      Commit hash to include in output (default: unknown)\n"
+                  << "  --build-action-type <id>  ActionType for build_ tests (default: 3 = RightHandGesture)\n";
         return std::nullopt;
     }
 
@@ -367,6 +370,18 @@ std::optional<ParsedArgs> parseArgs(int argc, char* argv[])
         else if (arg == "--commit" && i + 1 < argc)
         {
             args.commitHash = argv[++i];
+        }
+        else if (arg == "--build-action-type" && i + 1 < argc)
+        {
+            try
+            {
+                args.buildActionType = std::stoull(argv[++i]);
+            }
+            catch (const std::exception&)
+            {
+                std::cerr << "Invalid build-action-type value: " << argv[i] << "\n";
+                return std::nullopt;
+            }
         }
         else
         {
@@ -431,6 +446,109 @@ int main(int argc, char* argv[])
     }
 
     std::cout << "\nLoaded " << allDefinitions.size() << " definitions and "
+              << allExamples.size() << " examples.\n";
+
+    // Process build_ directories: auto-build definitions using DefinitionBuilder
+    constexpr auto BUILD_PREFIX = "build_";
+    constexpr size_t BUILD_PREFIX_LEN = 6;
+    constexpr size_t BUILD_GROUP_SIZE = 3;
+
+    auto buildActionType = static_cast<carl::action::ActionType>(args.buildActionType);
+
+    for (const auto& subdir : fs::directory_iterator(testDataDir))
+    {
+        if (!subdir.is_directory()) continue;
+
+        std::string folderName = subdir.path().filename().string();
+        if (folderName.rfind(BUILD_PREFIX, 0) != 0) continue;
+
+        std::string identity = folderName.substr(BUILD_PREFIX_LEN);
+        std::cout << "\n  DefinitionBuilder test: " << folderName << " (identity: " << identity << ")\n";
+
+        // Collect filenames from this build_ directory, sorted
+        std::vector<fs::path> buildFiles;
+
+        for (const auto& entry : fs::directory_iterator(subdir.path()))
+        {
+            if (!entry.is_regular_file()) continue;
+            if (entry.path().extension() != ".carl") continue;
+            buildFiles.push_back(entry.path());
+        }
+
+        std::sort(buildFiles.begin(), buildFiles.end());
+
+        // Load examples in sorted order
+        std::vector<carl::action::Example> buildExamples;
+        for (const auto& filePath : buildFiles)
+        {
+            auto exOpt = carl::utilities::TryDeserializeFromFile<carl::action::Example>(filePath);
+            if (exOpt.has_value())
+            {
+                std::cout << "    Loaded: " << filePath.filename() << "\n";
+                buildExamples.push_back(std::move(*exOpt));
+
+                // Also add to allExamples for the test matrix, using the post-prefix identity
+                auto exOpt2 = carl::utilities::TryDeserializeFromFile<carl::action::Example>(filePath);
+                if (exOpt2.has_value())
+                {
+                    allExamples.push_back({ std::move(*exOpt2), filePath.string(), identity });
+                }
+            }
+        }
+
+        if (buildExamples.size() < BUILD_GROUP_SIZE)
+        {
+            std::cerr << "    Warning: " << folderName << " has " << buildExamples.size()
+                      << " examples, need at least " << BUILD_GROUP_SIZE << ". Skipping.\n";
+            continue;
+        }
+
+        // Extract raw recordings (full recording, ignoring example boundaries)
+        std::vector<carl::action::Recording> allRecordings;
+        allRecordings.reserve(buildExamples.size());
+        for (const auto& example : buildExamples)
+        {
+            allRecordings.push_back(example.getRecording());
+        }
+
+        // Group into non-overlapping triples and build definitions
+        size_t groupIdx = 0;
+        for (size_t i = 0; i + BUILD_GROUP_SIZE <= allRecordings.size(); i += BUILD_GROUP_SIZE)
+        {
+            gsl::span<const carl::action::Recording> group{ &allRecordings[i], BUILD_GROUP_SIZE };
+
+            std::cout << "    Building definition from recordings " << i << "-" << (i + BUILD_GROUP_SIZE - 1) << "... ";
+            std::cout.flush();
+
+            auto start = std::chrono::steady_clock::now();
+            auto builtExamples = carl::action::DefinitionBuilder::createExamplesFromRecordings(
+                buildActionType, group, 0.);
+            auto end = std::chrono::steady_clock::now();
+            double elapsedMs = std::chrono::duration<double, std::milli>(end - start).count();
+
+            std::cout << "done (" << builtExamples.size() << " examples, "
+                      << std::fixed << std::setprecision(1) << elapsedMs << "ms)\n";
+
+            if (builtExamples.empty())
+            {
+                std::cerr << "    Warning: DefinitionBuilder returned no examples for group " << groupIdx << "\n";
+                ++groupIdx;
+                continue;
+            }
+
+            carl::action::Definition def{ buildActionType };
+            for (auto& ex : builtExamples)
+            {
+                def.addExample(std::move(ex));
+            }
+
+            std::string syntheticPath = (subdir.path() / ("auto_built_" + std::to_string(groupIdx))).string();
+            allDefinitions.push_back({ std::move(def), syntheticPath, identity });
+            ++groupIdx;
+        }
+    }
+
+    std::cout << "\nTotal after builder: " << allDefinitions.size() << " definitions and "
               << allExamples.size() << " examples.\n";
 
     if (allDefinitions.empty() || allExamples.empty())

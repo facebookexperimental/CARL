@@ -138,4 +138,8 @@ extern "C"
     C_API_EXPORT(void) carl_setSensitivity(uint64_t recognizerPtr, double sensitivity);
     C_API_EXPORT(uint64_t) carl_getCanonicalRecordingInspector(uint64_t recognizerPtr);
     C_API_EXPORT(void) carl_disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr);
+    C_API_EXPORT(uint64_t) carl_createExamplesFromRecordings(uint64_t actionType, uint64_t* recordingPtrs, uint64_t count, double expectedDuration);
+    C_API_EXPORT(uint64_t) carl_getBuiltExamplesCount(uint64_t resultPtr);
+    C_API_EXPORT(uint64_t) carl_getBuiltExampleAtIdx(uint64_t resultPtr, uint64_t idx);
+    C_API_EXPORT(void) carl_disposeBuiltExamples(uint64_t resultPtr);
 }

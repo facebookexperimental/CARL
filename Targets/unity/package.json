@@ -4,7 +4,7 @@
   "displayName": "CARL - Classical Action Recognition Library",
   "description": "Unity integration for the CARL gesture recognition library. Provides managed C# wrappers and MonoBehaviour components for XR gesture recognition using Dynamic Time Warping.",
   "unity": "2021.3",
-  "documentationUrl": "https://github.com/meta/carl",
+  "documentationUrl": "https://github.com/facebookexperimental/CARL",
   "dependencies": {
     "com.unity.xr.hands": "1.3.0"
   },
