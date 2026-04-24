@@ -5,11 +5,14 @@
 
 set(SOURCES
     "include/carl/Definition.h"
+    "include/carl/DefinitionBuilder.h"
     "include/carl/Example.h"
     "include/carl/Recognizer.h"
     "include/carl/Recording.h"
     "include/carl/Session.h"
+    "source/AutoTrimImpl.h"
     "source/Definition.cpp"
+    "source/DefinitionBuilder.cpp"
     "source/Example.cpp"
     "source/Recognizer.cpp"
     "source/Recording.cpp"
@@ -18,8 +21,8 @@ set(SOURCES
 
 add_library(carl_core ${SOURCES})
 target_include_directories(carl_core PUBLIC "include")
-target_link_libraries(carl_core 
-    PRIVATE carl_core_utilities 
+target_link_libraries(carl_core
+    PRIVATE carl_core_utilities
     PRIVATE carl_action_type_definitions
     INTERFACE carl_core_foundation
     INTERFACE carl_action_type

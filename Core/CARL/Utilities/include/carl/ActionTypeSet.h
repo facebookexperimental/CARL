@@ -24,44 +24,33 @@ namespace carl::action
     template<typename... AssociationsT>
     struct ActionTypeSet
     {
-        template<typename RecognizerFactoriesT>
-        static inline std::unique_ptr<action::Recognizer::Impl> createRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
+        template<typename CallableT>
+        static inline auto invokeByActionType(ActionType actionType, CallableT&& callable)
         {
-            return internalCreateRecognizerForActionType<RecognizerFactoriesT, AssociationsT...>(actionType, session, definition, factories);
+            return internalInvokeByActionType<AssociationsT...>(actionType, std::forward<CallableT>(callable));
         }
 
     private:
-        template<typename RecognizerFactoriesT, typename AssociationT>
-        static inline std::unique_ptr<action::Recognizer::Impl> createRecognizer(Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
-        {
-            auto& factory = factories.at(ContractId<typename AssociationT::Descriptor>::value());
-            return factory(session, definition);
-        }
-
-        template<typename RecognizerFactoriesT, typename T>
-        static inline std::unique_ptr<action::Recognizer::Impl> internalCreateRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
+        template<typename T, typename CallableT>
+        static inline auto internalInvokeByActionType(ActionType actionType, CallableT&& callable)
+            -> decltype(callable(static_cast<T*>(nullptr)))
         {
             if (actionType == T::Action)
             {
-                return createRecognizer<RecognizerFactoriesT, T>(session, definition, factories);
+                return callable(static_cast<T*>(nullptr));
             }
-            else
-            {
-                return {};
-            }
+            return {};
         }
 
-        template<typename RecognizerFactoriesT, typename T, typename T1, typename... Ts>
-        static inline std::unique_ptr<action::Recognizer::Impl> internalCreateRecognizerForActionType(ActionType actionType, Session& session, const Definition& definition, const RecognizerFactoriesT& factories)
+        template<typename T, typename T1, typename... Ts, typename CallableT>
+        static inline auto internalInvokeByActionType(ActionType actionType, CallableT&& callable)
+            -> decltype(callable(static_cast<T*>(nullptr)))
         {
             if (actionType == T::Action)
             {
-                return createRecognizer<RecognizerFactoriesT, T>(session, definition, factories);
+                return callable(static_cast<T*>(nullptr));
             }
-            else
-            {
-                return internalCreateRecognizerForActionType<RecognizerFactoriesT, T1, Ts...>(actionType, session, definition, factories);
-            }
+            return internalInvokeByActionType<T1, Ts...>(actionType, std::forward<CallableT>(callable));
         }
     };
 }

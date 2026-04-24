@@ -9,6 +9,7 @@
 #include "InputSampleConversion.h"
 
 #include <carl/Carl.h>
+#include <carl/DefinitionBuilder.h>
 #include <carl/utilities/FileSerialization.h>
 
 #include <arcana/threading/task.h>
@@ -375,4 +376,39 @@ void carl_disposeRecognizer(uint64_t sessionPtr, uint64_t recognizerPtr)
     arcana::make_task(session.processingScheduler(), arcana::cancellation::none(), [recognizerPtr]() {
         delete reinterpret_cast<carl::action::Recognizer*>(recognizerPtr);
     });
+}
+
+uint64_t carl_createExamplesFromRecordings(uint64_t actionType, uint64_t* recordingPtrs, uint64_t count, double expectedDuration)
+{
+    std::vector<carl::action::Recording> recordings{};
+    recordings.reserve(static_cast<size_t>(count));
+    for (uint64_t i = 0; i < count; ++i)
+    {
+        recordings.push_back(*reinterpret_cast<carl::action::Recording*>(recordingPtrs[i]));
+    }
+
+    auto* resultPtr = new std::vector<carl::action::Example>(
+        carl::action::DefinitionBuilder::createExamplesFromRecordings(
+            static_cast<carl::action::ActionType>(actionType),
+            recordings,
+            expectedDuration));
+    return reinterpret_cast<uint64_t>(resultPtr);
+}
+
+uint64_t carl_getBuiltExamplesCount(uint64_t resultPtr)
+{
+    auto& examples = *reinterpret_cast<std::vector<carl::action::Example>*>(resultPtr);
+    return static_cast<uint64_t>(examples.size());
+}
+
+uint64_t carl_getBuiltExampleAtIdx(uint64_t resultPtr, uint64_t idx)
+{
+    auto& examples = *reinterpret_cast<std::vector<carl::action::Example>*>(resultPtr);
+    auto* ptr = new carl::action::Example(examples[static_cast<size_t>(idx)]);
+    return reinterpret_cast<uint64_t>(ptr);
+}
+
+void carl_disposeBuiltExamples(uint64_t resultPtr)
+{
+    delete reinterpret_cast<std::vector<carl::action::Example>*>(resultPtr);
 }
