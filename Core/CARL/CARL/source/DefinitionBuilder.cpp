@@ -28,9 +28,9 @@ namespace carl::action
         template<typename DescriptorT>
         struct TimestampedSequenceInfo
         {
-            std::vector<descriptor::TimestampedDescriptor<DescriptorT>> sequence;
-            double startTimestamp;
-            double endTimestamp;
+            std::vector<descriptor::TimestampedDescriptor<DescriptorT>> sequence{};
+            double startTimestamp{};
+            double endTimestamp{};
         };
 
         template<typename DescriptorT>
