@@ -168,7 +168,8 @@ namespace carl::action
             }
 
             // Determine seed boundaries
-            double seedStart, seedEnd;
+            double seedStart{};
+            double seedEnd{};
             bool isStaticGesture = bestSeed.peakCount == 0 ||
                 (bestSeed.avgCount > 0. && static_cast<double>(bestSeed.peakCount) / bestSeed.avgCount < MOTION_ENERGY_PEAK_RATIO);
 
