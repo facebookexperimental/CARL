@@ -143,6 +143,11 @@ namespace carl
         m_impl->tickCallbacks(token);
     }
 
+    void Session::enableSampleRetention(size_t capacity)
+    {
+        m_impl->setSampleRetentionCapacity(capacity);
+    }
+
     ContractId<>::IdT Session::internalEnableCustomActionType(internal::CustomActionTypeOperations ops)
     {
         return m_impl->enableCustomActionType(std::move(ops));

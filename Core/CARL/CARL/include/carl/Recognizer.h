@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <carl/ActionAttemptEstimation.h>
 #include <carl/ContractId.h>
 #include <carl/Definition.h>
 #include <carl/Session.h>
@@ -39,10 +40,13 @@ namespace carl::action
 
         void analyzeRecording(const Recording&, std::ostream&) const;
 
+        void enableActionAttemptEstimation(ActionAttemptEstimationSettings settings = {});
+
     private:
         std::unique_ptr<Impl> m_impl{};
 
     public:
         Signal<bool> whenRecognitionChangedSignal;
+        Signal<AttemptCluster> whenAttemptClusterDetectedSignal;
     };
 }
