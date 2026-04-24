@@ -1,115 +1,223 @@
-# CARL Conceptual Overview
+# CARL Concepts
 
-CARL is not a particularly complicated technology, but the ideas that 
-underpin it can be specialized and worth describing at a conceptual
-level. This document will begin with a brief discussion of the objectives 
-and perspectives informing CARL's approach to action recognition, then 
-discuss the concepts which emerge from this approach and are directly reflected in the implementation.
+This document describes the core concepts of CARL and how they fit together. After reading this, you will understand the data model that drives action recognition and be ready to follow the [tutorials](Tutorials/).
 
-## CARL's Objectives and Perspectives
+## Introduction
 
-In purpose and style, CARL is perhaps most closely related to the 
-[$-family of recognizers](https://depts.washington.edu/acelab/proj/dollar/impact.html).
-This is a family of algorithms and approaches which characteristically
-tackle various manifestations of the action recognition problem using
-"classical" techniques to directly characterize and compare actions without
-reliance on large datasets or advanced statistical models, thus allowing
-usage in a much more flexible set of circumstances. Similar sensibilities 
-also inform CARL's approach, which is designed to be as accessible as 
-possible and to require as little effort to operate as possible.
+CARL is inspired by the [$-family of recognizers](https://depts.washington.edu/acelab/proj/dollar/impact.html) — a family of algorithms that tackle action recognition using classical techniques rather than machine learning. CARL's guiding principle is that **actions are best defined by simply doing them**. Perform a gesture a few times, and CARL learns to recognize it. No training data, no statistical models, no specialized expertise.
 
-The most fundamental goal of CARL has always been to allow actions to be
-defined by simply _doing_ them. This is how people (and even animals) will
-naturally define actions when teaching them to one another -- "Here, just
-watch what I'm doing" -- and thus it seems appropriate to express action
-definitions for machines in a similar way. This concept of action 
-definition -- that an action is best defined by examples of it being done
-correctly -- also means that new definitions can be created by anyone
-who can perform the desired motion, without requiring substantial tooling,
-large datasets, or specialized expertise. This opens the door for 
-learning/updating action definitions "on the fly," which has significant
-implications for tailoring action recognition to individual users.
+This makes it possible for any user who can perform a motion to create action definitions on the fly, opening the door to personalized gesture recognition in XR applications.
 
-Given the above perspective on action recognition, the core concepts of CARL naturally emerge.
-- An action is defined by a **definition**.
-- A **definition** consists of one or more **example**s of the action being performed correctly.
-- An **example** consists of a **recording** of user state during a timeframe when the user was performing an action.
-- A **recording** is a time series of **input sample**s.
-- An **input sample** is an instanteous "snapshot" of the relevant state from which actions can be defined and recognized.
+## Coordinate System
 
-These concepts, plus the **session**s and **recognizer**s which are needed 
-to perform recognition, are described in more detail in the following 
-sections.
+CARL uses a **right-handed Y-up** coordinate system, consistent with the [OpenXR](https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html) convention:
 
-## Input Sample
+- **+X** points right
+- **+Y** points up
+- **+Z** points toward the user (out of the screen)
 
-An `InputSample` is CARL's atomic unit of input state: it is a "snapshot" of
-every piece of relevant information available at a certain point in time. 
-For example, for an `InputSample` describing an XR participant wearing an
-HMD and using hand tracking, an `InputSample` might contain the 3D pose 
-(position and orientation) of the HMD itself and every joint in each tracked
-hand at a single point in time. Since not all of this data may be available 
-all the time (for example, a hand might not be tracked at times), separable
-components of this data are optional. The only never-optional element of an
-`InputSample` is its timestamp, which is expressed in seconds.
+All 3D poses provided to CARL must be expressed in this coordinate system. If you are working in Unity (which uses left-handed Y-up), the `CarlXRInputProvider` handles conversion automatically. For manual conversion, negate the Z component of positions and the Z and W components of quaternions. See [Unity Integration](../Targets/unity/README.md) for details.
 
-Much of the data contained in an `InputSample` consists of 3D poses. By 
-convention, all described poses should be expressed in the same 
-left-handed Y-up coordinate space. Other conventions are not yet supported
-and behavior on data with such conventions is undefined.
+## InputSample
+
+An `InputSample` is CARL's atomic unit of input: a snapshot of all relevant XR state at a single instant. It contains:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Timestamp` | `double` | Time in seconds (required) |
+| `HmdPose` | optional | Head-mounted display 6DOF pose (position + orientation) |
+| `LeftWristPose` | optional | Left wrist 6DOF pose |
+| `RightWristPose` | optional | Right wrist 6DOF pose |
+| `LeftHandJointPoses` | optional | 26 left-hand joint poses (see below) |
+| `RightHandJointPoses` | optional | 26 right-hand joint poses |
+| `LeftControllerInput` | optional | 7 left controller input channels |
+| `RightControllerInput` | optional | 7 right controller input channels |
+
+**Timestamp** is the only required field. Everything else is optional because not all data may be available at all times (e.g., a hand may not be tracked). Which fields you populate depends on the [ActionType](ActionTypes.md) you intend to use.
+
+**Hand joints** follow the [OpenXR XR_EXT_hand_tracking](https://registry.khronos.org/OpenXR/specs/1.0/html/xrspec.html#XR_EXT_hand_tracking) layout: 26 joints per hand, from Palm (0) through Little Fingertip (25).
+
+**Controller input channels** map to standard XR controller inputs:
+
+| Index | Channel |
+|-------|---------|
+| 0 | Primary click |
+| 1 | Secondary click |
+| 2 | Thumbstick X |
+| 3 | Thumbstick Y |
+| 4 | Thumbstick click |
+| 5 | Squeeze value |
+| 6 | Trigger value |
 
 ## Recording
 
-A `Recording` is a continuous sequence of `InputSample`s, ordered from 
-earliest to latest according to their timestamps. 
+A `Recording` is a continuous, time-ordered sequence of `InputSample`s. Recordings have no fixed framerate requirement — samples can arrive at any frequency. The only requirement is that all timestamps within a recording use the same time reference.
 
-Note that the timestamps of `InputSample`s in a `Recording` do not have to 
-be relative to any particular reference time (epoch time, etc.); all that 
-is necessary for a `Recording` to be valid is that the timestamps of all 
-`InputSample`s be relative to the _same_ reference time. Also note that 
-`Recording`s do nothave any specific framerate and are not required to 
-contain `InputSample`sat any particular (or even consistent) frequency.
+You build a `Recording` through an `InProgressRecording`, which acts as a rolling buffer:
+
+```cpp
+InProgressRecording inProgress{/* maxSeconds */ 10}; // keeps last 10 seconds
+inProgress.addSample(sample1);
+inProgress.addSample(sample2);
+// ...
+Recording recording{std::move(inProgress)}; // finalize
+```
+
+The `maxSeconds` parameter limits how much history is retained. When samples older than `maxSeconds` are pushed out, they are discarded. Use the default constructor for an unlimited buffer.
+
+### RecordingInspector
+
+A `RecordingInspector` provides efficient, timestamp-based access to a recording's samples. Given a timestamp, it returns the closest `InputSample`:
+
+```cpp
+RecordingInspector inspector = recording.getInspector();
+double start = inspector.startTimestamp();
+double end = inspector.endTimestamp();
+const InputSample& sample = inspector.inspect(someTimestamp);
+```
+
+A `RecordingInspector` is a non-owning view — the underlying `Recording` must outlive it.
 
 ## Example
 
-An `Example` is a `Recording` which is known to contain a manifestation of
-a semantically-definite action. Specifically, the action is known to have 
-"happened" between a given `startTimestamp` and a given `endTimestamp`, 
-such that `InputSample`s in the `Recording` between those two timestamps 
-constitute an "example" of that action occuring.
+An `Example` pairs a `Recording` with a start and end timestamp that mark when an action occurred within that recording:
 
-Note that `Example` does not reference any form of descriptor or 
-definition; in fact, `Example` contains no explicit reference to any 
-particular semantically-definite action at all. Colloquially speaking,
-an `Example` specifies nothing about _what_ happened, but merely an 
-example of _something_ happening.
+```cpp
+Example example{recording, startTimestamp, endTimestamp};
+```
+
+The recording typically contains more data than just the action itself (e.g., idle time before and after). The timestamps identify the relevant portion.
+
+An `Example` contains no information about *what* action occurred — it only says that *something* happened between those timestamps. The semantic meaning comes from the `Definition` it is added to.
+
+## Counterexample
+
+A counterexample has the same structure as an `Example` — a recording with start/end timestamps — but serves the opposite purpose. While examples teach CARL what an action looks like, counterexamples teach it what the action does **not** look like. This is useful for disambiguating similar gestures (e.g., distinguishing a wave from a swipe).
+
+Add counterexamples to a `Definition` via `addCounterexample()`.
 
 ## Definition
 
-A `Definition` is a set of `Example`s which are all known to contain 
-manifestations of the same semantically-definite action. It also identifies
-a `DescriptorType` specifying what kind of descriptor should be used to 
-evaluate the defined action. In this way, `Definition` serves as CARL's 
-fundamental concretization of the concept of semantically-definite actions.
+A `Definition` brings together:
+
+1. An **ActionType** — which kind of action this defines (see [Action Types](ActionTypes.md))
+2. One or more **examples** — recordings of the action being performed
+3. Zero or more **counterexamples** — recordings of similar-but-different actions
+4. A **DefaultSensitivity** — how easily the action triggers (default: 1.0)
+
+```cpp
+Definition definition{ActionType::RightHandGesture};
+definition.addExample(example1);
+definition.addExample(example2);
+definition.addCounterexample(similarButWrong);
+definition.DefaultSensitivity = 0.8;
+```
+
+Definitions are serializable and can be saved to and loaded from `.carl` files. See [Serialization](Serialization.md).
+
+## ActionType
+
+CARL supports 12 built-in action types plus custom types. Each action type determines which `InputSample` fields are used for recognition and how they are compared:
+
+| ActionType | Input Used |
+|------------|------------|
+| `LeftHandPose` / `RightHandPose` | Hand shape + wrist orientation (static) |
+| `LeftHandGesture` / `RightHandGesture` | Full hand + wrist motion (dynamic) |
+| `TwoHandGesture` | Both hands + relative position |
+| `LeftHandShape` / `RightHandShape` | Finger configuration only (static) |
+| `LeftControllerGesture` / `RightControllerGesture` | Controller buttons/axes + wrist motion |
+| `TwoControllerGesture` | Both controllers |
+| `LeftWristTrajectory` / `RightWristTrajectory` | Wrist path through space (ignoring fingers) |
+| `Custom` | User-defined via `Session::enableCustomActionType()` |
+
+For detailed descriptions and guidance on choosing the right type, see [Action Types](ActionTypes.md).
 
 ## Session
 
-A `Session` can be thought of as a representation of a time period when 
-actions can be recognized. Contractually, the `Session` itself contains
-nothing and exposes nothing; it simply functions as a receptacle into which
-`InputSample`s should be placed, and as a resource required to build
-`Recognizer`s.
+A `Session` is the runtime context for recognition. It receives `InputSample`s and hosts `Recognizer`s:
+
+```cpp
+Session session{/* singleThreaded */ false};
+
+// Feed input each frame
+session.addInput(liveSample);
+
+// Dispatch callbacks on the calling thread
+arcana::cancellation token{};
+session.tickCallbacks(token);
+```
+
+By default, a `Session` processes recognition on a background thread. Pass `singleThreaded = true` to run everything on the calling thread (useful for debugging or single-threaded environments).
+
+Use `setLogger()` to receive diagnostic messages:
+
+```cpp
+session.setLogger([](std::string msg) { std::cout << msg << std::endl; });
+```
 
 ## Recognizer
 
-A `Recognizer` is a construct which observes a `Session` over time (i.e.,
-as new `InputSample`s are added) and expresses a "confidence" that a
-semantically-definite action defined by a `Definition` has been recognized.
-This "confidence" is a floating-point number (currently a `double`) which
-is large (near or above 1) when the action in question is recognized and 
-small (near or below 0) when it is not recognized. For simple scenarios, 
-this number can simply be clamped to the [0,1] range and treated like a
-probability (though it is not probabilistic in nature). More sophsticated 
-usages like automatic example segmentation currently leverage unbounded
-confidence scoring; however, this is an evolving usage that will likely
-change/simplify in the near future.
+A `Recognizer` watches a `Session` and scores incoming input against a `Definition`. It is the final piece that produces recognition results:
+
+```cpp
+Recognizer recognizer{session, definition};
+```
+
+### Confidence Score
+
+`currentScore()` returns a `double` indicating how confident CARL is that the defined action is happening:
+
+- **≥ 1.0** — strong match; the action is recognized
+- **≈ 0.0** — no match
+- Values can exceed 1.0 or go slightly below 0.0
+
+For simple use cases, clamp to [0, 1] and treat as a confidence level.
+
+### Recognition Events
+
+Subscribe to `whenRecognitionChangedSignal` for discrete start/stop events:
+
+```cpp
+auto ticket = recognizer.whenRecognitionChangedSignal.addHandler(
+    [](bool recognized) {
+        if (recognized) { /* action started */ }
+        else            { /* action ended   */ }
+    });
+```
+
+The returned `ticket` controls the subscription lifetime — the handler is unsubscribed when the ticket is destroyed.
+
+### Sensitivity
+
+Each recognizer inherits its definition's `DefaultSensitivity` but can override it:
+
+```cpp
+recognizer.setSensitivity(1.2); // easier to trigger
+```
+
+Higher sensitivity means the action triggers more easily (lower score threshold).
+
+### Additional Features
+
+- **`createAutoTrimmedExample(recording)`** — uses the recognizer's knowledge to automatically determine optimal start/end timestamps for a new example from a raw recording
+- **`analyzeRecording(recording, ostream)`** — outputs diagnostic information about how well a recording matches the definition
+- **`getCanonicalRecordingInspector()`** — returns an inspector for the recognizer's internal canonical representation
+
+## Lifecycle Overview
+
+```
+InputSample ─► InProgressRecording ─► Recording ─► Example ─► Definition
+                                                          └─► Counterexample
+
+Session.addInput(sample) ──────────────────────────► Recognizer(session, definition)
+                                                          │
+                                                          ├─ currentScore() → double
+                                                          └─ whenRecognitionChangedSignal → bool
+```
+
+1. Collect `InputSample`s into an `InProgressRecording`
+2. Finalize into a `Recording`
+3. Mark action boundaries to create `Example`s
+4. Bundle examples into a `Definition` with an `ActionType`
+5. Create a `Session` and feed live `InputSample`s
+6. Attach a `Recognizer` with your `Definition` and listen for recognition events
