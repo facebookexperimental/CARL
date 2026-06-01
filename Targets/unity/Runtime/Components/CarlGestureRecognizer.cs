@@ -77,12 +77,95 @@ namespace Carl
                 definition = CarlDefinition.LoadFromFile(definitionFilePath);
             }
 
+            // No definition source configured via Inspector — the caller will
+            // use one of the Initialize methods to set up the recognizer at runtime.
+            if (definition == null)
+                return;
+
+            InitializeInternal(definition);
+        }
+
+        /// <summary>
+        /// Initializes (or re-initializes) the recognizer at runtime with the given
+        /// <see cref="CarlDefinition"/>. This component takes ownership of the
+        /// definition and will dispose it in <see cref="OnDestroy"/>.
+        /// Any previously active recognizer is disposed first.
+        /// </summary>
+        public void Initialize(CarlDefinition definition)
+        {
             if (definition == null)
             {
-                Debug.LogError("[CARL] CarlGestureRecognizer: No valid definition provided.");
-                enabled = false;
+                Debug.LogError("[CARL] CarlGestureRecognizer.Initialize: definition is null.");
                 return;
             }
+
+            if (CarlSessionManager.Instance == null)
+            {
+                Debug.LogError("[CARL] CarlGestureRecognizer requires a CarlSessionManager in the scene.");
+                return;
+            }
+
+            DisposeRecognizer();
+            InitializeInternal(definition);
+        }
+
+        /// <summary>
+        /// Initializes (or re-initializes) the recognizer at runtime from a
+        /// <see cref="CarlDefinitionAsset"/>. A new <see cref="CarlDefinition"/>
+        /// is deserialized from the asset; the asset itself is not retained.
+        /// Any previously active recognizer is disposed first.
+        /// </summary>
+        public void Initialize(CarlDefinitionAsset asset)
+        {
+            if (asset == null || !asset.HasData)
+            {
+                Debug.LogError("[CARL] CarlGestureRecognizer.Initialize: asset is null or has no data.");
+                return;
+            }
+
+            Initialize(asset.Load());
+        }
+
+        /// <summary>
+        /// Creates a new definition from raw recordings using
+        /// <see cref="CarlDefinitionBuilder"/>, then initializes the recognizer
+        /// with it. This is the all-in-one path for runtime gesture training:
+        /// record → build definition → create recognizer.
+        /// Any previously active recognizer is disposed first.
+        /// </summary>
+        /// <param name="actionType">The type of action demonstrated in the recordings.</param>
+        /// <param name="recordings">Two or more recordings, each containing the action.</param>
+        /// <param name="expectedDuration">
+        /// Optional hint for the expected action duration in seconds. Pass 0 for unconstrained.
+        /// </param>
+        /// <returns>
+        /// The created <see cref="CarlDefinition"/>, which is also owned by this component.
+        /// Useful for persisting the definition via
+        /// <see cref="CarlDefinitionAsset.SetFromDefinition"/> or
+        /// <see cref="CarlDefinition.SaveToFile"/>.
+        /// </returns>
+        public CarlDefinition InitializeFromRecordings(
+            ActionType actionType,
+            CarlRecording[] recordings,
+            double expectedDuration = 0.0,
+            double defaultSensitivity = 5.0)
+        {
+            if (CarlSessionManager.Instance == null)
+            {
+                Debug.LogError("[CARL] CarlGestureRecognizer requires a CarlSessionManager in the scene.");
+                return null;
+            }
+
+            var definition = CarlDefinition.CreateFromRecordings(actionType, recordings, expectedDuration);
+            definition.DefaultSensitivity = defaultSensitivity;
+            DisposeRecognizer();
+            InitializeInternal(definition);
+            return definition;
+        }
+
+        void InitializeInternal(CarlDefinition definition)
+        {
+            _definition = definition;
 
             CarlSessionManager.Instance.Session.CreateRecognizerAsync(definition, recognizer =>
             {
@@ -92,8 +175,16 @@ namespace Carl
                     _recognizer.SetSensitivity(sensitivity);
                 }
             });
+        }
 
-            _definition = definition;
+        void DisposeRecognizer()
+        {
+            _recognizer?.Dispose();
+            _recognizer = null;
+            _definition?.Dispose();
+            _definition = null;
+            _isRecognized = false;
+            _lastScore = 0f;
         }
 
         void Update()
@@ -123,10 +214,7 @@ namespace Carl
 
         void OnDestroy()
         {
-            _recognizer?.Dispose();
-            _recognizer = null;
-            _definition?.Dispose();
-            _definition = null;
+            DisposeRecognizer();
         }
     }
 }

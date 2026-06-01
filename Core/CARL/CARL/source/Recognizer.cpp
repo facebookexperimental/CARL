@@ -8,6 +8,7 @@
 #include <carl/Recognizer.h>
 
 #include "SessionImpl.h"
+#include "AutoTrimImpl.h"
 
 #include <carl/ActionTypeDefinitions.h>
 #include <carl/descriptor/Custom.h>
@@ -175,79 +176,17 @@ namespace carl::action
         protected:
             Example createAutoTrimmedExample(const Recording& recording) const override
             {
-                std::vector<descriptor::TimestampedDescriptor<DescriptorT>> timestampedSequence{};
-                auto samples = recording.getSamples();
-                auto mostRecentSample = samples.front();
-                for (const auto& sample : recording.getSamples())
+                if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
                 {
-                    if constexpr (std::is_same_v<DescriptorT, descriptor::Custom>)
-                    {
-                        throw std::runtime_error{ "TODO: Not implemented" };
-                    }
-                    else
-                    {
-                        constexpr auto tryCreate = [](const InputSample& newSample, const InputSample& priorSample) { return descriptor::TimestampedDescriptor<DescriptorT>::TryCreate(newSample, priorSample); };
-                        descriptor::extendSequence<descriptor::TimestampedDescriptor<DescriptorT>>(sample, timestampedSequence, mostRecentSample, m_tuning, tryCreate);
-                    }
+                    throw std::runtime_error{ "TODO: Not implemented" };
                 }
-
-                std::vector<DescriptorT> sequence{};
-                sequence.reserve(timestampedSequence.size());
-                for (const auto& desc : timestampedSequence)
+                else
                 {
-                    sequence.push_back(desc.getUnderlyingDescriptor());
+                    constexpr auto tryCreate = [](const InputSample& newSample, const InputSample& priorSample) { return descriptor::TimestampedDescriptor<DescriptorT>::TryCreate(newSample, priorSample); };
+                    gsl::span<const std::vector<DescriptorT>> templateSpan{ m_templates };
+                    auto [startT, endT] = autoTrimRecording<DescriptorT>(recording, templateSpan, m_tuning, tryCreate);
+                    return { recording, startT, endT };
                 }
-
-                auto absDist = [this](const DescriptorT& a, const DescriptorT& b) {
-                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_ABSOLUTE_DISTANCE)
-                    {
-                        return DescriptorT::AbsoluteDistance(a, b, m_tuning);
-                    }
-                    else
-                    {
-                        return NumberT{0};
-                    }
-                };
-                auto deltaDist = [this](const DescriptorT& a, const DescriptorT& a0, const DescriptorT& b, const DescriptorT& b0) {
-                    if constexpr (descriptor::DescriptorTraits<DescriptorT>::HAS_DELTA_DISTANCE)
-                    {
-                        return DescriptorT::DeltaDistance(a, a0, b, b0, m_tuning);
-                    }
-                    else
-                    {
-                        return NumberT{0};
-                    }
-                };
-                auto bestMatchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[0], absDist, deltaDist);
-                for (size_t idx = 1; idx < m_templates.size(); ++idx)
-                {
-                    auto matchResult = DynamicTimeWarping::Match<const DescriptorT>(sequence, m_templates[idx], absDist, deltaDist);
-                    if (matchResult.MatchCost < bestMatchResult.MatchCost)
-                    {
-                        bestMatchResult = matchResult;
-                    }
-                }
-
-                auto firstDescriptorT = timestampedSequence[bestMatchResult.ImageStartIdx].getTimestamp();
-                auto lastDescriptorT = timestampedSequence[bestMatchResult.ImageStartIdx + bestMatchResult.ImageSize - 1].getTimestamp();
-                constexpr auto epsilonT = std::numeric_limits<double>::epsilon();
-
-                auto startT = std::numeric_limits<NumberT>::lowest() + 2 * epsilonT;
-                auto endT = std::numeric_limits<NumberT>::max() - 2 * epsilonT;
-                for (const auto& sample : samples)
-                {
-                    if (sample.Timestamp < firstDescriptorT && sample.Timestamp > startT)
-                    {
-                        startT = sample.Timestamp;
-                    }
-
-                    if (sample.Timestamp > lastDescriptorT && sample.Timestamp < endT)
-                    {
-                        endT = sample.Timestamp;
-                    }
-                }
-
-                return{ recording, startT - epsilonT, endT + epsilonT };
             }
 
             void analyzeRecording(const Recording& recording, std::ostream& output) const override
@@ -672,7 +611,11 @@ namespace carl::action
             const action::Definition& definition)
         {
             thread_local std::unordered_map<ContractId<>::IdT, RecognizerFactoryT> factories{ GetFactoriesForActionTypeSet<ActionTypes>::getMap() };
-            return ActionTypes::createRecognizerForActionType(definition.getDescriptorType(), session, definition, factories);
+            return ActionTypes::invokeByActionType(definition.getDescriptorType(), [&](auto* tag) -> std::unique_ptr<action::Recognizer::Impl> {
+                using Association = std::remove_pointer_t<decltype(tag)>;
+                auto& factory = factories.at(ContractId<typename Association::Descriptor>::value());
+                return factory(session, definition);
+            });
         }
 
         std::unique_ptr<action::Recognizer::Impl> createImpl(

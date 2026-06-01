@@ -45,11 +45,27 @@ namespace Carl
             CarlNative.carl_addExample(_handle, recording.Handle, startTimestamp, endTimestamp);
         }
 
+        public void AddExample(CarlExample example)
+        {
+            ThrowIfDisposed();
+            if (example == null) throw new ArgumentNullException(nameof(example));
+            using var recording = example.GetRecording();
+            CarlNative.carl_addExample(_handle, recording.Handle, example.StartTimestamp, example.EndTimestamp);
+        }
+
         public void AddCounterexample(CarlRecording recording, double startTimestamp, double endTimestamp)
         {
             ThrowIfDisposed();
             if (recording == null) throw new ArgumentNullException(nameof(recording));
             CarlNative.carl_addCounterexample(_handle, recording.Handle, startTimestamp, endTimestamp);
+        }
+
+        public void AddCounterexample(CarlExample example)
+        {
+            ThrowIfDisposed();
+            if (example == null) throw new ArgumentNullException(nameof(example));
+            using var recording = example.GetRecording();
+            CarlNative.carl_addCounterexample(_handle, recording.Handle, example.StartTimestamp, example.EndTimestamp);
         }
 
         public double DefaultSensitivity
@@ -126,6 +142,36 @@ namespace Carl
             {
                 pinned.Free();
             }
+        }
+
+        /// <summary>
+        /// Creates a Definition by analyzing multiple recordings to discover and extract
+        /// aligned examples of a common action. Uses <see cref="CarlDefinitionBuilder"/>
+        /// internally. The recordings should each contain the target action somewhere
+        /// within them.
+        /// </summary>
+        /// <param name="actionType">The type of action being demonstrated.</param>
+        /// <param name="recordings">Two or more recordings, each containing the action.</param>
+        /// <param name="expectedDuration">
+        /// Optional hint for the expected duration of the action in seconds.
+        /// Pass 0 for unconstrained.
+        /// </param>
+        /// <returns>A new Definition populated with auto-trimmed examples. The caller owns this instance.</returns>
+        public static CarlDefinition CreateFromRecordings(
+            ActionType actionType,
+            CarlRecording[] recordings,
+            double expectedDuration = 0.0)
+        {
+            using var builtExamples = CarlDefinitionBuilder.CreateExamplesFromRecordings(
+                actionType, recordings, expectedDuration);
+
+            var definition = new CarlDefinition(actionType);
+            for (int i = 0; i < builtExamples.Count; i++)
+            {
+                using var example = builtExamples.GetExampleAt(i);
+                definition.AddExample(example);
+            }
+            return definition;
         }
 
         /// <summary>

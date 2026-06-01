@@ -167,5 +167,18 @@ namespace Carl.Native
 
         [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
         public static extern void carl_disposeRecognizer(ulong sessionPtr, ulong recognizerPtr);
+
+        // --- DefinitionBuilder ---
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern ulong carl_createExamplesFromRecordings(ulong actionType, IntPtr recordingPtrs, ulong count, double expectedDuration);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern ulong carl_getBuiltExamplesCount(ulong resultPtr);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern ulong carl_getBuiltExampleAtIdx(ulong resultPtr, ulong idx);
+
+        [DllImport(LibName, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void carl_disposeBuiltExamples(ulong resultPtr);
     }
 }
