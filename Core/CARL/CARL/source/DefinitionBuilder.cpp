@@ -60,7 +60,7 @@ namespace carl::action
         /// timestamp of the densest window and its descriptor count.
         template<typename DescriptorT>
         std::pair<double, size_t> findDensestWindow(
-            const std::vector<descriptor::TimestampedDescriptor<DescriptorT>>& sequence,
+            gsl::span<const descriptor::TimestampedDescriptor<DescriptorT>> sequence,
             double windowDuration)
         {
             if (sequence.empty())
