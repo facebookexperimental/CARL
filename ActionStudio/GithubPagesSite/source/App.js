@@ -21,7 +21,7 @@ import DefinitionBuilder from './components/DefinitionBuilder';
 import { initializeImmersiveExperienceAsync } from 'carl-actionstudio-immersiveexperience';
 import { downloadSerializedBytes } from './lib/utils.js';
 import { SerializationsDB } from './lib/serializationsDB.js';
-import { CarlIntegration } from './lib/carlIntegration.js';
+import { CarlIntegration } from '@meta-experimental/carl-babylon';
 import './styles/App.css';
 
 function App() {

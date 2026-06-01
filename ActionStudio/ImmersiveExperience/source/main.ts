@@ -16,15 +16,12 @@
 import { _InstancesBatch, Color4, Engine, FreeCamera, HavokPlugin, HemisphericLight, MeshBuilder, TransformNode as AbstractMesh, Vector3, WebXRControllerPointerSelection, WebXRFeatureName, TransformNode, Color3, StandardMaterial, Mesh } from "@babylonjs/core";
 import HavokPhysics from "@babylonjs/havok";
 import "@babylonjs/loaders/glTF/2.0";
-import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample, IInitialBlock } from "./carlInterfaces";
+import { ICarl, ICarlDefinition, ICarlExample, ICarlInputSample, IInitialBlock, OPENXR_JOINT_MAPPINGS, populateInputSample, InputPuppet, RecognitionGraph } from "@meta-experimental/carl-babylon";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
-import { OPENXR_JOINT_MAPPINGS, populateInputSample } from "./utils";
 import { PokeButton } from "./pokeButton";
 import { ExamplePreviewer } from "./examplePreviewer";
-import { InputPuppet } from "./inputPuppet";
-import { RecognitionGraph } from "./recognitionGraph";
 import { SliderBehavior } from "./slider";
 import { BlockSpawner } from "./blockSpawner";
 
@@ -369,7 +366,15 @@ export async function initializeImmersiveExperienceAsync(canvas: HTMLCanvasEleme
     const downloadPoke = new PokeButton(scene, "download_button");
     downloadPoke.onPokeObservable.add(poked => {
         if (poked && draftDefinition) {
-            draftDefinition.download();
+            const bytes = draftDefinition.serialize();
+            const blob = new Blob([bytes.buffer as ArrayBuffer], { type: "application/octet-stream" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "definition_" + (Date.now() / 1000) + ".bin";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
         }
     });
 

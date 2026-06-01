@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - "ActionStudio/**"
+      - "Targets/babylon/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -34,9 +35,15 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: ActionStudio/package-lock.json
+          cache-dependency-path: |
+            ActionStudio/package-lock.json
+            Targets/babylon/package-lock.json
 
-      - name: Install dependencies
+      - name: Install babylon package dependencies
+        working-directory: Targets/babylon
+        run: npm install
+
+      - name: Install ActionStudio dependencies
         working-directory: ActionStudio
         run: npm install
 

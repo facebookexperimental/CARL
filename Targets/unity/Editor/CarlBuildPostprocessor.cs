@@ -26,10 +26,10 @@ namespace Carl.Editor
             switch (report.summary.platform)
             {
                 case BuildTarget.StandaloneWindows64:
-                    pluginPath = "Packages/com.meta.carl/Runtime/Plugins/x86_64/carl.dll";
+                    pluginPath = "Packages/com.meta-experimental.carl/Runtime/Plugins/x86_64/carl.dll";
                     break;
                 case BuildTarget.Android:
-                    pluginPath = "Packages/com.meta.carl/Runtime/Plugins/Android/arm64-v8a/libcarl.so";
+                    pluginPath = "Packages/com.meta-experimental.carl/Runtime/Plugins/Android/arm64-v8a/libcarl.so";
                     break;
             }
 
