@@ -19,7 +19,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { initializePreviewExperienceAsync } from 'carl-actionstudio-immersiveexperience';
+import { initializePreviewExperienceAsync } from '@meta-experimental/carl-babylon';
 import '../styles/PreviewMode.css';
 
 function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
@@ -130,12 +130,12 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
 
   const handlePointerMove = (e) => {
     if (!timelineRef.current || !currentExample) return;
-    
+
     const rect = timelineRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const percentage = Math.max(0.0, Math.min(1.0, x / rect.width));
     const time = percentage * currentExample.duration;
-    
+
     if (isDraggingStart) {
       handleStartTimeChange(time);
     } else if (isDraggingEnd) {
@@ -290,7 +290,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
             <span className="current-time-label">{formatTime(currentTime)}</span>
             <span>End: {formatTime(endTime)}</span>
           </div>
-          
+
           <div className="timeline" ref={timelineRef}>
             <input
               type="range"
@@ -303,7 +303,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
               onChange={handleTimelineChange}
             />
             <div className="trim-handles">
-              <div 
+              <div
                 className="trim-handle start-handle"
                 style={{ left: `${(startTime / currentExample.duration) * 100}%` }}
                 onPointerDown={() => setIsDraggingStart(true)}
@@ -311,7 +311,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
                 <span className="handle-label">START</span>
                 <div className="handle-grabber"></div>
               </div>
-              <div 
+              <div
                 className="trim-handle end-handle"
                 style={{ left: `${(endTime / currentExample.duration) * 100}%` }}
                 onPointerDown={() => setIsDraggingEnd(true)}
@@ -321,7 +321,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
               </div>
             </div>
           </div>
-          
+
           <div className="timeline-timestamps">
             <input
               type="number"
@@ -343,7 +343,7 @@ function PreviewMode({ examples, onUpdateExample, onDeleteExample, carl }) {
 
       <aside className="preview-sidebar">
         <h3>Metadata</h3>
-        
+
         <div className="metadata-section">
           <label>Color</label>
           <input

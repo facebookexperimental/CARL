@@ -1,5 +1,5 @@
 {
-  "name": "com.meta.carl",
+  "name": "com.meta-experimental.carl",
   "version": "0.1.0",
   "displayName": "CARL - Classical Action Recognition Library",
   "description": "Unity integration for the CARL gesture recognition library. Provides managed C# wrappers and MonoBehaviour components for XR gesture recognition using Dynamic Time Warping.",

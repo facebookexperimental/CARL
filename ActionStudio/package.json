@@ -5,12 +5,11 @@
   "main": "main.js",
   "workspaces": [
     "GithubPagesSite",
-    "ImmersiveExperience",
-    "NativeIntegration"
+    "ImmersiveExperience"
   ],
   "scripts": {
     "start": "npm run server --prefix ./GithubPagesSite",
-    "build": "npm run build --prefix ./NativeIntegration && npm run build --prefix ./ImmersiveExperience && npm run build --prefix ./GithubPagesSite"
+    "build": "npm --prefix ../Targets/babylon run build && npm run build --prefix ./ImmersiveExperience && npm run build --prefix ./GithubPagesSite"
   },
   "author": "syntheticmagus",
   "license": "MIT",

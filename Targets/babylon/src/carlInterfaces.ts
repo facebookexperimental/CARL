@@ -6,11 +6,11 @@
  */
 
 /**
- * TypeScript interfaces mirroring the CARL WASM bindings exposed by NativeIntegration.
+ * TypeScript interfaces mirroring the CARL WASM bindings.
  *
- * These types are the contract between the Babylon.js ImmersiveExperience layer and the
+ * These types are the contract between the Babylon.js glue layer and the
  * Emscripten-generated C++ library.  The shapes must stay in sync with the native API;
- * if the native API changes, update these interfaces and the NativeIntegration wrapper.
+ * if the native API changes, update these interfaces and the CarlIntegration wrapper.
  */
 export interface ICarlPosition {
     x: number;
@@ -62,17 +62,18 @@ export interface ICarlRecordingInspector {
 
 export interface ICarlExample {
     getStartTimestamp(): number;
-    setStartTimestamp(timestamp: number): number;
+    setStartTimestamp(timestamp: number): void;
     getEndTimestamp(): number;
-    setEndTimestamp(timestamp: number): number;
+    setEndTimestamp(timestamp: number): void;
     getRecordingInspector(): ICarlRecordingInspector;
+    serialize(): Uint8Array;
     dispose(): void;
 }
 
 export interface ICarlDefinition {
     getDefaultSensitivity(): number;
     setDefaultSensitivity(sensitivity: number): void;
-    download(): void;
+    serialize(): Uint8Array;
     dispose(): void;
 }
 
@@ -86,7 +87,7 @@ export interface ICarlRecognizer {
 export interface ICarl {
     startRecording(): number;
     stopRecording(recordingId: number, metadata?: object): ICarlExample;
-    getActionTypes(): {name: string, typeId: number}[];
+    getActionTypesMap(): {name: string, typeId: number}[];
     draftDefinition(actionTypeId: number, examples: ICarlExample[], counterexamples: ICarlExample[]): ICarlDefinition;
     finalizeDefinition(definition: ICarlDefinition, metadata?: object): void;
     createRecognizer(definition: ICarlDefinition): ICarlRecognizer;

@@ -1,0 +1,48 @@
+{
+  "name": "@meta-experimental/carl-babylon",
+  "version": "0.1.0",
+  "description": "Babylon.js integration for the CARL gesture recognition library. Bundles the CARL WASM runtime + loader, a concrete ICarl wrapper, and reusable Babylon.js glue.",
+  "homepage": "https://github.com/facebookexperimental/CARL",
+  "license": "MIT",
+  "author": "Meta Platforms, Inc.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./assets/*": "./assets/*"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "clean": "rimraf dist"
+  },
+  "keywords": [
+    "xr",
+    "gesture",
+    "recognition",
+    "hand-tracking",
+    "babylon",
+    "babylonjs",
+    "wasm"
+  ],
+  "peerDependencies": {
+    "@babylonjs/core": "^8.0.0"
+  },
+  "devDependencies": {
+    "@babylonjs/core": "^8.45.5",
+    "@types/webxr": "^0.5.24",
+    "rimraf": "^6.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.9.3"
+  }
+}

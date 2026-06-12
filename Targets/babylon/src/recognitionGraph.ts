@@ -14,7 +14,6 @@
  */
 import { IDisposable, AbstractMesh, ParticleSystem, DynamicTexture, Observer, Scene, Color4, MeshBuilder, Vector3 } from "@babylonjs/core";
 import { ICarlRecognizer } from "./carlInterfaces";
-import { PhysicsEnabledScene } from "./physicsEnabledScene";
 
 export class RecognitionGraph implements IDisposable {
     private static _sharedTexture: DynamicTexture | null = null;
@@ -41,7 +40,7 @@ export class RecognitionGraph implements IDisposable {
         this._recognizer = value;
     }
 
-    public constructor(scene: PhysicsEnabledScene, color: Color4) {
+    public constructor(scene: Scene, color: Color4) {
         this._emitter = MeshBuilder.CreateBox("recognizerEmitter", {size: 0.01});
         this._emitter.position.set(1, 1, 0).addInPlace(Vector3.RightHandedForwardReadOnly).addInPlace(Vector3.RightHandedForwardReadOnly);
         this._emitter.isVisible = false;
@@ -69,14 +68,14 @@ export class RecognitionGraph implements IDisposable {
         this._particleSystem.emitter = this._emitter;
         this._particleSystem.minEmitBox = Vector3.Zero();
         this._particleSystem.maxEmitBox = Vector3.Zero();
-        
+
         this._particleSystem.minSize = 0.01;
         this._particleSystem.maxSize = 0.01;
-        
+
         this._particleSystem.emitRate = 50;
         this._particleSystem.minLifeTime = 4;
         this._particleSystem.maxLifeTime = 4;
-        
+
         this._particleSystem.minEmitPower = 0.5;
         this._particleSystem.maxEmitPower = 0.5;
 

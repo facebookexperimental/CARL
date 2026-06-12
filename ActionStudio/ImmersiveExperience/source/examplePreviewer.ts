@@ -14,7 +14,7 @@
  * trim bounds are written back to the example via `setStartTimestamp` / `setEndTimestamp`.
  */
 import { Vector3, Observer } from "@babylonjs/core";
-import { ICarlExample } from "./carlInterfaces";
+import { ICarlExample } from "@meta-experimental/carl-babylon";
 import { PhysicsEnabledScene } from "./physicsEnabledScene";
 import { SliderBehavior } from "./slider";
 
@@ -85,7 +85,7 @@ export class ExamplePreviewer {
 
         this.sliders[1].value = (maxT - inspector.getStartTimestamp()) / duration;
         this.sliders[0].value = (minT - inspector.getStartTimestamp()) / duration;
-        
+
         while (this.previewing) {
             if (this.shouldPlay) {
                 currentT = minT;

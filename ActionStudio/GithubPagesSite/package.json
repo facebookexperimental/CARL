@@ -4,7 +4,7 @@
   "description": "GitHub Pages site for CARL Action Studio",
   "homepage": "https://facebookexperimental.github.io/CARL",
   "scripts": {
-    "build": "node -e \"require('fs').mkdirSync('docs/assets', {recursive: true})\" && cpx \"../NativeIntegration/assets/**/*\" docs/assets --clean && cpx \"../node_modules/@babylonjs/havok/lib/esm/*.wasm\" docs && cpx \"../ImmersiveExperience/assets/**/*\" docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
+    "build": "node -e \"require('fs').mkdirSync('docs/assets', {recursive: true})\" && cpx \"../node_modules/@meta-experimental/carl-babylon/assets/**/*\" docs/assets --clean && cpx \"../node_modules/@babylonjs/havok/lib/esm/*.wasm\" docs && cpx \"../ImmersiveExperience/assets/**/*\" docs/assets && esbuild source/index.js --loader:.js=jsx --bundle --minify --sourcemap --outdir=docs",
     "start": "npm run server & npm run build -- --watch",
     "server": "servor docs index.html --reload --secure",
     "deploy": "echo 'Deployment is handled by GitHub Actions (deploy-pages.yml)'"
@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "carl-actionstudio-immersiveexperience": "file:../ImmersiveExperience",
-    "carl-actionstudio-nativeintegration": "file:../NativeIntegration",
+    "@meta-experimental/carl-babylon": "file:../../Targets/babylon",
     "cpx2": "^8.0.0",
     "esbuild": "^0.27.2",
     "servor": "^4.0.2"

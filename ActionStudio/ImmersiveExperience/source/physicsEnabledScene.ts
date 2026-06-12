@@ -17,7 +17,7 @@ import { AbstractMesh, AppendSceneAsync, Engine, HavokPlugin, PhysicsAggregate, 
 import { PhysicsGrabBehavior } from "./physicsGrabBehavior";
 import { HandPinchGrabber } from "./handPinchGrabber";
 import { SliderBehavior, SliderConstraints } from "./slider";
-import { InputPuppet } from "./inputPuppet";
+import { InputPuppet } from "@meta-experimental/carl-babylon";
 
 export class PhysicsEnabledScene extends Scene {
     public grabbables: PhysicsGrabBehavior[] = [];
@@ -73,7 +73,7 @@ export class PhysicsEnabledScene extends Scene {
                 massNull.setParent(null);
                 massNull.dispose();
             }
-            
+
             let grabbable = false;
             let sliderConstraints: SliderConstraints | undefined = undefined;
             const grabbableNulls = mesh.getChildTransformNodes(true, child => child.name.startsWith("grabbable"));
@@ -98,8 +98,8 @@ export class PhysicsEnabledScene extends Scene {
 
             const aggregate = new PhysicsAggregate(mesh, shape, { mass: mass }, scene);
             aggregate.transformNode.rotationQuaternion = Quaternion.FromEulerAngles(
-                aggregate.transformNode.rotation.x, 
-                aggregate.transformNode.rotation.y, 
+                aggregate.transformNode.rotation.x,
+                aggregate.transformNode.rotation.y,
                 aggregate.transformNode.rotation.z);
             if (grabbable) {
                 const behavior = PhysicsGrabBehavior.get(mesh);

@@ -6,41 +6,60 @@
  */
 
 /**
- * JavaScript wrapper classes that bridge the CARL WASM native bindings to
- * idiomatic JS/React usage.  These classes own the lifecycle of their
- * underlying native (Emscripten) objects and must be disposed when no longer
- * needed to avoid WASM memory leaks.
+ * Strongly-typed wrapper classes that bridge the CARL WASM native bindings to idiomatic
+ * TypeScript usage.  These classes own the lifecycle of their underlying native (Emscripten)
+ * objects and must be disposed when no longer needed to avoid WASM memory leaks.
  *
- * @module lib/carlIntegration
+ * @module carlIntegration
  */
 
-import { downloadSerializedBytes } from './utils.js';
-import { initializeNativeIntegrationAsync } from 'carl-actionstudio-nativeintegration';
+import {
+    ICarl,
+    ICarlDefinition,
+    ICarlExample,
+    ICarlInputSample,
+    ICarlRecognizer,
+    ICarlRecordingInspector,
+} from "./carlInterfaces";
+import { CarlInitOptions, NativeCarlModule, initializeCarl } from "./wasmLoader";
+
+// The native Emscripten objects are untyped; alias `any` for readability.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Native = any;
+
+function nativeBytesToUint8Array(bytes: Native): Uint8Array {
+    const jsBytes = new Uint8Array(bytes.size());
+    for (let idx = 0; idx < jsBytes.length; ++idx) {
+        jsBytes[idx] = bytes.get(idx);
+    }
+    bytes.delete();
+    return jsBytes;
+}
 
 /**
  * Wraps a native CARL RecordingInspector, allowing frame-by-frame inspection
  * of a recording by timestamp.
  */
-class CarlRecordingInspector {
-    _nativeInspector;
+class CarlRecordingInspector implements ICarlRecordingInspector {
+    private _nativeInspector: Native;
 
-    constructor(nativeInspector) {
+    constructor(nativeInspector: Native) {
         this._nativeInspector = nativeInspector;
     }
 
-    getStartTimestamp() {
+    getStartTimestamp(): number {
         return this._nativeInspector.startTimestamp();
     }
 
-    getEndTimestamp() {
+    getEndTimestamp(): number {
         return this._nativeInspector.endTimestamp();
     }
 
-    inspect(timestamp) {
+    inspect(timestamp: number): ICarlInputSample {
         return this._nativeInspector.inspect(timestamp);
     }
 
-    dispose() {
+    dispose(): void {
         this._nativeInspector.delete();
     }
 }
@@ -52,46 +71,39 @@ class CarlRecordingInspector {
  * Call `dispose()` when done to free the underlying WASM allocation.
  * Set `onDisposed` to be notified when disposal occurs.
  */
-export class CarlExample {
-    _nativeExample;
-    onDisposed = undefined;
+export class CarlExample implements ICarlExample {
+    _nativeExample: Native;
+    onDisposed: (() => void) | undefined = undefined;
 
-    constructor(nativeExample) {
+    constructor(nativeExample: Native) {
         this._nativeExample = nativeExample;
     }
 
-    getStartTimestamp() {
+    getStartTimestamp(): number {
         return this._nativeExample.getStartTimestamp();
     }
 
-    setStartTimestamp(timestamp) {
+    setStartTimestamp(timestamp: number): void {
         this._nativeExample.setStartTimestamp(timestamp);
     }
 
-    getEndTimestamp() {
+    getEndTimestamp(): number {
         return this._nativeExample.getEndTimestamp();
     }
 
-    setEndTimestamp(timestamp) {
+    setEndTimestamp(timestamp: number): void {
         this._nativeExample.setEndTimestamp(timestamp);
     }
 
-    getRecordingInspector() {
-        const inspector = this._nativeExample.getRecordingInspector();
-        return new CarlRecordingInspector(inspector);
+    getRecordingInspector(): ICarlRecordingInspector {
+        return new CarlRecordingInspector(this._nativeExample.getRecordingInspector());
     }
 
-    serialize() {
-        const bytes = this._nativeExample.serialize();
-        const jsBytes = new Uint8Array(bytes.size());
-        for (let idx = 0; idx < jsBytes.length; ++idx) {
-            jsBytes[idx] = bytes.get(idx);
-        }
-        bytes.delete();
-        return jsBytes;
+    serialize(): Uint8Array {
+        return nativeBytesToUint8Array(this._nativeExample.serialize());
     }
 
-    dispose() {
+    dispose(): void {
         if (this.onDisposed) this.onDisposed();
         this._nativeExample.delete();
     }
@@ -104,59 +116,47 @@ export class CarlExample {
  * Call `dispose()` when done to free the underlying WASM allocation.
  * Set `onDisposed` to be notified when disposal occurs.
  */
-export class CarlDefinition {
-    _nativeDefinition;
-    onDisposed = undefined;
+export class CarlDefinition implements ICarlDefinition {
+    _nativeDefinition: Native;
+    onDisposed: (() => void) | undefined = undefined;
 
-    constructor(nativeDefinition) {
+    constructor(nativeDefinition: Native) {
         this._nativeDefinition = nativeDefinition;
     }
 
-    download() {
-        const bytes = this.serialize();
-        downloadSerializedBytes(bytes, "definition_" + (Date.now() / 1000) + ".bin");
-        bytes.delete();
+    serialize(): Uint8Array {
+        return nativeBytesToUint8Array(this._nativeDefinition.serialize());
     }
 
-    serialize() {
-        const bytes = this._nativeDefinition.serialize();
-        const jsBytes = new Uint8Array(bytes.size());
-        for (let idx = 0; idx < jsBytes.length; ++idx) {
-            jsBytes[idx] = bytes.get(idx);
-        }
-        bytes.delete();
-        return jsBytes;
-    }
-
-    getActionType() {
+    getActionType(): number {
         return this._nativeDefinition.getActionType();
     }
 
-    getExamplesCount() {
+    getExamplesCount(): number {
         return this._nativeDefinition.getExamplesCount();
     }
 
-    getCounterexamplesCount() {
+    getCounterexamplesCount(): number {
         return this._nativeDefinition.getCounterexamplesCount();
     }
 
-    getExample(idx) {
+    getExample(idx: number): CarlExample {
         return new CarlExample(this._nativeDefinition.getExample(idx));
     }
 
-    getCounterexample(idx) {
+    getCounterexample(idx: number): CarlExample {
         return new CarlExample(this._nativeDefinition.getCounterexample(idx));
     }
 
-    getDefaultSensitivity() {
+    getDefaultSensitivity(): number {
         return this._nativeDefinition.getDefaultSensitivity();
     }
 
-    setDefaultSensitivity(sensitivity) {
+    setDefaultSensitivity(sensitivity: number): void {
         this._nativeDefinition.setDefaultSensitivity(sensitivity);
     }
 
-    dispose() {
+    dispose(): void {
         if (this.onDisposed) this.onDisposed();
         this._nativeDefinition.delete();
     }
@@ -168,26 +168,26 @@ export class CarlDefinition {
  *
  * Call `dispose()` when done to free the underlying WASM allocation.
  */
-export class CarlRecognizer {
-    _nativeRecognizer;
+export class CarlRecognizer implements ICarlRecognizer {
+    private _nativeRecognizer: Native;
 
-    constructor(nativeRecognizer) {
+    constructor(nativeRecognizer: Native) {
         this._nativeRecognizer = nativeRecognizer;
     }
 
-    currentScore() {
+    currentScore(): number {
         return this._nativeRecognizer.currentScore();
     }
 
-    getSensitivity() {
+    getSensitivity(): number {
         return this._nativeRecognizer.getSensitivity();
-    };
+    }
 
-    setSensitivity(sensitivity) {
+    setSensitivity(sensitivity: number): void {
         this._nativeRecognizer.setSensitivity(sensitivity);
     }
 
-    dispose() {
+    dispose(): void {
         this._nativeRecognizer.delete();
     }
 }
@@ -201,20 +201,20 @@ export class CarlRecognizer {
  *
  * Instantiate via `CarlIntegration.CreateAsync()`.
  */
-export class CarlIntegration {
-    _carl;
-    _session;
-    _inProgressRecordings = new Map();
+export class CarlIntegration implements ICarl {
+    private _carl: Native;
+    private _session: Native;
+    private _inProgressRecordings = new Map<number, Native>();
 
-    _nextId = 1;
+    private _nextId = 1;
 
-    _actionTypes = [];
-    _idToActionType = new Map();
+    private _actionTypes: { name: string; typeId: number }[] = [];
+    private _idToActionType = new Map<number, Native>();
 
-    onExampleCreated = undefined;
-    onDefinitionCreated = undefined;
+    onExampleCreated: ((example: CarlExample, metadata?: object) => void) | undefined = undefined;
+    onDefinitionCreated: ((definition: CarlDefinition, metadata?: object) => void) | undefined = undefined;
 
-    constructor(carl) {
+    constructor(carl: Native) {
         this._carl = carl;
         this._session = new this._carl.Session();
 
@@ -257,18 +257,18 @@ export class CarlIntegration {
         this._actionTypes.push({ name: "Right Hand Shape", typeId: actionTypeId });
     }
 
-    static async CreateAsync() {
-        return new CarlIntegration(await initializeNativeIntegrationAsync());
+    static async CreateAsync(options?: CarlInitOptions): Promise<CarlIntegration> {
+        return new CarlIntegration(await initializeCarl(options));
     }
 
-    startRecording() {
+    startRecording(): number {
         const id = this._nextId;
         this._nextId += 1;
         this._inProgressRecordings.set(id, new this._carl.InProgressRecording());
         return id;
     }
 
-    stopRecording(id, metadata) {
+    stopRecording(id: number, metadata?: object): CarlExample {
         const ipr = this._inProgressRecordings.get(id);
         this._inProgressRecordings.delete(id);
 
@@ -288,11 +288,11 @@ export class CarlIntegration {
         return jsExample;
     }
 
-    getActionTypesMap() {
+    getActionTypesMap(): { name: string; typeId: number }[] {
         return this._actionTypes;
     }
 
-    draftDefinition(actionTypeId, examples, counterexamples) {
+    draftDefinition(actionTypeId: number, examples: CarlExample[], counterexamples: CarlExample[]): CarlDefinition {
         const definition = new this._carl.Definition(this._idToActionType.get(actionTypeId));
         examples.forEach(example => {
             definition.addExample(example._nativeExample);
@@ -303,26 +303,26 @@ export class CarlIntegration {
         return new CarlDefinition(definition);
     }
 
-    finalizeDefinition(definition, metadata) {
+    finalizeDefinition(definition: CarlDefinition, metadata?: object): void {
         if (this.onDefinitionCreated) this.onDefinitionCreated(definition, metadata);
     }
 
-    createRecognizer(definition) {
+    createRecognizer(definition: CarlDefinition): CarlRecognizer {
         return new CarlRecognizer(new this._carl.Recognizer(this._session, definition._nativeDefinition));
     }
 
-    createInputSample() {
+    createInputSample(): ICarlInputSample {
         return this._carl.createInputSample();
     }
 
-    handleInputSample(sample) {
+    handleInputSample(sample: ICarlInputSample): void {
         this._session.addInput(sample);
         this._inProgressRecordings.forEach(ipr => {
             ipr.addInput(sample);
         });
     }
 
-    tryDeserializeExample(jsBytes) {
+    tryDeserializeExample(jsBytes: Uint8Array): CarlExample | null {
         const nativeBytes = new this._carl.SerializedBytes();
         nativeBytes.resize(jsBytes.length);
         for (let idx = 0; idx < jsBytes.length; ++idx) {
@@ -333,7 +333,7 @@ export class CarlIntegration {
         return nativeExample ? new CarlExample(nativeExample) : null;
     }
 
-    tryDeserializeDefinition(jsBytes) {
+    tryDeserializeDefinition(jsBytes: Uint8Array): CarlDefinition | null {
         const nativeBytes = new this._carl.SerializedBytes();
         nativeBytes.resize(jsBytes.length);
         for (let idx = 0; idx < jsBytes.length; ++idx) {
@@ -344,7 +344,7 @@ export class CarlIntegration {
         return nativeDefinition ? new CarlDefinition(nativeDefinition) : null;
     }
 
-    testDefinition(definition, testExamples, sensitivity) {
+    testDefinition(definition: CarlDefinition, testExamples: CarlExample[], sensitivity: number): { time: number; score: number }[][] {
         return testExamples.map(example => {
             const tempSession = new this._carl.Session();
             tempSession.tickCallbacks();
@@ -353,9 +353,9 @@ export class CarlIntegration {
 
             const inspector = example.getRecordingInspector();
             const recStart = inspector.getStartTimestamp();
-            const recEnd   = inspector.getEndTimestamp();
+            const recEnd = inspector.getEndTimestamp();
             const STEPS = 60 * (recEnd - recStart);
-            const dataPoints = [];
+            const dataPoints: { time: number; score: number }[] = [];
 
             for (let i = 0; i <= STEPS; i++) {
                 const t = recStart + (i / STEPS) * (recEnd - recStart);
